@@ -93,6 +93,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
               errorBars: series.errorBars,
               projectionInitializer: widget.projectionInitializer,
               data: series.data,
+              tickLabelMargin: EdgeInsets.only(
+                left: axisPainter.leftMargin + axisPainter.tickPadding,
+                right: axisPainter.rightMargin + axisPainter.tickPadding,
+                top: axisPainter.topMargin + axisPainter.tickPadding,
+                bottom: axisPainter.bottomMargin + axisPainter.tickPadding,
+              ),
             ),
           ),
         ),

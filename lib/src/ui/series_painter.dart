@@ -59,9 +59,9 @@ class SeriesPainter extends CustomPainter {
         ..style = PaintingStyle.stroke;
     }
 
-    Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
+    Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right - 2,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
-    Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.bottom) & plotSize;
+    Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
 
     //print("${data.length} total sources");
     //print("Window size: $plotWindow");

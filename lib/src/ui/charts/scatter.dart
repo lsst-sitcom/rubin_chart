@@ -102,7 +102,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
           color: Colors.red,
           width: 2,
         ),
-        borderRadius: BorderRadius.circular(10),
+        //borderRadius: BorderRadius.circular(10),
       ),
       child: Stack(children: children),
     );

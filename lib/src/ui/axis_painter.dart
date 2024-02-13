@@ -12,6 +12,7 @@ class AxisPainter extends CustomPainter {
   final List<AxisTicks?> ticks;
   final ChartTheme theme;
   final Map<AxisLocation, List<TextPainter>?> _tickLabels = {};
+  final double tickPadding;
 
   /// The projection used for the series.
   ProjectionInitializer projectionInitializer;
@@ -26,6 +27,7 @@ class AxisPainter extends CustomPainter {
     required this.ticks,
     required this.projectionInitializer,
     required this.theme,
+    this.tickPadding = 10,
   }) {
     leftMargin = 0;
     rightMargin = 0;
@@ -67,12 +69,14 @@ class AxisPainter extends CustomPainter {
       Canvas canvas, Size size, double tick, AxisLocation location, Projection projection, Paint paint) {
     if (location == AxisLocation.left) {
       double y = projection.yTransform.map(tick);
-      canvas.drawLine(
-          Offset(leftMargin, topMargin + y), Offset(leftMargin + theme.tickLength, topMargin + y), paint);
+      canvas.drawLine(Offset(leftMargin + tickPadding, topMargin + tickPadding + y),
+          Offset(leftMargin + tickPadding + theme.tickLength, topMargin + tickPadding + y), paint);
     } else if (location == AxisLocation.bottom) {
       double x = projection.xTransform.map(tick);
-      canvas.drawLine(Offset(leftMargin + x, topMargin + size.height),
-          Offset(leftMargin + x, topMargin + size.height - theme.tickLength), paint);
+      canvas.drawLine(
+          Offset(leftMargin + tickPadding + x, topMargin + tickPadding + size.height),
+          Offset(leftMargin + tickPadding + x, topMargin + tickPadding + size.height - theme.tickLength),
+          paint);
     }
   }
 
@@ -91,13 +95,15 @@ class AxisPainter extends CustomPainter {
 
       if (axis.location == AxisLocation.left) {
         double y = projection.yTransform.map(ticks.ticks[i]);
-        offset = Offset(0, y + topMargin - painter.height / 2);
+        offset = Offset(leftMargin - painter.width, y + topMargin + tickPadding - painter.height / 2);
       } else if (axis.location == AxisLocation.bottom) {
         double x = projection.xTransform.map(ticks.ticks[i]);
-        offset = Offset(x + leftMargin - painter.width / 2, topMargin + size.height);
+        offset = Offset(
+            x + leftMargin + tickPadding - painter.width / 2, topMargin + 2 * tickPadding + size.height);
       } else if (axis.location == AxisLocation.right) {
         double y = projection.yTransform.map(ticks.ticks[i]);
-        offset = Offset(leftMargin + size.width, y + topMargin - painter.height / 2);
+        offset = Offset(
+            leftMargin + 2 * tickPadding + size.width, y + topMargin + tickPadding - painter.height / 2);
       } else if (axis.location == AxisLocation.top) {
         double x = projection.xTransform.map(ticks.ticks[i]);
         offset = Offset(x + leftMargin - painter.width / 2, 0);
@@ -109,7 +115,8 @@ class AxisPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    Size plotSize = Size(size.width - leftMargin - rightMargin, size.height - topMargin - bottomMargin);
+    Size plotSize = Size(size.width - leftMargin - rightMargin - 2 * tickPadding,
+        size.height - topMargin - bottomMargin - 2 * tickPadding);
 
     Projection projection = projectionInitializer(
       axes: axes,
@@ -144,7 +151,7 @@ class AxisPainter extends CustomPainter {
         ..color = theme.frameColor!
         ..style = PaintingStyle.stroke
         ..strokeWidth = theme.frameLineThickness;
-      canvas.drawRect(Offset(leftMargin, topMargin) & plotSize, framePaint);
+      canvas.drawRect(Offset(leftMargin + tickPadding, topMargin + tickPadding) & plotSize, framePaint);
     }
   }
 

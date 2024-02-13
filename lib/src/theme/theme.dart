@@ -39,6 +39,7 @@ class ChartTheme {
   final double tickThickness;
   final double tickLength;
   final TextStyle? tickLabelStyle;
+  final TextStyle? axisLabelStyle;
   final Color? gridColor;
   final double gridLineThickness;
   final Color? frameColor;
@@ -57,6 +58,7 @@ class ChartTheme {
     this.tickThickness = 2,
     this.tickLength = 10,
     this.tickLabelStyle,
+    this.axisLabelStyle,
     this.gridColor = Colors.grey,
     this.gridLineThickness = 1,
     this.frameColor = Colors.black,
@@ -71,6 +73,7 @@ class ChartTheme {
     Color? tickColor,
     double? tickThickness,
     TextStyle? tickLabelStyle,
+    TextStyle? axisLabelStyle,
     Color? gridColor,
     double? gridLineThickness,
     Color? frameColor,
@@ -82,6 +85,7 @@ class ChartTheme {
       tickColor: tickColor ?? this.tickColor,
       tickThickness: tickThickness ?? this.tickThickness,
       tickLabelStyle: tickLabelStyle ?? this.tickLabelStyle,
+      axisLabelStyle: axisLabelStyle ?? this.axisLabelStyle,
       gridColor: gridColor ?? this.gridColor,
       gridLineThickness: gridLineThickness ?? this.gridLineThickness,
       frameColor: frameColor ?? this.frameColor,

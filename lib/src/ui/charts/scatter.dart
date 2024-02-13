@@ -15,6 +15,7 @@ class ScatterPlot extends StatefulWidget {
   final List<Series> seriesList;
   final Legend legend;
   final ProjectionInitializer projectionInitializer;
+  final List<ChartAxis>? axes;
 
   const ScatterPlot({
     Key? key,
@@ -22,6 +23,7 @@ class ScatterPlot extends StatefulWidget {
     this.theme = const ChartTheme(),
     this.legend = const Legend(),
     this.projectionInitializer = CartesianProjection.fromAxes,
+    this.axes,
   }) : super(key: key);
 
   @override
@@ -47,7 +49,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   @override
   void initState() {
     super.initState();
-    _axes.addAll(initializeAxes2D(seriesList: seriesList, theme: widget.theme));
+    if (widget.axes != null) {
+      _axes.addAll(widget.axes!);
+    } else {
+      _axes.addAll(initializeAxes2D(seriesList: seriesList, theme: widget.theme));
+    }
   }
 
   @override
@@ -61,9 +67,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
           painter: AxisPainter(
             axes: axes,
             ticks: axes.map((e) => e.ticks).toList(),
-            tickLabels: [],
             projectionInitializer: widget.projectionInitializer,
-            labelOffset: Offset.zero,
             theme: widget.theme,
           ),
         ),
@@ -93,13 +97,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       );
     }
     return Container(
-      /*decoration: BoxDecoration(
+      decoration: BoxDecoration(
         border: Border.all(
-          color: Colors.black,
+          color: Colors.red,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(10),
-      ),*/
+      ),
       child: Stack(children: children),
     );
   }

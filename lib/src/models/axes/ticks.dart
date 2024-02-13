@@ -1,61 +1,5 @@
 import "dart:math";
-import "package:flutter/widgets.dart";
-import "package:rubin_chart/src/models/series.dart";
 import "package:rubin_chart/src/utils/utils.dart";
-
-/// The location on the tick label where it attaches to the plot.
-/// For cartesian plots, ticks on the x-axis attach to [TickOrientation.topCenter]
-enum TickOrientation {
-  topLeft,
-  topCenter,
-  topRight,
-  centerLeft,
-  centerRight,
-  bottomLeft,
-  bottomCenter,
-  bottomRight,
-}
-
-/// A tick on an axis.
-class TickLabel {
-  /// The text of the tick label.
-  final String text;
-
-  /// The location on the tick label where it attaches to the plot.
-  final TickOrientation position;
-
-  /// The style of the tick label.
-  final TextStyle style;
-
-  /// The rotation of the tick label in radians relative to the x-axis.
-  final double rotation;
-
-  const TickLabel({
-    required this.text,
-    required this.position,
-    required this.style,
-    required this.rotation,
-  });
-}
-
-/// A widget that displays a [TickLabel].
-class TickLabelWidget extends StatelessWidget {
-  /// The tick label to display.
-  final TickLabel tickLabel;
-
-  const TickLabelWidget({super.key, required this.tickLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: tickLabel.rotation,
-      child: Text(
-        tickLabel.text,
-        style: tickLabel.style,
-      ),
-    );
-  }
-}
 
 /// A class for calculating nice numbers for ticks
 class NiceNumber {
@@ -205,32 +149,6 @@ NiceNumber _getStepSize<T extends num>(T min, T max, int minTicks, int maxTicks,
   return stepSize;
 }
 
-AxisTicks _ticksFromString(StringSeriesColumn column, int minTicks, int maxTicks, bool encloseBounds) {
-  List<double> ticks = column.uniqueValues.values.toList()..sort();
-  List<String> tickLabels = ticks.map((e) => column.doubleToString[e]!).toList();
-  return AxisTicks._(NiceNumber(0, 1, 1), ticks, Bounds(ticks.first, ticks.last), tickLabels);
-}
-
-AxisTicks _ticksFromDateTime(DateTimeSeriesColumn column, int minTicks, int maxTicks, bool encloseBounds) {
-  DateTime min = DateTime.fromMicrosecondsSinceEpoch(column.bounds.min.floor());
-  DateTime max = DateTime.fromMicrosecondsSinceEpoch(column.bounds.max.ceil());
-  Duration timeDifference = max.difference(min);
-  List<double> ticks = [];
-  List<String> tickLabels = [];
-
-  if (timeDifference < const Duration(microseconds: 1)) {
-    throw "Invalid time range, $timeDifference < 1 micro scecond";
-  } else if (timeDifference < const Duration(milliseconds: 1)) {
-    NiceNumber stepSize = _getStepSize(min.microsecond, max.microsecond, minTicks, maxTicks, encloseBounds);
-    int step = stepSize.value.toInt();
-    List<int> micros = _ticksFromStepSize(step, min.microsecond, max.microsecond, encloseBounds);
-    ticks = micros.map((e) => min.microsecondsSinceEpoch + e.toDouble()).toList();
-    tickLabels = micros.map((e) => DateTime.fromMicrosecondsSinceEpoch(e).toString()).toList();
-  } else if (timeDifference < Duration(minutes: minTicks)) {}
-
-  throw UnimplementedError();
-}
-
 /// A class for calculating ticks for an axis.
 class AxisTicks {
   /// The step size between ticks
@@ -280,20 +198,22 @@ class AxisTicks {
     return AxisTicks._(NiceNumber(0, 1, 1), ticks, Bounds(ticks.first, ticks.last), tickLabels);
   }
 
-  /// Generate tick marks for a range of numbers.
-  /// If [encloseBounds] is true then ticks will be added to the
-  /// each side so that the bounds are included in the ticks
-  /// (usually used for initialization).
-  /// Otherwise the ticks will be inside or equal to the bounds.
-  static AxisTicks fromColumn(SeriesColumn column, int minTicks, int maxTicks, bool encloseBounds) {
-    if (column is NumericalSeriesColumn) {
-      return _ticksFromNumerical(column, minTicks, maxTicks, encloseBounds);
-    } else if (column is StringSeriesColumn) {
-      return _ticksFromString(column, minTicks, maxTicks, encloseBounds);
-    } else if (column is DateTimeSeriesColumn) {
-      return _ticksFromDateTime(column, minTicks, maxTicks, encloseBounds);
-    }
-    throw "Unsupported column type";
+  static AxisTicks fromDateTime(DateTime min, DateTime max, int minTicks, int maxTicks, bool encloseBounds) {
+    Duration timeDifference = max.difference(min);
+    List<double> ticks = [];
+    List<String> tickLabels = [];
+
+    if (timeDifference < const Duration(microseconds: 1)) {
+      throw "Invalid time range, $timeDifference < 1 micro scecond";
+    } else if (timeDifference < const Duration(milliseconds: 1)) {
+      NiceNumber stepSize = _getStepSize(min.microsecond, max.microsecond, minTicks, maxTicks, encloseBounds);
+      int step = stepSize.value.toInt();
+      List<int> micros = _ticksFromStepSize(step, min.microsecond, max.microsecond, encloseBounds);
+      ticks = micros.map((e) => min.microsecondsSinceEpoch + e.toDouble()).toList();
+      tickLabels = micros.map((e) => DateTime.fromMicrosecondsSinceEpoch(e).toString()).toList();
+    } else if (timeDifference < Duration(minutes: minTicks)) {}
+
+    throw UnimplementedError();
   }
 
   /// The number of ticks.

@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
-typedef ProjectionInitializer = Projection<num> Function({
+typedef ProjectionInitializer = Projection Function({
   required List<ChartAxis> axes,
   required Size plotSize,
 });
@@ -79,7 +79,7 @@ class PixelTransform {
 /// non-cartesian, to cartesian x and y coordinates in axis unit coordinates.
 /// The additional [PixelTransform]s are used to convert from the axis coordinates
 /// to pixel coordinates.
-abstract class Projection<T> {
+abstract class Projection {
   /// Transform from cartesian x to plot x.
   final PixelTransform xTransform;
 
@@ -92,21 +92,23 @@ abstract class Projection<T> {
   });
 
   Offset project({
-    required List<T> coordinates,
+    required List<dynamic> data,
     required List<ChartAxis> axes,
   });
 
-  Offset map(List<T> coordinates);
+  Offset map(List<double> coordinates);
 }
 
 /// A 2D projection
-mixin Projection2D implements Projection<num> {
+mixin Projection2D implements Projection {
   @override
   Offset project({
-    required List<num> coordinates,
+    required List<dynamic> data,
     required List<ChartAxis> axes,
   }) {
-    assert(coordinates.length == 2, "Projection2D requires two coordinates, got ${coordinates.length}");
+    assert(data.length == 2, "Projection2D requires two coordinates, got ${data.length}");
+    assert(axes.length == 2, "Projection2D requires two axes, got ${axes.length}");
+    List<double> coordinates = [axes[0].toDouble(data[0]), axes[1].toDouble(data[1])];
     Offset projection = map(coordinates);
     double x = xTransform.map(projection.dx);
     double y = yTransform.map(projection.dy);
@@ -120,7 +122,7 @@ mixin Projection2D implements Projection<num> {
   }
 }
 
-class CartesianProjection extends Projection<num> with Projection2D {
+class CartesianProjection extends Projection with Projection2D {
   const CartesianProjection({
     required super.xTransform,
     required super.yTransform,
@@ -133,8 +135,8 @@ class CartesianProjection extends Projection<num> with Projection2D {
     assert(axes.length == 2, "CartesianProjection requires two axes, got ${axes.length}");
     ChartAxis xAxis = axes[0];
     ChartAxis yAxis = axes[1];
-    double? xInvertSize = xAxis.isInverted ? plotSize.width : null;
-    double? yInvertSize = yAxis.isInverted ? plotSize.height : null;
+    double? xInvertSize = xAxis.info.isInverted ? plotSize.width : null;
+    double? yInvertSize = yAxis.info.isInverted ? plotSize.height : null;
     return CartesianProjection(
       xTransform: PixelTransform.fromAxis(axis: xAxis, plotSize: plotSize.width, invertSize: xInvertSize),
       yTransform: PixelTransform.fromAxis(axis: yAxis, plotSize: plotSize.height, invertSize: yInvertSize),
@@ -142,7 +144,7 @@ class CartesianProjection extends Projection<num> with Projection2D {
   }
 }
 
-class Polar2DProjection extends Projection<num> with Projection2D {
+class Polar2DProjection extends Projection with Projection2D {
   const Polar2DProjection({
     required super.xTransform,
     required super.yTransform,

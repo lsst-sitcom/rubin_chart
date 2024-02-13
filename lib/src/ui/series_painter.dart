@@ -38,7 +38,7 @@ class SeriesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Calculate the projection used for all points in the series
-    Projection<num> projection = projectionInitializer(
+    Projection projection = projectionInitializer(
       axes: axes,
       plotSize: size,
     );
@@ -69,7 +69,7 @@ class SeriesPainter extends CustomPainter {
     int nDisplayed = 0;
 
     for (int i = 0; i < data.length; i++) {
-      Offset point = projection.project(coordinates: data.toCoordinates(i), axes: axes);
+      Offset point = projection.project(data: data.getRow(i), axes: axes);
       if (plotWindow.contains(point)) {
         marker.paint(canvas, paintFill, paintEdge, point);
         nDisplayed++;

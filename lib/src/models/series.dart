@@ -22,7 +22,7 @@ class DataConversionException implements Exception {
 
 /// A series that is displayed in a chart.
 @immutable
-class Series<T, U> {
+class Series<C, I> {
   /// Each chart has a unqiue ID for each series in the chart.
   final BigInt id;
 
@@ -40,10 +40,10 @@ class Series<T, U> {
   final int axesIndex;
 
   /// The data points in the series.
-  final SeriesData<T, U> data;
+  final SeriesData<C, I> data;
 
   /// The data ids of selected data points.
-  final List<U>? selectedDataPoints;
+  final List<I>? selectedDataPoints;
 
   Series(
       {required this.id,
@@ -61,7 +61,7 @@ class Series<T, U> {
     Marker? marker,
     ErrorBars? errorBars,
     int? axesIndex,
-    SeriesData? data,
+    SeriesData<C, I>? data,
   }) =>
       Series(
         id: id ?? this.id,
@@ -77,157 +77,9 @@ class Series<T, U> {
   @override
   String toString() => "Series<${name ?? id}>";
 
-  Bounds getBounds(T column) => data.columns[column]!.bounds;
-}
-
-/// A column of data in a [SeriesData] object.
-@immutable
-abstract class SeriesColumn<C, I, V> {
-  /// The identifier of the column in the [DataSeries].
-  final C column;
-
-  /// The data in the column (keys are unique ids).
-  final Map<I, V> data;
-
-  /// The type of data in the column.
-  final ColumnDataType dataType;
-
-  /// The bounds of the double projection of the data.
-  final Bounds bounds;
-
-  const SeriesColumn._(this.column, this.data, this.bounds, {required this.dataType});
-
-  /// The number of data points in the column.
   int get length => data.length;
 
-  double toDouble(int index);
-  V fromDouble(double x);
-  List<double> toDoubles();
-  List<V> fromDoubles(List<double> x);
-}
-
-class NumericalSeriesColumn<C, I> extends SeriesColumn<C, I, double> {
-  const NumericalSeriesColumn._(super.column, super.data, super.bounds)
-      : super._(dataType: ColumnDataType.number);
-
-  static NumericalSeriesColumn<C, I> fromData<C, I>({
-    required Map<I, double> data,
-    required C plotColumn,
-    List<I>? dataIds,
-  }) {
-    List<double> columnData = data.values.toList();
-    double min = columnData.reduce((current, next) => current < next ? current : next);
-    double max = columnData.reduce((current, next) => current > next ? current : next);
-    Bounds bounds = Bounds(min, max);
-    return NumericalSeriesColumn._(plotColumn, data, bounds);
-  }
-
-  @override
-  double toDouble(int index) => toDoubles()[index];
-
-  @override
-  double fromDouble(double x) => x;
-
-  @override
-  List<double> toDoubles() => data.values.toList();
-
-  @override
-  List<double> fromDoubles(List<double> x) => x;
-}
-
-/// Get a map of unique values to their numerical index.
-Map<String, double> _getUniqueValues(List<String> values) {
-  List<String> uniqueValues = [];
-  for (String value in values) {
-    if (!uniqueValues.contains(value)) {
-      uniqueValues.add(value);
-    }
-  }
-  uniqueValues.sort();
-  return uniqueValues.asMap().map((key, value) => MapEntry(value, key.toDouble()));
-}
-
-@immutable
-class StringSeriesColumn<C, I> extends SeriesColumn<C, I, String> {
-  /// Map strings to doubles
-  final Map<String, double> uniqueValues;
-  final Map<double, String> doubleToString;
-
-  const StringSeriesColumn._(super.column, super.data, super.bounds, this.uniqueValues, this.doubleToString)
-      : super._(dataType: ColumnDataType.string);
-
-  static StringSeriesColumn<C, I> fromData<C, I>({
-    required Map<I, String> data,
-    required C plotColumn,
-    List<I>? dataIds,
-  }) {
-    Map<String, double> uniqueValues = _getUniqueValues(data[plotColumn] as List<String>);
-    List<double> columnData = data.values.map((e) => uniqueValues[e]!).toList();
-    double min = columnData.reduce((current, next) => current < next ? current : next);
-    double max = columnData.reduce((current, next) => current > next ? current : next);
-    Bounds bounds = Bounds(min, max);
-    Map<double, String> doubleToString = uniqueValues.map((key, value) => MapEntry(value, key));
-    Map<I, String> dataIdsMap = {};
-    for (int i = 0; i < dataIds!.length; i++) {
-      dataIdsMap[dataIds[i]] = data[plotColumn]![i];
-    }
-    return StringSeriesColumn._(plotColumn, dataIdsMap, bounds, uniqueValues, doubleToString);
-  }
-
-  @override
-  double toDouble(int index) => uniqueValues[data.values.toList()[index]]!;
-
-  @override
-  String fromDouble(double x) {
-    String? value = doubleToString[x];
-    if (value == null) {
-      throw DataConversionException("Cannot convert $x to a string");
-    }
-    return value;
-  }
-
-  @override
-  List<double> toDoubles() => data.values.map((e) => uniqueValues[e]!).toList();
-
-  @override
-  List<String> fromDoubles(List<double> x) {
-    List<String> result = [];
-    for (double number in x) {
-      result.add(fromDouble(number));
-    }
-    return result;
-  }
-}
-
-@immutable
-class DateTimeSeriesColumn<C, I> extends SeriesColumn<C, I, DateTime> {
-  const DateTimeSeriesColumn._(super.column, super.data, super.bounds)
-      : super._(dataType: ColumnDataType.datetime);
-
-  static DateTimeSeriesColumn<C, I> fromData<C, I>({
-    required Map<I, DateTime> data,
-    required C plotColumn,
-    List<I>? dataIds,
-  }) {
-    List<double> columnData = data.values.map((e) => e.microsecondsSinceEpoch.toDouble()).toList();
-    double min = columnData.reduce((current, next) => current < next ? current : next);
-    double max = columnData.reduce((current, next) => current > next ? current : next);
-    Bounds bounds = Bounds(min, max);
-    return DateTimeSeriesColumn._(plotColumn, data, bounds);
-  }
-
-  @override
-  double toDouble(int index) => data.values.toList()[index].microsecondsSinceEpoch.toDouble();
-
-  @override
-  DateTime fromDouble(double x) => DateTime.fromMicrosecondsSinceEpoch(x.toInt());
-
-  @override
-  List<double> toDoubles() => data.values.map((e) => e.microsecondsSinceEpoch.toDouble()).toList();
-
-  @override
-  List<DateTime> fromDoubles(List<double> x) =>
-      x.map((e) => DateTime.fromMicrosecondsSinceEpoch(e.toInt())).toList();
+  int get dimension => data.dimension;
 }
 
 /// A collection of data points.
@@ -238,14 +90,13 @@ class DateTimeSeriesColumn<C, I> extends SeriesColumn<C, I, DateTime> {
 @immutable
 class SeriesData<C, I> {
   /// The columns that are plotted (in order of x, y, z, etc.)
-  final Map<C, SeriesColumn<C, I, dynamic>> columns;
-
+  final Map<C, Map<I, dynamic>> data;
   final List<C> plotColumns;
 
-  const SeriesData._(this.columns, this.plotColumns);
+  const SeriesData._(this.data, this.plotColumns);
 
   /// The number of data points in the series.
-  int get length => columns.values.first.length;
+  int get length => data.values.first.length;
 
   /// Create a [SeriesData] object from a list of data points.
   /// This is used to create the [SeriesData] instance with
@@ -259,6 +110,7 @@ class SeriesData<C, I> {
   }) {
     // Check that all of the columns are the same length.
     final int length = data[plotColumns[0]]!.length;
+
     if (!data.values.every((element) => element.length == length)) {
       throw DataConversionException("All columns must have the same length");
     }
@@ -271,35 +123,35 @@ class SeriesData<C, I> {
     // Find the unique string values in all columns of strings.
     // If the user initialized a column as dynamic, check the first
     // value to see if it is a string.
-    final Map<C, SeriesColumn<C, I, dynamic>> dataColumns = {};
+    final Map<C, Map<I, dynamic>> dataColumns = {};
+
     for (C plotColumn in data.keys) {
-      if (data[plotColumn] is List<String> ||
-          (data[plotColumn].runtimeType == List && data[plotColumn]![0] is String)) {
-        dataColumns[plotColumn] = StringSeriesColumn.fromData<C, I>(
-            data: data.cast<I, String>(), plotColumn: plotColumn, dataIds: dataIds);
-      } else if (data[plotColumn] is List<DateTime> ||
-          (data[plotColumn].runtimeType == List && data[plotColumn]![0] is DateTime)) {
-        dataColumns[plotColumn] = DateTimeSeriesColumn.fromData<C, I>(
-            data: data.cast<I, DateTime>(), plotColumn: plotColumn, dataIds: dataIds);
-      } else {
-        dataColumns[plotColumn] = NumericalSeriesColumn.fromData<C, I>(
-            data: data.cast<I, double>(), plotColumn: plotColumn, dataIds: dataIds);
+      Map<I, dynamic> column = {};
+      for (int i = 0; i < length; i++) {
+        column[dataIds[i]] = data[plotColumn]![i];
       }
+      dataColumns[plotColumn] = column;
     }
     return SeriesData<C, I>._(dataColumns, plotColumns);
   }
 
-  /// Calculate the numerical coordinate of a single data point.
-  /// This should return a [List] of length [dimension].
-  List<double> toCoordinates([int? index]) {
-    if (index == null) {}
-    List<double> result = [];
-    for (SeriesColumn plotColumn in columns.values) {
-      result.add(plotColumn.toDouble(index!));
+  /// Calculate the dimensionality of the data.
+  int get dimension => plotColumns.length;
+
+  List<dynamic> getRow(int index) {
+    List<dynamic> coordinates = [];
+    for (C column in plotColumns) {
+      coordinates.add(data[column]!.values.toList()[index]);
     }
-    return result;
+    return coordinates;
   }
 
-  /// Calculate the dimensionality of the data.
-  int get dimension => columns.length;
+  Bounds calculateBounds(C column) {
+    List<dynamic> values = data[column]!.values.toList();
+    if (values.first is num) {
+      return Bounds.fromList(values.map((e) => e as num).toList());
+    } else {
+      throw DataConversionException("Unable to calculate bounds for column $C");
+    }
+  }
 }

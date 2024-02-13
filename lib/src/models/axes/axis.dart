@@ -28,24 +28,29 @@ enum AxisDataType {
   datetTime,
 }
 
+@immutable
+class ChartAxisInfo {
+  final String label;
+  final Mapping mapping;
+  final bool isInverted;
+
+  const ChartAxisInfo({
+    required this.label,
+    this.isInverted = false,
+    this.mapping = const LinearMapping(),
+  });
+}
+
 /// Parameters needed to define an axis.
 @immutable
 abstract class ChartAxis<T> {
+  final ChartAxisInfo info;
+
   /// The orientation of the axis.
   final AxisLocation location;
 
-  /// Label of the axis in a chart.
-  final String label;
-
   /// The max/min bounds of the axis displayed in a chart.
   final Bounds bounds;
-
-  /// True if the displayed axis is inverted
-  final bool isInverted;
-
-  /// The mapping from the axis to the chart.
-  /// This is usually linear but can be log, exponential, etc.
-  final Mapping mapping;
 
   /// Tick marks for the axis.
   final AxisTicks ticks;
@@ -53,13 +58,11 @@ abstract class ChartAxis<T> {
   final AxisDataType dataType;
 
   const ChartAxis._({
-    required this.label,
+    required this.info,
     required this.bounds,
     required this.location,
     required this.ticks,
     required this.dataType,
-    this.isInverted = false,
-    this.mapping = const LinearMapping(),
   });
 
   double toDouble(T value);
@@ -69,24 +72,19 @@ abstract class ChartAxis<T> {
 @immutable
 class NumericalChartAxis extends ChartAxis<double> {
   const NumericalChartAxis._({
-    required super.label,
+    required super.info,
     required super.bounds,
     required super.location,
     required super.ticks,
-    super.isInverted,
-    super.mapping,
   }) : super._(
           dataType: AxisDataType.number,
         );
 
   static NumericalChartAxis fromData({
-    required String label,
+    required ChartAxisInfo axisInfo,
     required List<Bounds> data,
     required ChartTheme theme,
     required AxisLocation location,
-    bool isInverted = false,
-    mapping = const LinearMapping(),
-    bool boundsFixed = false,
   }) {
     double min = data[0].min.toDouble();
     double max = data[0].max.toDouble();
@@ -94,16 +92,15 @@ class NumericalChartAxis extends ChartAxis<double> {
       min = math.min(min, bounds.min.toDouble());
       max = math.max(max, bounds.max.toDouble());
     }
-    Bounds bounds = Bounds(min, max);
-    AxisTicks ticks = AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, true);
+    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, true);
+    min = math.min(min, ticks.bounds.min.toDouble());
+    max = math.max(max, ticks.bounds.max.toDouble());
 
     return NumericalChartAxis._(
-      label: label,
-      bounds: bounds,
+      bounds: Bounds(min, max),
       location: location,
       ticks: ticks,
-      isInverted: isInverted,
-      mapping: mapping,
+      info: axisInfo,
     );
   }
 
@@ -112,12 +109,10 @@ class NumericalChartAxis extends ChartAxis<double> {
     ChartTheme theme,
   ) =>
       fromData(
-        label: label,
+        axisInfo: info,
         data: [this.bounds, ...bounds],
         theme: theme,
         location: location,
-        isInverted: isInverted,
-        mapping: mapping,
       );
 
   @override
@@ -132,37 +127,30 @@ class StringChartAxis extends ChartAxis<String> {
   final List<String> uniqueValues;
 
   const StringChartAxis._({
-    required super.label,
+    required super.info,
     required super.bounds,
     required super.location,
     required super.ticks,
     required this.uniqueValues,
-    super.isInverted,
-    super.mapping,
   }) : super._(
           dataType: AxisDataType.string,
         );
 
-  static StringChartAxis fromData(
-    String label,
-    List<List<String>> data,
-    ChartTheme theme,
-    AxisLocation location, {
-    bool isInverted = false,
-    mapping = const LinearMapping(),
-    bool boundsFixed = false,
+  static StringChartAxis fromData({
+    required ChartAxisInfo axisInfo,
+    required List<List<String>> data,
+    required ChartTheme theme,
+    required AxisLocation location,
   }) {
     Bounds bounds = Bounds(0, data.length.toDouble() - 1);
     List<String> uniqueValues = LinkedHashSet<String>.from(data.expand((e) => e)).toList();
     AxisTicks ticks = AxisTicks.fromStrings(uniqueValues);
 
     return StringChartAxis._(
-      label: label,
+      info: axisInfo,
       bounds: bounds,
       location: location,
       ticks: ticks,
-      isInverted: isInverted,
-      mapping: mapping,
       uniqueValues: uniqueValues,
     );
   }
@@ -177,24 +165,19 @@ class StringChartAxis extends ChartAxis<String> {
 @immutable
 class DateTimeChartAxis extends ChartAxis<DateTime> {
   const DateTimeChartAxis._({
-    required super.label,
+    required super.info,
     required super.bounds,
     required super.location,
     required super.ticks,
-    super.isInverted,
-    super.mapping,
   }) : super._(
           dataType: AxisDataType.datetTime,
         );
 
   static DateTimeChartAxis fromData({
-    required String label,
+    required ChartAxisInfo axisInfo,
     required List<DateTime> data,
     required ChartTheme theme,
     required AxisLocation location,
-    bool isInverted = false,
-    mapping = const LinearMapping(),
-    bool boundsFixed = false,
   }) {
     DateTime min = data[0];
     DateTime max = data[0];
@@ -203,15 +186,13 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       max = max.isAfter(date) ? max : date;
     }
     Bounds bounds = Bounds(min.microsecondsSinceEpoch.toDouble(), max.microsecondsSinceEpoch.toDouble());
-    AxisTicks ticks = AxisTicks.fromDateTime(bounds, theme.minTicks, theme.maxTicks, true);
+    AxisTicks ticks = AxisTicks.fromDateTime(min, max, theme.minTicks, theme.maxTicks, true);
 
     return DateTimeChartAxis._(
-      label: label,
+      info: axisInfo,
       bounds: bounds,
       location: location,
       ticks: ticks,
-      isInverted: isInverted,
-      mapping: mapping,
     );
   }
 
@@ -225,8 +206,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
 List<ChartAxis> initializeAxes2D<C, I>({required List<Series> seriesList, required ChartTheme theme}) {
   List<ChartAxis?> axes = [null, null, null, null];
 
-  for (Series series in seriesList) {}
-
+  List<List<Series>?> axesSeries = [null, null, null, null];
   for (Series series in seriesList) {
     int xIndex = 0;
     int yIndex = 1;
@@ -239,46 +219,55 @@ List<ChartAxis> initializeAxes2D<C, I>({required List<Series> seriesList, requir
       yLocation = AxisLocation.top;
     }
 
-    Bounds xBounds = series.getBounds(series.data.columns[0]);
-    Bounds yBounds = series.getBounds(series.data.columns[1]);
-
-    if (axes[xIndex] == null) {
-      assert(axes[yIndex] == null, "UnexpectedError: Null y-axis for non-null x-axis.");
-      C xColumn = series.data.plotColumns[0];
-      C yColumn = series.data.plotColumns[1];
-
-      String xLabel = series.data.columns[xColumn]!.column.toString();
-      String yLabel = series.data.columns[yColumn]!.column.toString();
-      AxisTicks xTicks =
-          AxisTicks.fromColumn(series.data.columns[xColumn]!.column, theme.minTicks, theme.maxTicks, true);
-      AxisTicks yTicks =
-          AxisTicks.fromColumn(series.data.columns[yColumn]!.column, theme.minTicks, theme.maxTicks, true);
-
-      axes[xIndex] = ChartAxis(
-        label: xLabel,
-        bounds: xTicks.bounds,
-        location: xLocation,
-        ticks: xTicks,
-      );
-      axes[yIndex] = ChartAxis(
-        label: yLabel,
-        bounds: yTicks.bounds,
-        location: yLocation,
-        ticks: yTicks,
-      );
+    if (axesSeries[xIndex] == null) {
+      axesSeries[xIndex] = [series];
     } else {
-      Bounds newXBounds = Bounds(
-        math.min(xBounds.min, axes[xIndex]!.bounds.min),
-        math.max(xBounds.max, axes[xIndex]!.bounds.max),
-      );
-      Bounds newYBounds = Bounds(
-        math.min(yBounds.min, axes[yIndex]!.bounds.min),
-        math.max(yBounds.max, axes[yIndex]!.bounds.max),
-      );
-      axes[xIndex] = axes[xIndex]!.copyWith(bounds: newXBounds);
-      axes[yIndex] = axes[yIndex]!.copyWith(bounds: newYBounds);
+      axesSeries[xIndex]!.add(series);
+    }
+    if (axesSeries[yIndex] == null) {
+      axesSeries[yIndex] = [series];
+    } else {
+      axesSeries[yIndex]!.add(series);
     }
   }
+
+  for (int i = 0; i < axes.length; i++) {
+    List<Series>? axisSeries = axesSeries[i];
+    if (axisSeries != null) {
+      AxisLocation location = i == 0
+          ? AxisLocation.bottom
+          : i == 1
+              ? AxisLocation.left
+              : i == 2
+                  ? AxisLocation.right
+                  : AxisLocation.top;
+      Series series = axisSeries[0];
+
+      ChartAxisInfo axisInfo = ChartAxisInfo(label: series.data.plotColumns[i]!.toString());
+      dynamic data = series.data.data[series.data.plotColumns[i]]!.values.toList()[0];
+
+      if (data is double) {
+        axes[i] = NumericalChartAxis.fromData(
+          axisInfo: axisInfo,
+          data: axisSeries.map((e) => e.data.calculateBounds(e.data.plotColumns[i])).toList(),
+          theme: theme,
+          location: location,
+        );
+      } else if (data is String) {
+        axes[i] = StringChartAxis.fromData(
+          axisInfo: axisInfo,
+          data: axisSeries
+              .map((e) => e.data.data[series.data.plotColumns[i]]!.values.map((e) => e.toString()).toList())
+              .toList(),
+          theme: theme,
+          location: i.isEven ? AxisLocation.bottom : AxisLocation.left,
+        );
+      } else if (data is DateTime) {
+        throw UnimplementedError("DataTime data is not yet supported.");
+      }
+    }
+  }
+
   if (axes[2] == null && axes[3] == null) {
     axes = axes.sublist(0, 2);
   } else if (axes[2] == null || axes[3] == null) {

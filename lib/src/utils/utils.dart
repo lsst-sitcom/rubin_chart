@@ -132,6 +132,16 @@ class Bounds {
   /// Range of the bounded data.
   num get range => max - min;
 
+  static Bounds fromList(List<num> data) {
+    num min = data[0];
+    num max = data[0];
+    for (num x in data) {
+      min = math.min(min, x);
+      max = math.max(max, x);
+    }
+    return Bounds(min, max);
+  }
+
   @override
   String toString() => "Bounds<$min-$max>";
 }

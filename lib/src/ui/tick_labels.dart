@@ -1,17 +1,28 @@
 import 'package:flutter/widgets.dart';
-import 'package:rubin_chart/src/models/axes/ticks.dart';
 
-/// A label on a plot axis.
-class AxisLabel {
+/// The location on the tick label where it attaches to the plot.
+/// For cartesian plots, ticks on the x-axis attach to [TickOrientation.topCenter]
+enum TickOrientation {
+  topLeft,
+  topCenter,
+  topRight,
+  centerLeft,
+  centerRight,
+  bottomLeft,
+  bottomCenter,
+  bottomRight,
+}
+
+/// A tick label on a plot axis.
+class TickLabel {
   final String label;
   final TextPainter painter;
-  final Size size;
   final TickOrientation orientation;
   final double axisPosition;
 
-  AxisLabel(this.label, this.painter, this.size, this.orientation, this.axisPosition);
+  TickLabel(this.label, this.painter, this.orientation, this.axisPosition);
 
-  static AxisLabel fromText({
+  static TickLabel fromText({
     required String text,
     required TextStyle style,
     required TickOrientation orientation,
@@ -25,10 +36,12 @@ class AxisLabel {
       textDirection: textDirection,
     )..layout();
 
-    return AxisLabel(text, painter, painter.size, orientation, position);
+    return TickLabel(text, painter, orientation, position);
   }
 
-  void paint(Canvas canvas, Offset offset) {
+  Size get size => painter.size;
+
+  void paint(Canvas canvas, [Offset offset = Offset.zero]) {
     offset += Offset(size.width / 2, size.height / 2);
     if (orientation == TickOrientation.topLeft) {
       offset += Offset(-size.width / 2, -size.height / 2);
@@ -54,26 +67,28 @@ class AxisLabel {
 
   /// Rescale the label by a factor.
   /// This is usually done when labels are too large to fit between tick marks.
-  AxisLabel rescaled(double scaleFactor) => AxisLabel.fromText(
-      text: label,
-      style: painter.text!.style!.copyWith(fontSize: painter.text!.style!.fontSize! * scaleFactor),
-      orientation: orientation);
+  TickLabel rescaled(double scaleFactor) => TickLabel.fromText(
+        text: label,
+        style: painter.text!.style!.copyWith(fontSize: painter.text!.style!.fontSize! * scaleFactor),
+        orientation: orientation,
+        position: axisPosition,
+      );
 }
 
-class AxisLabelPainter extends CustomPainter {
-  final List<AxisLabel> labels;
+class TickLabelPainter extends CustomPainter {
+  final List<TickLabel> labels;
 
-  const AxisLabelPainter({required this.labels});
+  const TickLabelPainter({required this.labels});
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (AxisLabel label in labels) {
+    for (TickLabel label in labels) {
       label.paint(canvas);
     }
   }
 
   @override
-  bool shouldRepaint(AxisLabelPainter oldDelegate) {
+  bool shouldRepaint(TickLabelPainter oldDelegate) {
     return labels != oldDelegate.labels;
   }
 }

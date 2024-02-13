@@ -57,16 +57,23 @@ abstract class ChartAxis<T> {
 
   final AxisDataType dataType;
 
+  final ChartTheme theme;
+
   const ChartAxis._({
     required this.info,
     required this.bounds,
     required this.location,
     required this.ticks,
     required this.dataType,
+    required this.theme,
   });
 
   double toDouble(T value);
   T fromDouble(double value);
+
+  ChartAxis translated(double delta);
+
+  ChartAxis scaled(double scale);
 }
 
 @immutable
@@ -76,6 +83,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     required super.bounds,
     required super.location,
     required super.ticks,
+    required super.theme,
   }) : super._(
           dataType: AxisDataType.number,
         );
@@ -97,11 +105,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     max = math.max(max, ticks.bounds.max.toDouble());
 
     return NumericalChartAxis._(
-      bounds: Bounds(min, max),
-      location: location,
-      ticks: ticks,
-      info: axisInfo,
-    );
+        bounds: Bounds(min, max), location: location, ticks: ticks, info: axisInfo, theme: theme);
   }
 
   NumericalChartAxis addData(
@@ -120,6 +124,31 @@ class NumericalChartAxis extends ChartAxis<double> {
 
   @override
   double fromDouble(double value) => value;
+
+  @override
+  NumericalChartAxis translated(double delta) {
+    double min = bounds.min + delta;
+    double max = bounds.max + delta;
+    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
+    return NumericalChartAxis._(
+        info: info, bounds: Bounds(min, max), location: location, ticks: ticks, theme: theme);
+  }
+
+  @override
+  NumericalChartAxis scaled(double scale) {
+    double min = bounds.min.toDouble();
+    double max = bounds.max.toDouble();
+    double midpoint = (min + max) / 2;
+    double range = max - min;
+    double delta = range / scale / 2;
+
+    min = midpoint - delta;
+    max = midpoint + delta;
+
+    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
+    return NumericalChartAxis._(
+        info: info, bounds: Bounds(min, max), location: location, ticks: ticks, theme: theme);
+  }
 }
 
 @immutable
@@ -132,6 +161,7 @@ class StringChartAxis extends ChartAxis<String> {
     required super.location,
     required super.ticks,
     required this.uniqueValues,
+    required super.theme,
   }) : super._(
           dataType: AxisDataType.string,
         );
@@ -152,6 +182,7 @@ class StringChartAxis extends ChartAxis<String> {
       location: location,
       ticks: ticks,
       uniqueValues: uniqueValues,
+      theme: theme,
     );
   }
 
@@ -160,6 +191,41 @@ class StringChartAxis extends ChartAxis<String> {
 
   @override
   String fromDouble(double value) => uniqueValues[value.toInt()];
+
+  @override
+  StringChartAxis translated(double delta) {
+    double min = bounds.min + delta;
+    double max = bounds.max + delta;
+    return StringChartAxis._(
+      info: info,
+      bounds: Bounds(min, max),
+      location: location,
+      ticks: ticks,
+      uniqueValues: uniqueValues,
+      theme: theme,
+    );
+  }
+
+  @override
+  StringChartAxis scaled(double scale) {
+    double min = bounds.min.toDouble();
+    double max = bounds.max.toDouble();
+    double midpoint = (min + max) / 2;
+    double range = max - min;
+    double delta = range / scale / 2;
+
+    min = midpoint - delta;
+    max = midpoint + delta;
+
+    return StringChartAxis._(
+      info: info,
+      bounds: bounds,
+      location: location,
+      ticks: ticks,
+      uniqueValues: uniqueValues,
+      theme: theme,
+    );
+  }
 }
 
 @immutable
@@ -169,6 +235,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     required super.bounds,
     required super.location,
     required super.ticks,
+    required super.theme,
   }) : super._(
           dataType: AxisDataType.datetTime,
         );
@@ -193,6 +260,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       bounds: bounds,
       location: location,
       ticks: ticks,
+      theme: theme,
     );
   }
 
@@ -201,6 +269,16 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
 
   @override
   DateTime fromDouble(double value) => DateTime.fromMillisecondsSinceEpoch(value.toInt());
+
+  @override
+  DateTimeChartAxis translated(double delta) {
+    throw UnimplementedError();
+  }
+
+  @override
+  NumericalChartAxis scaled(double scale) {
+    throw UnimplementedError();
+  }
 }
 
 List<ChartAxis> initializeAxes2D<C, I>({required List<Series> seriesList, required ChartTheme theme}) {
@@ -210,13 +288,9 @@ List<ChartAxis> initializeAxes2D<C, I>({required List<Series> seriesList, requir
   for (Series series in seriesList) {
     int xIndex = 0;
     int yIndex = 1;
-    AxisLocation xLocation = AxisLocation.bottom;
-    AxisLocation yLocation = AxisLocation.left;
     if (series.axesIndex == 1) {
       xIndex = 2;
       yIndex = 3;
-      xLocation = AxisLocation.right;
-      yLocation = AxisLocation.top;
     }
 
     if (axesSeries[xIndex] == null) {

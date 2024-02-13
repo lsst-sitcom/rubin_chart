@@ -63,8 +63,8 @@ class SeriesPainter extends CustomPainter {
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.bottom) & plotSize;
 
-    print("${data.length} total sources");
-    print("Window size: $plotWindow");
+    //print("${data.length} total sources");
+    //print("Window size: $plotWindow");
 
     int nDisplayed = 0;
 
@@ -77,7 +77,7 @@ class SeriesPainter extends CustomPainter {
       }
     }
 
-    print("Plotted $nDisplayed");
+    //print("Plotted $nDisplayed");
   }
 
   @override

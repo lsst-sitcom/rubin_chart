@@ -113,12 +113,14 @@ class AxisPainter extends CustomPainter {
     }
   }
 
+  Projection? projection;
+
   @override
   void paint(Canvas canvas, Size size) {
     Size plotSize = Size(size.width - leftMargin - rightMargin - 2 * tickPadding,
         size.height - topMargin - bottomMargin - 2 * tickPadding);
 
-    Projection projection = projectionInitializer(
+    projection = projectionInitializer(
       axes: axes,
       plotSize: plotSize,
     );
@@ -136,9 +138,9 @@ class AxisPainter extends CustomPainter {
         AxisTicks? ticks = this.ticks[i];
         if (ticks != null) {
           for (double tick in ticks.ticks) {
-            _drawTick(canvas, plotSize, tick, axis.location, projection, tickPaint);
+            _drawTick(canvas, plotSize, tick, axis.location, projection!, tickPaint);
           }
-          _drawAxisTickLabels(canvas, plotSize, i, projection);
+          _drawAxisTickLabels(canvas, plotSize, i, projection!);
         }
       }
     }
@@ -157,6 +159,7 @@ class AxisPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(AxisPainter oldDelegate) {
-    return oldDelegate.axes != axes;
+    return true;
+    //return oldDelegate.axes != axes;
   }
 }

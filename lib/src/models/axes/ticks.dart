@@ -122,7 +122,7 @@ List<T> _ticksFromStepSize<T extends num>(T step, T min, T max, bool encloseBoun
     }
   } else {
     // Make the ticks inside the bounds
-    while (val < max) {
+    while (val <= max) {
       ticks.add(val);
       val = (val + step) as T;
     }

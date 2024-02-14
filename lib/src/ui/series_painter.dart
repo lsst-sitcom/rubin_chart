@@ -73,9 +73,9 @@ class SeriesPainter extends CustomPainter {
     Marker selectionMarker = marker.copyWith(size: marker.size * 2, edgeColor: Colors.black);
 
     for (int i = 0; i < data.length; i++) {
-      Offset point = projection.project(data: data.getRow(i), axes: axes);
+      Offset point = projection.project(data: data.getRow(i), axes: axes) + offset;
       if (plotWindow.contains(point)) {
-        marker.paint(canvas, paintFill, paintEdge, point + offset);
+        marker.paint(canvas, paintFill, paintEdge, point);
         //nDisplayed++;
         // TODO: draw error bars
       }
@@ -84,9 +84,9 @@ class SeriesPainter extends CustomPainter {
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         int index = data.data.values.first.keys.toList().indexOf(dataId);
-        Offset point = projection.project(data: data.getRow(index), axes: axes);
+        Offset point = projection.project(data: data.getRow(index), axes: axes) + offset;
         if (plotWindow.contains(point)) {
-          selectionMarker.paint(canvas, Paint()..color = Colors.black, paintEdge, point + offset);
+          selectionMarker.paint(canvas, Paint()..color = Colors.black, paintEdge, point);
           //nDisplayed++;
         }
       }

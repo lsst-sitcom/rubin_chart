@@ -45,6 +45,8 @@ class ChartTheme {
   final Color? frameColor;
   final double frameLineThickness;
   final List<Color> colorCycle;
+  final int quadTreeDepth;
+  final int quadTreeCapacity;
 
   /// Minimum number of ticks to display on an axis.
   /// This is up to user prefernce, but there should be
@@ -66,6 +68,8 @@ class ChartTheme {
     this.colorCycle = _defaultColorCycle,
     this.minTicks = 7,
     this.maxTicks = 15,
+    this.quadTreeDepth = 10,
+    this.quadTreeCapacity = 10,
   });
 
   ChartTheme copyWith({

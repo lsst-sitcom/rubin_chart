@@ -8,7 +8,10 @@ class QuadTreeElement<T> {
   /// The location of the item in the [QuadTree].
   final Offset center;
 
-  QuadTreeElement(this.element, this.center);
+  QuadTreeElement({required this.element, required this.center});
+
+  @override
+  String toString() => "QuadTreeElement($element, $center)";
 }
 
 /// A 2D space partitioning data structure.
@@ -43,7 +46,7 @@ class QuadTree<T> extends Rect {
   QuadTree({
     required this.maxDepth,
     required this.capacity,
-    required this.depth,
+    this.depth = 0,
     required this.contents,
     required this.children,
     required double left,
@@ -139,7 +142,7 @@ class QuadTree<T> extends Rect {
     if (children.isEmpty) {
       if (contents.length < capacity || depth >= maxDepth) {
         // Add the item to the contents of this node.
-        contents.add(QuadTreeElement(item, location));
+        contents.add(QuadTreeElement(element: item, center: location));
         return true;
       }
       // Split this
@@ -203,16 +206,17 @@ class QuadTree<T> extends Rect {
   QuadTreeElement<T>? _nearestNeighbor(Offset location, {QuadTreeElement<T>? result}) {
     // If the current node contains elements, find the closest one.
     if (contents.isNotEmpty) {
+      //print("contents is not empty at depth $depth");
       for (QuadTreeElement<T> element in contents) {
         if (result == null ||
             (element.center - location).distanceSquared < (result.center - location).distanceSquared) {
           result = element;
         }
       }
-      return result;
     }
 
     if (children.isNotEmpty) {
+      //print("children is not empty at depth $depth");
       // First traverse the children that contain the location and find the nearest neighbor.
       int childIndex = -1;
       for (int i = 0; i < 4; i++) {
@@ -225,7 +229,7 @@ class QuadTree<T> extends Rect {
       }
 
       // Search all of the other children the are closer than the current nearest neighbor.
-      for (int i = 0; i <= 4; i++) {
+      for (int i = 0; i < 4; i++) {
         if (i != childIndex) {
           QuadTree<T> child = children[i];
           Offset intersection = child._nearestEdgeLocation(location);
@@ -241,4 +245,19 @@ class QuadTree<T> extends Rect {
 
   /// Return the item in the tree that is the closest to [location].
   QuadTreeElement<T>? queryPoint(Offset location) => _nearestNeighbor(location);
+
+  void _printTreeStructure(int depth) {
+    print("Depth: $depth, Contents: ${contents.length}");
+    for (QuadTree<T> child in children) {
+      child._printTreeStructure(depth + 1);
+    }
+  }
+
+  void printTreeStructure() {
+    print("Top level, Contents: ${contents.length}");
+    for (int i = 0; i < children.length; i++) {
+      print("child $i");
+      children[i]._printTreeStructure(1);
+    }
+  }
 }

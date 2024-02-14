@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -54,7 +56,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   /// Quadtree for the top right axes.
   late QuadTree _quadTreeTR;
 
+  /// The selected (and highlighted) data points.
   List<dynamic> selectedDataPoints = [];
+
+  bool get dragging => dragStart != null;
+  Offset? dragStart;
+  Offset? dragEnd;
 
   @override
   void initState() {
@@ -168,20 +175,48 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       );
     }
 
+    // Add the selection box if the user is dragging
+    if (dragging) {
+      children.add(Positioned(
+        left: math.min(dragStart!.dx, dragEnd!.dx),
+        top: math.min(dragStart!.dy, dragEnd!.dy),
+        child: Container(
+          width: (dragEnd!.dx - dragStart!.dx).abs(),
+          height: (dragEnd!.dy - dragStart!.dy).abs(),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Colors.blue,
+              width: 2,
+            ),
+          ),
+        ),
+      ));
+    }
+
     return Listener(
         onPointerSignal: (PointerSignalEvent event) {
           if (event is PointerScrollEvent) {
             _onPan(event, axisPainter);
           } else if (event is PointerScaleEvent) {
             _onScale(event, axisPainter);
-          } else {
-            print("Event is ${event.runtimeType}");
           }
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapUp: (TapUpDetails details) {
             _onTapUp(details, axisPainter);
+          },
+          onPanStart: (DragStartDetails details) {
+            _onDragStart(details, axisPainter);
+          },
+          onPanUpdate: (DragUpdateDetails details) {
+            _onDragUpdate(details, axisPainter);
+          },
+          onPanEnd: (DragEndDetails details) {
+            _onDragEnd(details, axisPainter);
+          },
+          onPanCancel: () {
+            _onDragCancel();
           },
           child: Container(
             decoration: BoxDecoration(
@@ -194,6 +229,52 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
             child: Stack(children: children),
           ),
         ));
+  }
+
+  void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
+    if (axisPainter.projection == null) {
+      return;
+    }
+    dragStart = details.localPosition;
+    dragEnd = details.localPosition;
+    selectedDataPoints.clear();
+    setState(() {});
+  }
+
+  void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
+    if (axisPainter.projection == null) {
+      return;
+    }
+    dragEnd = details.localPosition;
+
+    // Select points that fit inside the selection box
+    Projection projection = axisPainter.projection!;
+    Offset projectedStart = Offset(
+      projection.xTransform.inverse(dragStart!.dx - axisPainter.leftMargin - axisPainter.tickPadding),
+      projection.yTransform.inverse(dragStart!.dy - axisPainter.topMargin - axisPainter.tickPadding),
+    );
+    Offset projectedEnd = Offset(
+      projection.xTransform.inverse(dragEnd!.dx - axisPainter.leftMargin - axisPainter.tickPadding),
+      projection.yTransform.inverse(dragEnd!.dy - axisPainter.topMargin - axisPainter.tickPadding),
+    );
+
+    List<dynamic> newSelectedDataPoints = _quadTreeBL.queryRect(
+      Rect.fromPoints(projectedStart, projectedEnd),
+    );
+
+    selectedDataPoints = newSelectedDataPoints;
+
+    setState(() {});
+  }
+
+  void _onDragEnd(DragEndDetails details, AxisPainter axisPainter) => _cleanDrag();
+
+  void _onDragCancel() => _cleanDrag();
+
+  void _cleanDrag() {
+    dragStart = null;
+    dragEnd = null;
+    setState(() {});
   }
 
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {

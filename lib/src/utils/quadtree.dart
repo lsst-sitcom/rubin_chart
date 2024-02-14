@@ -114,6 +114,7 @@ class QuadTree<T> extends Rect {
     for (QuadTreeElement<T> element in contents) {
       _insert(element.element, element.center);
     }
+    contents.clear();
   }
 
   /// Insert an item into the appropriate child node.
@@ -233,8 +234,12 @@ class QuadTree<T> extends Rect {
         if (i != childIndex) {
           QuadTree<T> child = children[i];
           Offset intersection = child._nearestEdgeLocation(location);
-          if ((intersection - location).distanceSquared < (result!.center - location).distanceSquared) {
+          if (result == null) {
             result = child._nearestNeighbor(location, result: result);
+          } else {
+            if ((intersection - location).distanceSquared < (result.center - location).distanceSquared) {
+              result = child._nearestNeighbor(location, result: result);
+            }
           }
         }
       }

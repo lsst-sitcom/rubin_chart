@@ -293,7 +293,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     if (nearest == null) {
       selectedDataPoints = [];
     } else {
-      selectedDataPoints = [nearest.element];
+      Offset diff = (nearest.center - Offset(x, y));
+      double dx = projection.xTransform.scale * diff.dx;
+      double dy = projection.yTransform.scale * diff.dy;
+      if (dx * dx + dy * dy > 100) {
+        selectedDataPoints = [];
+      } else {
+        selectedDataPoints = [nearest.element];
+      }
     }
     setState(() {});
   }

@@ -228,19 +228,21 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     }
     dragEnd = details.localPosition;
 
-    // Select points that fit inside the selection box
-    Projection projection = axisPainter.projections!.values.first;
-    Offset projectedStart = Offset(
-      projection.xTransform.inverse(dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding),
-      projection.yTransform.inverse(dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding),
-    );
-    Offset projectedEnd = Offset(
-      projection.xTransform.inverse(dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding),
-      projection.yTransform.inverse(dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding),
-    );
-
     selectedDataPoints = [];
-    for (QuadTree<I> quadTree in _quadTrees.values) {
+    for (MapEntry<A, QuadTree<I>> entry in _quadTrees.entries) {
+      A axesId = entry.key;
+      QuadTree<I> quadTree = entry.value;
+      // Select points that fit inside the selection box
+      Projection projection = axisPainter.projections![axesId]!;
+      Offset projectedStart = Offset(
+        projection.xTransform.inverse(dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding),
+        projection.yTransform.inverse(dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding),
+      );
+      Offset projectedEnd = Offset(
+        projection.xTransform.inverse(dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding),
+        projection.yTransform.inverse(dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding),
+      );
+
       selectedDataPoints.addAll(quadTree.queryRect(
         Rect.fromPoints(projectedStart, projectedEnd),
       ));
@@ -264,16 +266,26 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       return;
     }
 
-    Projection projection = axisPainter.projections!.values.first;
-    double x = projection.xTransform
-        .inverse(details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding);
-    double y = projection.yTransform
-        .inverse(details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding);
-
     QuadTreeElement? nearest;
-    for (QuadTree quadTree in _quadTrees.values) {
+    for (MapEntry<A, QuadTree<I>> entry in _quadTrees.entries) {
+      A axesId = entry.key;
+      QuadTree<I> quadTree = entry.value;
+      // Select nearest point in the quadtree.
+      Projection projection = axisPainter.projections![axesId]!;
+      double x = projection.xTransform
+          .inverse(details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding);
+      double y = projection.yTransform
+          .inverse(details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding);
+
       QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y));
       if (localNearest != null) {
+        Offset diff = (localNearest.center - Offset(x, y));
+        double dx = projection.xTransform.scale * diff.dx;
+        double dy = projection.yTransform.scale * diff.dy;
+        // Check that the nearest point is inside the selection radius.
+        if (dx * dx + dy * dy > 100) {
+          continue;
+        }
         if (nearest != null) {
           if ((localNearest.center - Offset(x, y)).distanceSquared <
               (nearest.center - Offset(x, y)).distanceSquared) {
@@ -288,14 +300,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     if (nearest == null) {
       selectedDataPoints = [];
     } else {
-      Offset diff = (nearest.center - Offset(x, y));
-      double dx = projection.xTransform.scale * diff.dx;
-      double dy = projection.yTransform.scale * diff.dy;
-      if (dx * dx + dy * dy > 100) {
-        selectedDataPoints = [];
-      } else {
-        selectedDataPoints = [nearest.element];
-      }
+      selectedDataPoints = [nearest.element];
     }
     setState(() {});
   }
@@ -320,16 +325,19 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       return;
     }
 
-    double dx = event.scrollDelta.dx;
-    double dy = event.scrollDelta.dy;
+    for (MapEntry<A, ChartAxes> entry in _axes.entries) {
+      A axesId = entry.key;
+      ChartAxes axes = entry.value;
+      double dx = event.scrollDelta.dx;
+      double dy = event.scrollDelta.dy;
 
-    Projection projection = axisPainter.projections!.values.first;
-    dx /= projection.xTransform.scale;
-    dy /= projection.yTransform.scale;
+      Projection projection = axisPainter.projections![axesId]!;
+      dx /= projection.xTransform.scale;
+      dy /= projection.yTransform.scale;
 
-    for (ChartAxes axes in _axes.values) {
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
+
         if (axis.info.location == AxisLocation.bottom || axis.info.location == AxisLocation.top) {
           axis.translate(dx);
         } else {

@@ -239,9 +239,9 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       projection.yTransform.inverse(dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding),
     );
 
-    List<dynamic> newSelectedDataPoints = [];
-    for (QuadTree quadTree in _quadTrees.values) {
-      newSelectedDataPoints.addAll(quadTree.queryRect(
+    selectedDataPoints = [];
+    for (QuadTree<I> quadTree in _quadTrees.values) {
+      selectedDataPoints.addAll(quadTree.queryRect(
         Rect.fromPoints(projectedStart, projectedEnd),
       ));
     }

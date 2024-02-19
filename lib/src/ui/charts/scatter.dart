@@ -87,7 +87,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       );
     }
 
-    // Populate the quatrees
+    // Populate the quadtrees
     for (Series series in widget.seriesList) {
       ChartAxes axes = _axes[series.axesId]!;
       AxisId axisId0 = axes.axes.keys.first;
@@ -95,10 +95,12 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
 
       ChartAxis axis0 = axes[axisId0];
       ChartAxis axis1 = axes[axisId1];
+      dynamic columnX = series.data.data[series.data.plotColumns[axisId0]]!.values.toList();
+      dynamic columnY = series.data.data[series.data.plotColumns[axisId1]]!.values.toList();
 
       for (int i = 0; i < series.data.length; i++) {
-        dynamic seriesX = series.data.data[series.data.plotColumns[axisId0]]!.values.toList()[i];
-        dynamic seriesY = series.data.data[series.data.plotColumns[axisId1]]!.values.toList()[i];
+        dynamic seriesX = columnX[i];
+        dynamic seriesY = columnY[i];
         double x = axis0.toDouble(seriesX);
         double y = axis1.toDouble(seriesY);
 
@@ -200,13 +202,13 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
             _onDragCancel();
           },
           child: Container(
-            decoration: BoxDecoration(
+            /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,
                 width: 2,
               ),
               //borderRadius: BorderRadius.circular(10),
-            ),
+            ),*/
             child: Stack(children: children),
           ),
         ));

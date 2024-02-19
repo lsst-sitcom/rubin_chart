@@ -79,7 +79,7 @@ class ChartLayoutDelegate extends MultiChildLayoutDelegate {
 
     for (ChartComponent component in ChartComponent.values) {
       if (hasChild(component) && component != ChartComponent.chart) {
-        childSizes[component] = layoutChild(component, BoxConstraints.tight(size));
+        childSizes[component] = layoutChild(component, BoxConstraints.loose(size));
       }
     }
 

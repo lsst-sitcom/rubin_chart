@@ -90,7 +90,8 @@ class AxisId<T> {
   /// Create an [AxisId] from a location and (optional) chart ID.
   factory AxisId(AxisLocation location, [T? chartId]) {
     if (T == int || chartId == null) {
-      return AxisId._(location, 0 as T);
+      chartId ??= 0 as T;
+      return AxisId._(location, chartId as T);
     }
     return AxisId._(location, chartId);
   }
@@ -105,6 +106,9 @@ class AxisId<T> {
 
   @override
   int get hashCode => Object.hash(location, axesId);
+
+  @override
+  String toString() => "AxisId($location, $axesId)";
 }
 
 /// The orientation of a chart axis
@@ -449,6 +453,9 @@ class ChartAxes<T> {
     }
     throw AxisUpdateException("Axis location ${axisId.location} has not been implemented.");
   }
+
+  @override
+  String toString() => "ChartAxes($axes)";
 }
 
 /// Initialize a set of plot axes from a list of [Series],
@@ -506,27 +513,29 @@ ChartAxis initializeAxis<C, I>({
   throw AxisUpdateException("Data type not supported.");
 }
 
-Map<T, ChartAxes> initializeSimpleAxes<T>({
+Map<A, ChartAxes> initializeSimpleAxes<A>({
   required List<Series> seriesList,
   required ProjectionInitializer projectionInitializer,
   required ChartTheme theme,
-  required Map<AxisId<T>, ChartAxisInfo> axisInfo,
+  required Map<AxisId<A>, ChartAxisInfo> axisInfo,
 }) {
-  final Map<AxisId<T>, ChartAxis> axes = {};
-  for (MapEntry<AxisId<T>, ChartAxisInfo> entry in axisInfo.entries) {
-    AxisId<T> axisId = entry.key;
+  final Map<AxisId<A>, ChartAxis> axes = {};
+  for (MapEntry<AxisId<A>, ChartAxisInfo> entry in axisInfo.entries) {
+    AxisId<A> axisId = entry.key;
     Map<Series, AxisId> seriesForAxis = {};
     for (Series series in seriesList) {
-      seriesForAxis[series] = axisId;
+      if (series.data.plotColumns.containsKey(axisId)) {
+        seriesForAxis[series] = axisId;
+      }
     }
     if (seriesForAxis.isEmpty) {
       throw AxisUpdateException("Axis $axisId has no series linked to it.");
     }
     axes[axisId] = initializeAxis(allSeries: seriesForAxis, theme: theme, axisInfo: entry.value);
   }
-  final List<T> axesIds = axes.keys.map((e) => e.axesId).toList();
-  final Map<T, ChartAxes> result = {};
-  for (T axesId in axesIds) {
+  final List<A> axesIds = axes.keys.map((e) => e.axesId).toList();
+  final Map<A, ChartAxes> result = {};
+  for (A axesId in axesIds) {
     result[axesId] = ChartAxes(
       axes: Map.fromEntries(axes.entries.where((entry) => entry.key.axesId == axesId)),
       projection: projectionInitializer,

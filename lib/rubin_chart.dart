@@ -14,6 +14,7 @@ export 'src/theme/theme.dart';
 export 'src/ui/charts/bar.dart';
 export 'src/ui/charts/histogram.dart';
 export 'src/ui/charts/scatter.dart';
+export 'src/ui/charts/cartesian.dart';
 
 export 'src/ui/axis_painter.dart';
 export 'src/ui/chart.dart';

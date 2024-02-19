@@ -7,16 +7,13 @@ import 'package:rubin_chart/src/models/series.dart';
 /// Paint a 2D [Series] in a plot.
 class SeriesPainter extends CustomPainter {
   /// The axes of the plot, used to project the markers onto the plot.
-  final List<ChartAxis> axes;
+  final ChartAxes axes;
 
   /// The marker style used for the series.
   final Marker marker;
 
   /// The error bar style used for the series.
   final ErrorBars? errorBars;
-
-  /// The projection used for the series.
-  ProjectionInitializer projectionInitializer;
 
   /// The x coordinates of the data points.
   final SeriesData data;
@@ -30,7 +27,6 @@ class SeriesPainter extends CustomPainter {
     required this.axes,
     required this.marker,
     required this.errorBars,
-    required this.projectionInitializer,
     required this.data,
     this.tickLabelMargin = EdgeInsets.zero,
     this.selectedDataPoints = const [],
@@ -44,8 +40,8 @@ class SeriesPainter extends CustomPainter {
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    Projection projection = projectionInitializer(
-      axes: axes,
+    Projection projection = axes.projection(
+      axes: axes.axes.values.toList(),
       plotSize: plotSize,
     );
 
@@ -73,7 +69,7 @@ class SeriesPainter extends CustomPainter {
     Marker selectionMarker = marker.copyWith(size: marker.size * 2, edgeColor: Colors.black);
 
     for (int i = 0; i < data.length; i++) {
-      Offset point = projection.project(data: data.getRow(i), axes: axes) + offset;
+      Offset point = projection.project(data: data.getRow(i), axes: axes.axes.values.toList()) + offset;
       if (plotWindow.contains(point)) {
         marker.paint(canvas, paintFill, paintEdge, point);
         //nDisplayed++;
@@ -84,7 +80,7 @@ class SeriesPainter extends CustomPainter {
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         int index = data.data.values.first.keys.toList().indexOf(dataId);
-        Offset point = projection.project(data: data.getRow(index), axes: axes) + offset;
+        Offset point = projection.project(data: data.getRow(index), axes: axes.axes.values.toList()) + offset;
         if (plotWindow.contains(point)) {
           selectionMarker.paint(canvas, Paint()..color = Colors.black, paintEdge, point);
           //nDisplayed++;

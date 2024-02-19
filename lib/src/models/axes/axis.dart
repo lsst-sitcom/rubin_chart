@@ -3,10 +3,109 @@ import "dart:collection";
 
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/mapping.dart';
+import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
+
+/// An error occurred while creating or updating an axis.
+class AxisUpdateException implements Exception {
+  final String message;
+
+  AxisUpdateException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// Function to update an axis and rebuild a [State].
+typedef AxisUpdate = void Function({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info});
+
+/// Controller for a set of axes.
+/// This class is used to sync axes that may be linked
+/// in different charts.
+class AxisController {
+  late Bounds bounds;
+  late AxisTicks ticks;
+  late ChartAxisInfo info;
+
+  AxisController({
+    required this.bounds,
+    required this.ticks,
+    required this.info,
+  });
+
+  /// Observers list
+  final List<AxisUpdate> _observers = [];
+
+  /// Subscribe the observer.
+  /// It will also (optionally) update the other observers with the
+  /// properties of the new axis that was added.
+  void subscribe(AxisUpdate observer) {
+    _observers.add(observer);
+  }
+
+  /// Unsubscribe the observer.
+  void unsubscribe(AxisUpdate observer) {
+    _observers.remove(observer);
+  }
+
+  /// Notify the observers about the changes.
+  void _notifyObservers() {
+    for (AxisUpdate observer in _observers) {
+      observer(bounds: bounds, ticks: ticks, info: info);
+    }
+  }
+
+  /// Update the controller.
+  void update({
+    Bounds? bounds,
+    AxisTicks? ticks,
+    ChartAxisInfo? info,
+  }) {
+    if (bounds != null) {
+      this.bounds = bounds;
+    }
+    if (ticks != null) {
+      this.ticks = ticks;
+    }
+    if (info != null) {
+      this.info = info;
+    }
+    _notifyObservers();
+  }
+}
+
+/// An ID for a [ChartAxis] in a [ChartAxes].
+class AxisId<T> {
+  /// The location of the axis in a chart.
+  final AxisLocation location;
+
+  /// The id of the [ChartAxes] that contains this [ChartAxis].
+  final T axesId;
+
+  AxisId._(this.location, this.axesId);
+
+  /// Create an [AxisId] from a location and (optional) chart ID.
+  factory AxisId(AxisLocation location, [T? chartId]) {
+    if (T == int || chartId == null) {
+      return AxisId._(location, 0 as T);
+    }
+    return AxisId._(location, chartId);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is AxisId) {
+      return location == other.location && axesId == other.axesId;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => Object.hash(location, axesId);
+}
 
 /// The orientation of a chart axis
 enum AxisLocation {
@@ -33,57 +132,100 @@ class ChartAxisInfo {
   final String label;
   final Mapping mapping;
   final bool isInverted;
+  final AxisLocation location;
 
   const ChartAxisInfo({
     required this.label,
+    required this.location,
     this.isInverted = false,
     this.mapping = const LinearMapping(),
   });
 }
 
 /// Parameters needed to define an axis.
-@immutable
 abstract class ChartAxis<T> {
-  final ChartAxisInfo info;
-
-  /// The orientation of the axis.
-  final AxisLocation location;
+  ChartAxisInfo _info;
 
   /// The max/min bounds of the axis displayed in a chart.
-  final Bounds bounds;
+  Bounds _bounds;
 
   /// Tick marks for the axis.
-  final AxisTicks ticks;
+  AxisTicks _ticks;
 
   final AxisDataType dataType;
 
   final ChartTheme theme;
 
-  const ChartAxis._({
-    required this.info,
-    required this.bounds,
-    required this.location,
-    required this.ticks,
+  AxisController? controller;
+
+  /// Whether to show the ticks on the axis.
+  final bool showTicks;
+
+  /// Whether to show the labels on the axis.
+  final bool showLabels;
+
+  ChartAxis._({
+    required ChartAxisInfo info,
+    required Bounds bounds,
+    required AxisTicks ticks,
     required this.dataType,
     required this.theme,
-  });
+    this.controller,
+    this.showTicks = true,
+    this.showLabels = true,
+  })  : _info = info,
+        _bounds = bounds,
+        _ticks = ticks;
 
   double toDouble(T value);
   T fromDouble(double value);
 
-  ChartAxis translated(double delta);
+  void translate(double delta) {
+    _translate(delta);
+    controller?.update(bounds: bounds, ticks: ticks);
+  }
 
-  ChartAxis scaled(double scale);
+  void _translate(double delta);
+
+  void scale(double scale) {
+    _scale(scale);
+    controller?.update(bounds: bounds, ticks: ticks);
+  }
+
+  void _scale(double scale);
+
+  ChartAxisInfo get info => _info;
+
+  Bounds get bounds => _bounds;
+
+  AxisTicks get ticks => _ticks;
+
+  void update({
+    ChartAxisInfo? info,
+    Bounds? bounds,
+    AxisTicks? ticks,
+    required State state,
+  }) {
+    if (info != null) {
+      _info = info;
+    }
+    if (bounds != null) {
+      _bounds = bounds;
+    }
+    if (ticks != null) {
+      _ticks = ticks;
+    }
+  }
 }
 
-@immutable
 class NumericalChartAxis extends ChartAxis<double> {
-  const NumericalChartAxis._({
+  NumericalChartAxis._({
     required super.info,
     required super.bounds,
-    required super.location,
     required super.ticks,
     required super.theme,
+    super.showLabels = true,
+    super.showTicks = true,
   }) : super._(
           dataType: AxisDataType.number,
         );
@@ -92,7 +234,8 @@ class NumericalChartAxis extends ChartAxis<double> {
     required ChartAxisInfo axisInfo,
     required List<Bounds> data,
     required ChartTheme theme,
-    required AxisLocation location,
+    bool showTicks = true,
+    bool showLabels = true,
   }) {
     double min = data[0].min.toDouble();
     double max = data[0].max.toDouble();
@@ -105,7 +248,12 @@ class NumericalChartAxis extends ChartAxis<double> {
     max = math.max(max, ticks.bounds.max.toDouble());
 
     return NumericalChartAxis._(
-        bounds: Bounds(min, max), location: location, ticks: ticks, info: axisInfo, theme: theme);
+        bounds: Bounds(min, max),
+        ticks: ticks,
+        info: axisInfo,
+        theme: theme,
+        showTicks: showTicks,
+        showLabels: showLabels);
   }
 
   NumericalChartAxis addData(
@@ -116,7 +264,6 @@ class NumericalChartAxis extends ChartAxis<double> {
         axisInfo: info,
         data: [this.bounds, ...bounds],
         theme: theme,
-        location: location,
       );
 
   @override
@@ -126,16 +273,15 @@ class NumericalChartAxis extends ChartAxis<double> {
   double fromDouble(double value) => value;
 
   @override
-  NumericalChartAxis translated(double delta) {
+  void _translate(double delta) {
     double min = bounds.min + delta;
     double max = bounds.max + delta;
-    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
-    return NumericalChartAxis._(
-        info: info, bounds: Bounds(min, max), location: location, ticks: ticks, theme: theme);
+    _bounds = Bounds(min, max);
+    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
   }
 
   @override
-  NumericalChartAxis scaled(double scale) {
+  void _scale(double scale) {
     double min = bounds.min.toDouble();
     double max = bounds.max.toDouble();
     double midpoint = (min + max) / 2;
@@ -145,20 +291,17 @@ class NumericalChartAxis extends ChartAxis<double> {
     min = midpoint - delta;
     max = midpoint + delta;
 
-    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
-    return NumericalChartAxis._(
-        info: info, bounds: Bounds(min, max), location: location, ticks: ticks, theme: theme);
+    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
+    _bounds = Bounds(min, max);
   }
 }
 
-@immutable
 class StringChartAxis extends ChartAxis<String> {
   final List<String> uniqueValues;
 
-  const StringChartAxis._({
+  StringChartAxis._({
     required super.info,
     required super.bounds,
-    required super.location,
     required super.ticks,
     required this.uniqueValues,
     required super.theme,
@@ -170,7 +313,6 @@ class StringChartAxis extends ChartAxis<String> {
     required ChartAxisInfo axisInfo,
     required List<List<String>> data,
     required ChartTheme theme,
-    required AxisLocation location,
   }) {
     Bounds bounds = Bounds(0, data.length.toDouble() - 1);
     List<String> uniqueValues = LinkedHashSet<String>.from(data.expand((e) => e)).toList();
@@ -179,7 +321,6 @@ class StringChartAxis extends ChartAxis<String> {
     return StringChartAxis._(
       info: axisInfo,
       bounds: bounds,
-      location: location,
       ticks: ticks,
       uniqueValues: uniqueValues,
       theme: theme,
@@ -193,21 +334,15 @@ class StringChartAxis extends ChartAxis<String> {
   String fromDouble(double value) => uniqueValues[value.toInt()];
 
   @override
-  StringChartAxis translated(double delta) {
+  void _translate(double delta) {
     double min = bounds.min + delta;
     double max = bounds.max + delta;
-    return StringChartAxis._(
-      info: info,
-      bounds: Bounds(min, max),
-      location: location,
-      ticks: ticks,
-      uniqueValues: uniqueValues,
-      theme: theme,
-    );
+
+    _bounds = Bounds(min, max);
   }
 
   @override
-  StringChartAxis scaled(double scale) {
+  void _scale(double scale) {
     double min = bounds.min.toDouble();
     double max = bounds.max.toDouble();
     double midpoint = (min + max) / 2;
@@ -217,23 +352,14 @@ class StringChartAxis extends ChartAxis<String> {
     min = midpoint - delta;
     max = midpoint + delta;
 
-    return StringChartAxis._(
-      info: info,
-      bounds: bounds,
-      location: location,
-      ticks: ticks,
-      uniqueValues: uniqueValues,
-      theme: theme,
-    );
+    _bounds = Bounds(min, max);
   }
 }
 
-@immutable
 class DateTimeChartAxis extends ChartAxis<DateTime> {
-  const DateTimeChartAxis._({
+  DateTimeChartAxis._({
     required super.info,
     required super.bounds,
-    required super.location,
     required super.ticks,
     required super.theme,
   }) : super._(
@@ -258,7 +384,6 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     return DateTimeChartAxis._(
       info: axisInfo,
       bounds: bounds,
-      location: location,
       ticks: ticks,
       theme: theme,
     );
@@ -271,82 +396,141 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
   DateTime fromDouble(double value) => DateTime.fromMillisecondsSinceEpoch(value.toInt());
 
   @override
-  DateTimeChartAxis translated(double delta) {
+  void _translate(double delta) {
     throw UnimplementedError();
   }
 
   @override
-  NumericalChartAxis scaled(double scale) {
+  void _scale(double scale) {
     throw UnimplementedError();
   }
 }
 
-List<ChartAxis> initializeAxes2D<C, I>({required List<Series> seriesList, required ChartTheme theme}) {
-  List<ChartAxis?> axes = [null, null, null, null];
+class MissingAxisException implements Exception {
+  final String message;
 
-  List<List<Series>?> axesSeries = [null, null, null, null];
-  for (Series series in seriesList) {
-    int xIndex = 0;
-    int yIndex = 1;
-    if (series.axesIndex == 1) {
-      xIndex = 2;
-      yIndex = 3;
-    }
+  MissingAxisException(this.message);
 
-    if (axesSeries[xIndex] == null) {
-      axesSeries[xIndex] = [series];
-    } else {
-      axesSeries[xIndex]!.add(series);
+  @override
+  String toString() => message;
+}
+
+/// A collection of axes for a chart.
+class ChartAxes<T> {
+  /// The axes of the chart.
+  final Map<AxisId<T>, ChartAxis> axes;
+
+  /// The projection used to map the axes to pixel coordinates.
+  final ProjectionInitializer projection;
+
+  ChartAxes({required this.axes, required this.projection});
+
+  /// The number of dimensions of the chart.
+  int get dimension => axes.length;
+
+  /// Select an axis by its [AxisId].
+  ChartAxis operator [](AxisId<T> axisId) {
+    if (!axes.containsKey(axisId)) {
+      throw MissingAxisException("$axisId not contained in the axes.");
     }
-    if (axesSeries[yIndex] == null) {
-      axesSeries[yIndex] = [series];
-    } else {
-      axesSeries[yIndex]!.add(series);
-    }
+    return axes[axisId]!;
   }
 
-  for (int i = 0; i < axes.length; i++) {
-    List<Series>? axisSeries = axesSeries[i];
-    if (axisSeries != null) {
-      AxisLocation location = i == 0
-          ? AxisLocation.bottom
-          : i == 1
-              ? AxisLocation.left
-              : i == 2
-                  ? AxisLocation.right
-                  : AxisLocation.top;
-      Series series = axisSeries[0];
+  /// Update the margin in an [AxisPainter] based on the size of the tick labels.
+  EdgeInsets updateMargin(AxisId axisId, EdgeInsets margin, TextPainter painter) {
+    if (axisId.location == AxisLocation.left) {
+      return margin.copyWith(left: math.max(margin.left, painter.width));
+    } else if (axisId.location == AxisLocation.right) {
+      return margin.copyWith(right: math.max(margin.right, painter.width));
+    } else if (axisId.location == AxisLocation.top) {
+      return margin.copyWith(top: math.max(margin.top, painter.height));
+    } else if (axisId.location == AxisLocation.bottom) {
+      return margin.copyWith(bottom: math.max(margin.bottom, painter.height));
+    }
+    throw AxisUpdateException("Axis location ${axisId.location} has not been implemented.");
+  }
+}
 
-      ChartAxisInfo axisInfo = ChartAxisInfo(label: series.data.plotColumns[i]!.toString());
-      dynamic data = series.data.data[series.data.plotColumns[i]]!.values.toList()[0];
-
-      if (data is double) {
-        axes[i] = NumericalChartAxis.fromData(
-          axisInfo: axisInfo,
-          data: axisSeries.map((e) => e.data.calculateBounds(e.data.plotColumns[i])).toList(),
-          theme: theme,
-          location: location,
+/// Initialize a set of plot axes from a list of [Series],
+/// assuming a linear mapping and naming the axes from the series columns.
+Map<AxisId<A>, ChartAxisInfo> getAxisInfoFromSeries<C, I, A>(SeriesList<C, I, A> seriesList) {
+  Map<AxisId<A>, ChartAxisInfo> axesInfo = {};
+  for (Series<C, I, A> series in seriesList.values) {
+    for (AxisId<A> axisId in series.data.plotColumns.keys) {
+      String label = series.data.plotColumns[axisId].toString();
+      if (!axesInfo.containsKey(axisId)) {
+        axesInfo[axisId] = ChartAxisInfo(
+          label: label,
+          location: axisId.location,
         );
-      } else if (data is String) {
-        axes[i] = StringChartAxis.fromData(
-          axisInfo: axisInfo,
-          data: axisSeries
-              .map((e) => e.data.data[series.data.plotColumns[i]]!.values.map((e) => e.toString()).toList())
-              .toList(),
-          theme: theme,
-          location: i.isEven ? AxisLocation.bottom : AxisLocation.left,
-        );
-      } else if (data is DateTime) {
-        throw UnimplementedError("DataTime data is not yet supported.");
       }
     }
   }
+  return axesInfo;
+}
 
-  if (axes[2] == null && axes[3] == null) {
-    axes = axes.sublist(0, 2);
-  } else if (axes[2] == null || axes[3] == null) {
-    throw "UnexpectedError: Null x-axis or y-axis for non-null x-axis or y-axis.";
+ChartAxis initializeAxis<C, I>({
+  required Map<Series, AxisId> allSeries,
+  required ChartTheme theme,
+  required ChartAxisInfo axisInfo,
+}) {
+  // Check that the map of allSeries is value
+  if (!allSeries.entries.every((entry) => entry.key.data.plotColumns.containsKey(entry.value))) {
+    throw AxisUpdateException("Not all series had a matching `AxisId` in the `allSeries` map.");
   }
 
-  return axes.map((e) => e!).toList();
+  MapEntry<Series, AxisId> entry = allSeries.entries.first;
+
+  Series series = entry.key;
+  dynamic data = series.data.data[series.data.plotColumns[entry.value]]!.values.toList().first;
+  if (data is double) {
+    return NumericalChartAxis.fromData(
+      axisInfo: axisInfo,
+      data:
+          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value])).toList(),
+      theme: theme,
+    );
+  } else if (data is String) {
+    return StringChartAxis.fromData(
+      axisInfo: axisInfo,
+      data: allSeries.entries
+          .map((e) =>
+              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e.toString()).toList())
+          .toList(),
+      theme: theme,
+    );
+  } else if (data is DateTime) {
+    throw UnimplementedError("DataTime data is not yet supported.");
+  }
+
+  throw AxisUpdateException("Data type not supported.");
+}
+
+Map<T, ChartAxes> initializeSimpleAxes<T>({
+  required List<Series> seriesList,
+  required ProjectionInitializer projectionInitializer,
+  required ChartTheme theme,
+  required Map<AxisId<T>, ChartAxisInfo> axisInfo,
+}) {
+  final Map<AxisId<T>, ChartAxis> axes = {};
+  for (MapEntry<AxisId<T>, ChartAxisInfo> entry in axisInfo.entries) {
+    AxisId<T> axisId = entry.key;
+    Map<Series, AxisId> seriesForAxis = {};
+    for (Series series in seriesList) {
+      seriesForAxis[series] = axisId;
+    }
+    if (seriesForAxis.isEmpty) {
+      throw AxisUpdateException("Axis $axisId has no series linked to it.");
+    }
+    axes[axisId] = initializeAxis(allSeries: seriesForAxis, theme: theme, axisInfo: entry.value);
+  }
+  final List<T> axesIds = axes.keys.map((e) => e.axesId).toList();
+  final Map<T, ChartAxes> result = {};
+  for (T axesId in axesIds) {
+    result[axesId] = ChartAxes(
+      axes: Map.fromEntries(axes.entries.where((entry) => entry.key.axesId == axesId)),
+      projection: projectionInitializer,
+    );
+  }
+  return result;
 }

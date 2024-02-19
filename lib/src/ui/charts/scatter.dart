@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
-import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
@@ -14,50 +13,46 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 
-class ScatterPlot extends StatefulWidget {
+class ScatterPlot<C, I, A> extends StatefulWidget {
   final ChartTheme theme;
-  final List<Series> seriesList;
-  final Legend legend;
+  final List<Series<C, I, A>> seriesList;
   final ProjectionInitializer projectionInitializer;
-  final List<ChartAxis>? axes;
+  final Map<AxisId<A>, ChartAxisInfo> axisInfo;
+  final SelectionController? selectionController;
 
   const ScatterPlot({
     Key? key,
     required this.seriesList,
     this.theme = const ChartTheme(),
-    this.legend = const Legend(),
     this.projectionInitializer = CartesianProjection.fromAxes,
-    this.axes,
+    required this.axisInfo,
+    this.selectionController,
   }) : super(key: key);
 
   @override
   ScatterPlotState createState() => ScatterPlotState();
 }
 
-class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
+class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMixin {
   /// Make the widget's series accessible to the state.
   @override
-  List<Series> get seriesList => widget.seriesList;
-
-  /// Make the widget's theme accessible to the state.
-  @override
-  Legend get legend => widget.legend;
-
-  /// The axes of the chart.
-  @override
-  List<ChartAxis> get axes => _axes;
+  SeriesList get seriesList => SeriesList(
+        widget.seriesList,
+        widget.theme.colorCycle,
+      );
 
   /// The axes of the chart.
-  final List<ChartAxis> _axes = [];
+  @override
+  Map<A, ChartAxes> get axes => _axes;
+
+  /// The axes of the chart.
+  final Map<A, ChartAxes> _axes = {};
 
   /// Quadtree for the bottom left axes.
-  late QuadTree _quadTreeBL;
-
-  /// Quadtree for the top right axes.
-  late QuadTree _quadTreeTR;
+  final Map<A, QuadTree<I>> _quadTrees = {};
 
   /// The selected (and highlighted) data points.
-  List<dynamic> selectedDataPoints = [];
+  List<I> selectedDataPoints = [];
 
   bool get dragging => dragStart != null;
   Offset? dragStart;
@@ -66,62 +61,51 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   @override
   void initState() {
     super.initState();
-    if (widget.axes != null) {
-      _axes.addAll(widget.axes!);
-    } else {
-      _axes.addAll(initializeAxes2D(seriesList: seriesList, theme: widget.theme));
+    // Initialize the axes
+    _axes.addAll(initializeSimpleAxes(
+      seriesList: widget.seriesList,
+      axisInfo: widget.axisInfo,
+      theme: widget.theme,
+      projectionInitializer: widget.projectionInitializer,
+    ));
+
+    // Initialize the quadtrees
+    List<A> axesIndices = _axes.keys.toList();
+    for (A axesIndex in axesIndices) {
+      ChartAxis axis0 = _axes[axesIndex]!.axes.values.first;
+      ChartAxis axis1 = _axes[axesIndex]!.axes.values.last;
+
+      _quadTrees[axesIndex] = QuadTree(
+        maxDepth: widget.theme.quadTreeDepth,
+        capacity: widget.theme.quadTreeCapacity,
+        contents: [],
+        children: [],
+        left: axis0.bounds.min.toDouble(),
+        top: axis1.bounds.min.toDouble(),
+        width: axis0.bounds.range.toDouble(),
+        height: axis1.bounds.range.toDouble(),
+      );
     }
 
-    _quadTreeBL = QuadTree(
-      maxDepth: widget.theme.quadTreeDepth,
-      capacity: widget.theme.quadTreeCapacity,
-      contents: [],
-      children: [],
-      left: axes[0].bounds.min.toDouble(),
-      top: axes[1].bounds.min.toDouble(),
-      width: axes[0].bounds.range.toDouble(),
-      height: axes[1].bounds.range.toDouble(),
-    );
+    // Populate the quatrees
+    for (Series series in widget.seriesList) {
+      ChartAxes axes = _axes[series.axesId]!;
+      AxisId axisId0 = axes.axes.keys.first;
+      AxisId axisId1 = axes.axes.keys.last;
 
-    _quadTreeTR = QuadTree(
-      maxDepth: widget.theme.quadTreeDepth,
-      capacity: widget.theme.quadTreeCapacity,
-      contents: [],
-      children: [],
-      left: 0,
-      top: 0,
-      width: 1,
-      height: 1,
-    );
-
-    for (Series series in seriesList) {
-      late final ChartAxis xAxis;
-      late final ChartAxis yAxis;
-      if (series.axesIndex == 0) {
-        xAxis = _axes[0];
-        yAxis = _axes[1];
-      } else {
-        xAxis = _axes[2];
-        yAxis = _axes[3];
-      }
+      ChartAxis axis0 = axes[axisId0];
+      ChartAxis axis1 = axes[axisId1];
 
       for (int i = 0; i < series.data.length; i++) {
-        dynamic seriesX = series.data.data[series.data.plotColumns[0]]!.values.toList()[i];
-        dynamic seriesY = series.data.data[series.data.plotColumns[1]]!.values.toList()[i];
-        double x = xAxis.toDouble(seriesX);
-        double y = yAxis.toDouble(seriesY);
+        dynamic seriesX = series.data.data[series.data.plotColumns[axisId0]]!.values.toList()[i];
+        dynamic seriesY = series.data.data[series.data.plotColumns[axisId1]]!.values.toList()[i];
+        double x = axis0.toDouble(seriesX);
+        double y = axis1.toDouble(seriesY);
 
-        if (series.axesIndex == 0) {
-          _quadTreeBL.insert(
-            series.data.data[series.data.plotColumns[0]]!.keys.toList()[i],
-            Offset(x, y),
-          );
-        } else {
-          _quadTreeTR.insert(
-            series.data.data[series.data.plotColumns[0]]!.keys.toList()[i],
-            Offset(x, y),
-          );
-        }
+        _quadTrees[series.axesId]!.insert(
+          series.data.data[series.data.plotColumns.values.first]!.keys.toList()[i],
+          Offset(x, y),
+        );
       }
     }
   }
@@ -131,9 +115,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     List<Widget> children = [];
 
     AxisPainter axisPainter = AxisPainter(
-      axes: axes,
-      ticks: axes.map((e) => e.ticks).toList(),
-      projectionInitializer: widget.projectionInitializer,
+      allAxes: _axes,
       theme: widget.theme,
     );
 
@@ -158,16 +140,15 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
         Positioned.fill(
           child: CustomPaint(
             painter: SeriesPainter(
-                axes: axes,
+                axes: _axes[series.axesId]!,
                 marker: marker,
                 errorBars: series.errorBars,
-                projectionInitializer: widget.projectionInitializer,
                 data: series.data,
                 tickLabelMargin: EdgeInsets.only(
-                  left: axisPainter.leftMargin + axisPainter.tickPadding,
-                  right: axisPainter.rightMargin + axisPainter.tickPadding,
-                  top: axisPainter.topMargin + axisPainter.tickPadding,
-                  bottom: axisPainter.bottomMargin + axisPainter.tickPadding,
+                  left: axisPainter.margin.left + axisPainter.tickPadding,
+                  right: axisPainter.margin.right + axisPainter.tickPadding,
+                  top: axisPainter.margin.top + axisPainter.tickPadding,
+                  bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
                 ),
                 selectedDataPoints: selectedDataPoints),
           ),
@@ -232,7 +213,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
-    if (axisPainter.projection == null) {
+    if (axisPainter.projections == null) {
       return;
     }
     dragStart = details.localPosition;
@@ -242,27 +223,28 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
-    if (axisPainter.projection == null) {
+    if (axisPainter.projections == null) {
       return;
     }
     dragEnd = details.localPosition;
 
     // Select points that fit inside the selection box
-    Projection projection = axisPainter.projection!;
+    Projection projection = axisPainter.projections!.values.first;
     Offset projectedStart = Offset(
-      projection.xTransform.inverse(dragStart!.dx - axisPainter.leftMargin - axisPainter.tickPadding),
-      projection.yTransform.inverse(dragStart!.dy - axisPainter.topMargin - axisPainter.tickPadding),
+      projection.xTransform.inverse(dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding),
+      projection.yTransform.inverse(dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding),
     );
     Offset projectedEnd = Offset(
-      projection.xTransform.inverse(dragEnd!.dx - axisPainter.leftMargin - axisPainter.tickPadding),
-      projection.yTransform.inverse(dragEnd!.dy - axisPainter.topMargin - axisPainter.tickPadding),
+      projection.xTransform.inverse(dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding),
+      projection.yTransform.inverse(dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding),
     );
 
-    List<dynamic> newSelectedDataPoints = _quadTreeBL.queryRect(
-      Rect.fromPoints(projectedStart, projectedEnd),
-    );
-
-    selectedDataPoints = newSelectedDataPoints;
+    List<dynamic> newSelectedDataPoints = [];
+    for (QuadTree quadTree in _quadTrees.values) {
+      newSelectedDataPoints.addAll(quadTree.queryRect(
+        Rect.fromPoints(projectedStart, projectedEnd),
+      ));
+    }
 
     setState(() {});
   }
@@ -278,17 +260,30 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
-    if (axisPainter.projection == null) {
+    if (axisPainter.projections == null) {
       return;
     }
 
-    Projection projection = axisPainter.projection!;
+    Projection projection = axisPainter.projections!.values.first;
     double x = projection.xTransform
-        .inverse(details.localPosition.dx - axisPainter.leftMargin - axisPainter.tickPadding);
+        .inverse(details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding);
     double y = projection.yTransform
-        .inverse(details.localPosition.dy - axisPainter.topMargin - axisPainter.tickPadding);
+        .inverse(details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding);
 
-    QuadTreeElement? nearest = _quadTreeBL.queryPoint(Offset(x, y));
+    QuadTreeElement? nearest;
+    for (QuadTree quadTree in _quadTrees.values) {
+      QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y));
+      if (localNearest != null) {
+        if (nearest != null) {
+          if ((localNearest.center - Offset(x, y)).distanceSquared <
+              (nearest.center - Offset(x, y)).distanceSquared) {
+            nearest = localNearest;
+          }
+        } else {
+          nearest = localNearest;
+        }
+      }
+    }
 
     if (nearest == null) {
       selectedDataPoints = [];
@@ -306,35 +301,43 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onScale(PointerScaleEvent event, AxisPainter axisPainter) {
-    if (axisPainter.projection == null) {
+    if (axisPainter.projections == null) {
       return;
     }
 
-    for (int i = 0; i < axes.length; i++) {
-      axes[i] = axes[i].scaled(event.scale);
+    for (ChartAxes axes in _axes.values) {
+      for (AxisId axisId in axes.axes.keys) {
+        ChartAxis axis = axes[axisId];
+        axis.scale(event.scale);
+      }
     }
+
     setState(() {});
   }
 
   void _onPan(PointerScrollEvent event, AxisPainter axisPainter) {
-    if (axisPainter.projection == null) {
+    if (axisPainter.projections == null) {
       return;
     }
 
     double dx = event.scrollDelta.dx;
     double dy = event.scrollDelta.dy;
 
-    Projection projection = axisPainter.projection!;
+    Projection projection = axisPainter.projections!.values.first;
     dx /= projection.xTransform.scale;
     dy /= projection.yTransform.scale;
 
-    for (int i = 0; i < axes.length; i++) {
-      if (i % 2 == 0) {
-        axes[i] = axes[i].translated(dx);
-      } else {
-        axes[i] = axes[i].translated(dy);
+    for (ChartAxes axes in _axes.values) {
+      for (AxisId axisId in axes.axes.keys) {
+        ChartAxis axis = axes[axisId];
+        if (axis.info.location == AxisLocation.bottom || axis.info.location == AxisLocation.top) {
+          axis.translate(dx);
+        } else {
+          axis.translate(dy);
+        }
       }
     }
+
     setState(() {});
   }
 }

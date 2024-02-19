@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
@@ -20,9 +23,11 @@ class DataConversionException implements Exception {
   String toString() => "$runtimeType:\n\t$message";
 }
 
+typedef SelectionUpdate<I> = void Function(List<I> dataPoints);
+
 /// A series that is displayed in a chart.
 @immutable
-class Series<C, I> {
+class Series<C, I, A> {
   /// Each chart has a unqiue ID for each series in the chart.
   final BigInt id;
 
@@ -35,40 +40,34 @@ class Series<C, I> {
   /// Settings to draw error bars for the series.
   final ErrorBars? errorBars;
 
-  /// The index of the axes that the series is plotted on.
-  /// This will either be 0 (left y and bottom x) or 1 (right y and top x).
-  final int axesIndex;
-
   /// The data points in the series.
-  final SeriesData<C, I> data;
+  final SeriesData<C, I, A> data;
 
   /// The data ids of selected data points.
   final List<I>? selectedDataPoints;
 
-  Series(
-      {required this.id,
-      this.name,
-      this.marker,
-      this.errorBars,
-      this.axesIndex = 0,
-      required this.data,
-      this.selectedDataPoints})
-      : assert([0, 1].contains(axesIndex));
+  const Series({
+    required this.id,
+    this.name,
+    this.marker,
+    this.errorBars,
+    required this.data,
+    this.selectedDataPoints,
+  });
 
   Series copyWith({
     BigInt? id,
     String? name,
     Marker? marker,
     ErrorBars? errorBars,
-    int? axesIndex,
-    SeriesData<C, I>? data,
+    List<AxisId>? axisIds,
+    SeriesData<C, I, A>? data,
   }) =>
       Series(
         id: id ?? this.id,
         name: name ?? this.name,
         marker: marker ?? this.marker,
         errorBars: errorBars ?? this.errorBars,
-        axesIndex: axesIndex ?? this.axesIndex,
         data: data ?? this.data,
       );
 
@@ -80,6 +79,8 @@ class Series<C, I> {
   int get length => data.length;
 
   int get dimension => data.dimension;
+
+  A get axesId => data.plotColumns.keys.first.axesId;
 }
 
 /// A collection of data points.
@@ -88,10 +89,10 @@ class Series<C, I> {
 /// the data points into a collection of numbers that
 /// can be projected onto a 2D plane.
 @immutable
-class SeriesData<C, I> {
+class SeriesData<C, I, A> {
   /// The columns that are plotted (in order of x, y, z, etc.)
   final Map<C, Map<I, dynamic>> data;
-  final List<C> plotColumns;
+  final Map<AxisId<A>, C> plotColumns;
 
   const SeriesData._(this.data, this.plotColumns);
 
@@ -103,16 +104,19 @@ class SeriesData<C, I> {
   /// a map of string values to their plot coordinate along the axis.
   /// Also, since the bounds will be needed for the chart axes,
   /// the bounds for each chart column are calculated here.
-  static SeriesData fromData<C, I>({
+  static SeriesData fromData<C, I, A>({
     required Map<C, List<dynamic>> data,
-    required List<C> plotColumns,
+    required Map<AxisId<A>, C> plotColumns,
     List<I>? dataIds,
   }) {
     // Check that all of the columns are the same length.
-    final int length = data[plotColumns[0]]!.length;
+    final int length = data[plotColumns.values.first]!.length;
 
     if (!data.values.every((element) => element.length == length)) {
       throw DataConversionException("All columns must have the same length");
+    }
+    if (!plotColumns.keys.every((e) => e.axesId == plotColumns.keys.first.axesId)) {
+      throw DataConversionException("All columns must have the same chart axes ID");
     }
     dataIds ??= List.generate(length, (index) => index as I);
     // Check the data IDs are the same length as the data (if provided).
@@ -128,11 +132,14 @@ class SeriesData<C, I> {
     for (C plotColumn in data.keys) {
       Map<I, dynamic> column = {};
       for (int i = 0; i < length; i++) {
+        if (!data.containsKey(plotColumn)) {
+          throw DataConversionException("Column $plotColumn not found in data");
+        }
         column[dataIds[i]] = data[plotColumn]![i];
       }
       dataColumns[plotColumn] = column;
     }
-    return SeriesData<C, I>._(dataColumns, plotColumns);
+    return SeriesData<C, I, A>._(dataColumns, plotColumns);
   }
 
   /// Calculate the dimensionality of the data.
@@ -140,7 +147,7 @@ class SeriesData<C, I> {
 
   List<dynamic> getRow(int index) {
     List<dynamic> coordinates = [];
-    for (C column in plotColumns) {
+    for (C column in plotColumns.values) {
       coordinates.add(data[column]!.values.toList()[index]);
     }
     return coordinates;
@@ -154,4 +161,25 @@ class SeriesData<C, I> {
       throw DataConversionException("Unable to calculate bounds for column $C");
     }
   }
+}
+
+@immutable
+class SeriesList<C, I, A> {
+  final List<Series<C, I, A>> values;
+  final List<Color> colorCycle;
+
+  const SeriesList(this.values, this.colorCycle);
+
+  Marker getMarker(int index) {
+    Color defaultColor = colorCycle[index % colorCycle.length];
+    return values[index].marker ??
+        Marker(
+          color: defaultColor,
+          edgeColor: defaultColor,
+        );
+  }
+
+  Series<C, I, A> operator [](int index) => values[index];
+
+  int get length => values.length;
 }

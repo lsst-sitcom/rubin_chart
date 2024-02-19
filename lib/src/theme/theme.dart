@@ -47,6 +47,11 @@ class ChartTheme {
   final List<Color> colorCycle;
   final int quadTreeDepth;
   final int quadTreeCapacity;
+  final TextStyle? titleStyle;
+  final Color legendBorderColor;
+  final double legendBorderWidth;
+  final double legendBorderRadius;
+  final TextStyle? legendStyle;
 
   /// Minimum number of ticks to display on an axis.
   /// This is up to user prefernce, but there should be
@@ -70,6 +75,11 @@ class ChartTheme {
     this.maxTicks = 15,
     this.quadTreeDepth = 10,
     this.quadTreeCapacity = 10,
+    this.titleStyle,
+    this.legendBorderColor = Colors.black,
+    this.legendBorderWidth = 2,
+    this.legendBorderRadius = 10,
+    this.legendStyle,
   });
 
   ChartTheme copyWith({

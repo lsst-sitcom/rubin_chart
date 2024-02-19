@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
@@ -7,39 +5,30 @@ import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 
 /// Paint the frame, axes, and tick marks of a plot.
-class AxisPainter extends CustomPainter {
-  final List<ChartAxis> axes;
-  final List<AxisTicks?> ticks;
+class AxisPainter<A> extends CustomPainter {
+  final Map<A, ChartAxes<A>> allAxes;
   final ChartTheme theme;
-  final Map<AxisLocation, List<TextPainter>?> _tickLabels = {};
+  final Map<AxisId, List<TextPainter>?> _tickLabelPainters = {};
   final double tickPadding;
 
-  /// The projection used for the series.
-  ProjectionInitializer projectionInitializer;
-
-  late double leftMargin;
-  late double rightMargin;
-  late double topMargin;
-  late double bottomMargin;
+  late EdgeInsets margin;
 
   AxisPainter({
-    required this.axes,
-    required this.ticks,
-    required this.projectionInitializer,
+    required this.allAxes,
     required this.theme,
     this.tickPadding = 10,
   }) {
-    leftMargin = 0;
-    rightMargin = 0;
-    topMargin = 0;
-    bottomMargin = 0;
+    margin = EdgeInsets.zero;
 
-    for (int i = 0; i < axes.length; i++) {
-      AxisTicks? ticks = this.ticks[i];
-      AxisLocation location = axes[i].location;
+    for (ChartAxes<A> axes in allAxes.values) {
+      for (AxisId<A> axisId in axes.axes.keys) {
+        ChartAxis axis = axes[axisId];
+        if (!(axis.showTicks || axis.showLabels)) {
+          continue;
+        }
+        AxisTicks ticks = axis.ticks;
 
-      if (ticks != null) {
-        _tickLabels[location] = [];
+        _tickLabelPainters[axisId] = [];
         for (int j = 0; j < ticks.ticks.length; j++) {
           TextPainter painter = TextPainter(
             text: TextSpan(
@@ -49,17 +38,9 @@ class AxisPainter extends CustomPainter {
             textDirection: TextDirection.ltr,
           )..layout();
 
-          _tickLabels[location]!.add(painter);
+          _tickLabelPainters[axisId]!.add(painter);
 
-          if (location == AxisLocation.left) {
-            leftMargin = math.max(leftMargin, painter.width);
-          } else if (location == AxisLocation.right) {
-            rightMargin = math.max(rightMargin, painter.width);
-          } else if (location == AxisLocation.bottom) {
-            bottomMargin = math.max(bottomMargin, painter.height);
-          } else if (location == AxisLocation.top) {
-            topMargin = math.max(topMargin, painter.height);
-          }
+          margin = axes.updateMargin(axisId, margin, painter);
         }
       }
     }
@@ -69,20 +50,20 @@ class AxisPainter extends CustomPainter {
       Canvas canvas, Size size, double tick, AxisLocation location, Projection projection, Paint paint) {
     if (location == AxisLocation.left) {
       double y = projection.yTransform.map(tick);
-      canvas.drawLine(Offset(leftMargin + tickPadding, topMargin + tickPadding + y),
-          Offset(leftMargin + tickPadding + theme.tickLength, topMargin + tickPadding + y), paint);
+      canvas.drawLine(Offset(margin.left + tickPadding, margin.top + tickPadding + y),
+          Offset(margin.left + tickPadding + theme.tickLength, margin.top + tickPadding + y), paint);
     } else if (location == AxisLocation.bottom) {
       double x = projection.xTransform.map(tick);
       canvas.drawLine(
-          Offset(leftMargin + tickPadding + x, topMargin + tickPadding + size.height),
-          Offset(leftMargin + tickPadding + x, topMargin + tickPadding + size.height - theme.tickLength),
+          Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height),
+          Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height - theme.tickLength),
           paint);
     }
   }
 
-  void _drawAxisTickLabels(Canvas canvas, Size size, int index, Projection projection) {
-    AxisTicks ticks = this.ticks[index]!;
-    ChartAxis axis = axes[index];
+  void _drawAxisTickLabels(Canvas canvas, Size size, AxisId<A> axisId, Projection projection, A axesId) {
+    ChartAxis axis = allAxes[axesId]![axisId];
+    AxisTicks ticks = axis.ticks;
     bool minIsBound = ticks.bounds.min == axis.bounds.min;
     bool maxIsBound = ticks.bounds.max == axis.bounds.max;
 
@@ -90,40 +71,38 @@ class AxisPainter extends CustomPainter {
       if (i == 0 && minIsBound || i == ticks.ticks.length - 1 && maxIsBound) {
         continue;
       }
-      TextPainter painter = _tickLabels[axis.location]![i];
+      TextPainter painter = _tickLabelPainters[axisId]![i];
       late Offset offset;
 
-      if (axis.location == AxisLocation.left) {
+      if (axisId.location == AxisLocation.left) {
         double y = projection.yTransform.map(ticks.ticks[i]);
-        offset = Offset(leftMargin - painter.width, y + topMargin + tickPadding - painter.height / 2);
-      } else if (axis.location == AxisLocation.bottom) {
+        offset = Offset(margin.left - painter.width, y + margin.top + tickPadding - painter.height / 2);
+      } else if (axisId.location == AxisLocation.bottom) {
         double x = projection.xTransform.map(ticks.ticks[i]);
         offset = Offset(
-            x + leftMargin + tickPadding - painter.width / 2, topMargin + 2 * tickPadding + size.height);
-      } else if (axis.location == AxisLocation.right) {
+            x + margin.left + tickPadding - painter.width / 2, margin.top + 2 * tickPadding + size.height);
+      } else if (axisId.location == AxisLocation.right) {
         double y = projection.yTransform.map(ticks.ticks[i]);
         offset = Offset(
-            leftMargin + 2 * tickPadding + size.width, y + topMargin + tickPadding - painter.height / 2);
-      } else if (axis.location == AxisLocation.top) {
+            margin.left + 2 * tickPadding + size.width, y + margin.top + tickPadding - painter.height / 2);
+      } else if (axisId.location == AxisLocation.top) {
         double x = projection.xTransform.map(ticks.ticks[i]);
-        offset = Offset(x + leftMargin - painter.width / 2, 0);
+        offset = Offset(x + margin.left - painter.width / 2, 0);
+      } else {
+        throw UnimplementedError("Unknown axis location: ${axisId.location}");
       }
 
       painter.paint(canvas, offset);
     }
   }
 
-  Projection? projection;
+  Map<A, Projection>? projections;
 
   @override
   void paint(Canvas canvas, Size size) {
-    Size plotSize = Size(size.width - leftMargin - rightMargin - 2 * tickPadding,
-        size.height - topMargin - bottomMargin - 2 * tickPadding);
-
-    projection = projectionInitializer(
-      axes: axes,
-      plotSize: plotSize,
-    );
+    projections = {};
+    Size plotSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
+        size.height - margin.top - margin.bottom - 2 * tickPadding);
 
     // TODO: draw the grid
 
@@ -133,14 +112,20 @@ class AxisPainter extends CustomPainter {
         ..color = theme.tickColor!
         ..style = PaintingStyle.stroke
         ..strokeWidth = theme.tickThickness;
-      for (int i = 0; i < axes.length; i++) {
-        ChartAxis axis = axes[i];
-        AxisTicks? ticks = this.ticks[i];
-        if (ticks != null) {
-          for (double tick in ticks.ticks) {
-            _drawTick(canvas, plotSize, tick, axis.location, projection!, tickPaint);
+      for (MapEntry entry in allAxes.entries) {
+        A axesId = entry.key;
+        ChartAxes<A> axes = entry.value;
+        projections![axesId] = axes.projection(axes: axes.axes.values.toList(), plotSize: plotSize);
+        for (AxisId<A> axisId in axes.axes.keys) {
+          ChartAxis axis = axes[axisId];
+          if (!(axis.showTicks || axis.showLabels)) {
+            continue;
           }
-          _drawAxisTickLabels(canvas, plotSize, i, projection!);
+          AxisTicks ticks = axis.ticks;
+          for (double tick in ticks.ticks) {
+            _drawTick(canvas, plotSize, tick, axisId.location, projections![axesId]!, tickPaint);
+          }
+          _drawAxisTickLabels(canvas, plotSize, axisId, projections![axesId]!, axesId);
         }
       }
     }
@@ -153,7 +138,7 @@ class AxisPainter extends CustomPainter {
         ..color = theme.frameColor!
         ..style = PaintingStyle.stroke
         ..strokeWidth = theme.frameLineThickness;
-      canvas.drawRect(Offset(leftMargin + tickPadding, topMargin + tickPadding) & plotSize, framePaint);
+      canvas.drawRect(Offset(margin.left + tickPadding, margin.top + tickPadding) & plotSize, framePaint);
     }
   }
 

@@ -543,3 +543,20 @@ Map<A, ChartAxes> initializeSimpleAxes<A>({
   }
   return result;
 }
+
+/// Initialize the basic information about all of the [ChartAxis] instances from a list of [Series].
+Map<AxisId<A>, ChartAxisInfo> axisInfoFromSeriesList<C, I, A>(List<Series<C, I, A>> seriesList) {
+  Map<AxisId<A>, ChartAxisInfo> axisInfo = {};
+  for (Series<C, I, A> series in seriesList) {
+    if (!axisInfo.containsKey(series.axesId)) {
+      List<ChartAxisInfo> axisInfos = [];
+      for (MapEntry<AxisId, C> entry in series.data.plotColumns.entries) {
+        axisInfos.add(ChartAxisInfo(
+          label: entry.value.toString(),
+          location: entry.key.location,
+        ));
+      }
+    }
+  }
+  return axisInfo;
+}

@@ -7,38 +7,56 @@ import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
-import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 
+class ScatterPlotInfo<C, I, A> extends ChartInfo<C, I, A> {
+  ScatterPlotInfo({
+    required super.allSeries,
+    super.title,
+    super.theme,
+    super.legend,
+    super.axisInfo,
+    super.colorCycle,
+    super.projectionInitializer = CartesianProjection.fromAxes,
+  }) : super(builder: ScatterPlot.builder<C, I, A>);
+}
+
 class ScatterPlot<C, I, A> extends StatefulWidget {
-  final ChartTheme theme;
-  final List<Series<C, I, A>> seriesList;
-  final ProjectionInitializer projectionInitializer;
-  final Map<AxisId<A>, ChartAxisInfo> axisInfo;
+  final ScatterPlotInfo<C, I, A> info;
   final SelectionController? selectionController;
+  final List<AxisController>? axesControllers;
 
   const ScatterPlot({
     Key? key,
-    required this.seriesList,
-    this.theme = const ChartTheme(),
-    this.projectionInitializer = CartesianProjection.fromAxes,
-    required this.axisInfo,
+    required this.info,
     this.selectionController,
+    this.axesControllers,
   }) : super(key: key);
+
+  static Widget builder<C, I, A>({
+    required ChartInfo<C, I, A> info,
+    List<AxisController>? axesControllers,
+    SelectionController<I>? selectionController,
+  }) {
+    if (info is! ScatterPlotInfo<C, I, A>) {
+      throw ArgumentError("ScatterPlot.builder: info must be of type ScatterPlotInfo");
+    }
+    return ScatterPlot(
+        info: info, selectionController: selectionController, axesControllers: axesControllers);
+  }
 
   @override
   ScatterPlotState createState() => ScatterPlotState();
 }
 
 class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMixin {
-  /// Make the widget's series accessible to the state.
   @override
-  SeriesList get seriesList => SeriesList(
-        widget.seriesList,
-        widget.theme.colorCycle,
+  SeriesList<C, I, A> get seriesList => SeriesList(
+        widget.info.allSeries,
+        widget.info.colorCycle ?? widget.info.theme.colorCycle,
       );
 
   /// The axes of the chart.
@@ -63,10 +81,10 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     super.initState();
     // Initialize the axes
     _axes.addAll(initializeSimpleAxes(
-      seriesList: widget.seriesList,
-      axisInfo: widget.axisInfo,
-      theme: widget.theme,
-      projectionInitializer: widget.projectionInitializer,
+      seriesList: widget.info.allSeries,
+      axisInfo: widget.info.axisInfo,
+      theme: widget.info.theme,
+      projectionInitializer: widget.info.projectionInitializer,
     ));
 
     // Initialize the quadtrees
@@ -76,8 +94,8 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       ChartAxis axis1 = _axes[axesIndex]!.axes.values.last;
 
       _quadTrees[axesIndex] = QuadTree(
-        maxDepth: widget.theme.quadTreeDepth,
-        capacity: widget.theme.quadTreeCapacity,
+        maxDepth: widget.info.theme.quadTreeDepth,
+        capacity: widget.info.theme.quadTreeCapacity,
         contents: [],
         children: [],
         left: axis0.bounds.min.toDouble(),
@@ -88,7 +106,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     }
 
     // Populate the quadtrees
-    for (Series series in widget.seriesList) {
+    for (Series series in widget.info.allSeries) {
       ChartAxes axes = _axes[series.axesId]!;
       AxisId axisId0 = axes.axes.keys.first;
       AxisId axisId1 = axes.axes.keys.last;
@@ -118,7 +136,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
 
     AxisPainter axisPainter = AxisPainter(
       allAxes: _axes,
-      theme: widget.theme,
+      theme: widget.info.theme,
     );
 
     // Draw the axes
@@ -133,11 +151,11 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     // Add a SeriesPainter widget for each [Series].
     int colorIndex = 0;
     for (int i = 0; i < seriesList.length; i++) {
-      if (colorIndex >= widget.theme.colorCycle.length) {
+      if (colorIndex >= widget.info.theme.colorCycle.length) {
         colorIndex = 0;
       }
       Series series = seriesList[i];
-      Marker marker = series.marker ?? Marker(color: widget.theme.colorCycle[colorIndex++]);
+      Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
       children.add(
         Positioned.fill(
           child: CustomPaint(

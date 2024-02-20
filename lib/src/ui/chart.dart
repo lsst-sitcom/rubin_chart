@@ -1,6 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
+import 'package:rubin_chart/src/models/axes/projection.dart';
+import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
+import 'package:rubin_chart/src/theme/theme.dart';
 
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function<T>(List<T> dataIds);
@@ -56,6 +59,38 @@ mixin ChartMixin<T extends StatefulWidget, U> on State<T> {
   SeriesList get seriesList;
   Map<U, ChartAxes> get axes;
 }
+
+/// Information required to build a chart.
+/// All charts accept a [ChartInfo] as a required input.
+class ChartInfo<C, I, A> {
+  final String? title;
+  final ChartTheme theme;
+  final List<Series<C, I, A>> allSeries;
+  final Legend? legend;
+  final Map<AxisId<A>, ChartAxisInfo> axisInfo;
+  final List<Color>? colorCycle;
+  final ProjectionInitializer projectionInitializer;
+  final ChartBuilder<C, I, A> builder;
+
+  ChartInfo({
+    required this.allSeries,
+    this.title,
+    this.theme = ChartTheme.defaultTheme,
+    required this.projectionInitializer,
+    required this.builder,
+    this.legend,
+    Map<AxisId<A>, ChartAxisInfo>? axisInfo,
+    this.colorCycle,
+  }) : axisInfo = axisInfo ?? axisInfoFromSeriesList(allSeries);
+
+  SeriesList<C, I, A> get seriesList => SeriesList<C, I, A>(allSeries, colorCycle ?? theme.colorCycle);
+}
+
+typedef ChartBuilder<C, I, A> = Widget Function({
+  required ChartInfo<C, I, A> info,
+  List<AxisController>? axesControllers,
+  SelectionController<I>? selectionController,
+});
 
 /// Enum provinding the different components of a chart that might need to be laid out.
 enum ChartComponent {

@@ -58,6 +58,18 @@ class AxisPainter<A> extends CustomPainter {
           Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height),
           Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height - theme.tickLength),
           paint);
+    } else if (location == AxisLocation.right) {
+      double y = projection.yTransform.map(tick);
+      canvas.drawLine(
+          Offset(margin.left + tickPadding + size.width, margin.top + tickPadding + y),
+          Offset(margin.left + tickPadding + size.width - theme.tickLength, margin.top + tickPadding + y),
+          paint);
+    } else if (location == AxisLocation.top) {
+      double x = projection.xTransform.map(tick);
+      canvas.drawLine(Offset(margin.left + tickPadding + x, margin.top + tickPadding),
+          Offset(margin.left + tickPadding + x, margin.top + tickPadding + theme.tickLength), paint);
+    } else {
+      throw UnimplementedError("Unknown axis location: $location");
     }
   }
 

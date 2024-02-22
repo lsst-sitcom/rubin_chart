@@ -21,11 +21,11 @@ class DataConversionException implements Exception {
   String toString() => "$runtimeType:\n\t$message";
 }
 
-typedef SelectionUpdate<I> = void Function(List<I> dataPoints);
+typedef SelectionUpdate = void Function(List<Object> dataPoints);
 
 /// A series that is displayed in a chart.
 @immutable
-class Series<C, I, A> {
+class Series {
   /// Each chart has a unqiue ID for each series in the chart.
   final BigInt id;
 
@@ -39,10 +39,10 @@ class Series<C, I, A> {
   final ErrorBars? errorBars;
 
   /// The data points in the series.
-  final SeriesData<C, I, A> data;
+  final SeriesData data;
 
   /// The data ids of selected data points.
-  final List<I>? selectedDataPoints;
+  final List<Object>? selectedDataPoints;
 
   const Series({
     required this.id,
@@ -59,7 +59,7 @@ class Series<C, I, A> {
     Marker? marker,
     ErrorBars? errorBars,
     List<AxisId>? axisIds,
-    SeriesData<C, I, A>? data,
+    SeriesData? data,
   }) =>
       Series(
         id: id ?? this.id,
@@ -78,7 +78,7 @@ class Series<C, I, A> {
 
   int get dimension => data.dimension;
 
-  A get axesId => data.plotColumns.keys.first.axesId;
+  Object get axesId => data.plotColumns.keys.first.axesId;
 }
 
 /// A collection of data points.
@@ -87,27 +87,25 @@ class Series<C, I, A> {
 /// the data points into a collection of numbers that
 /// can be projected onto a 2D plane.
 @immutable
-class SeriesData<C, I, A> {
+class SeriesData {
   /// The columns that are plotted (in order of x, y, z, etc.)
-  final Map<C, Map<I, dynamic>> data;
-  final Map<AxisId<A>, C> plotColumns;
+  final Map<Object, Map<Object, dynamic>> data;
+  final Map<AxisId, Object> plotColumns;
 
   const SeriesData._(this.data, this.plotColumns);
 
   /// The number of data points in the series.
   int get length => data.values.first.length;
 
-  
-
   /// Create a [SeriesData] object from a list of data points.
   /// This is used to create the [SeriesData] instance with
   /// a map of string values to their plot coordinate along the axis.
   /// Also, since the bounds will be needed for the chart axes,
   /// the bounds for each chart column are calculated here.
-  static SeriesData fromData<C, I, A>({
-    required Map<C, List<dynamic>> data,
-    required Map<AxisId<A>, C> plotColumns,
-    List<I>? dataIds,
+  static SeriesData fromData({
+    required Map<Object, List<dynamic>> data,
+    required Map<AxisId, Object> plotColumns,
+    List<Object>? dataIds,
   }) {
     // Check that all of the columns are the same length.
     final int length = data[plotColumns.values.first]!.length;
@@ -118,7 +116,7 @@ class SeriesData<C, I, A> {
     if (!plotColumns.keys.every((e) => e.axesId == plotColumns.keys.first.axesId)) {
       throw DataConversionException("All columns must have the same chart axes ID");
     }
-    dataIds ??= List.generate(length, (index) => index as I);
+    dataIds ??= List.generate(length, (index) => index);
     // Check the data IDs are the same length as the data (if provided).
     if (dataIds.length != length) {
       throw DataConversionException("Data IDs must be the same length as the data");
@@ -127,10 +125,10 @@ class SeriesData<C, I, A> {
     // Find the unique string values in all columns of strings.
     // If the user initialized a column as dynamic, check the first
     // value to see if it is a string.
-    final Map<C, Map<I, dynamic>> dataColumns = {};
+    final Map<Object, Map<Object, dynamic>> dataColumns = {};
 
-    for (C plotColumn in data.keys) {
-      Map<I, dynamic> column = {};
+    for (Object plotColumn in data.keys) {
+      Map<Object, Object> column = {};
       for (int i = 0; i < length; i++) {
         if (!data.containsKey(plotColumn)) {
           throw DataConversionException("Column $plotColumn not found in data");
@@ -139,7 +137,7 @@ class SeriesData<C, I, A> {
       }
       dataColumns[plotColumn] = column;
     }
-    return SeriesData<C, I, A>._(dataColumns, plotColumns);
+    return SeriesData._(dataColumns, plotColumns);
   }
 
   /// Calculate the dimensionality of the data.
@@ -147,25 +145,25 @@ class SeriesData<C, I, A> {
 
   List<dynamic> getRow(int index) {
     List<dynamic> coordinates = [];
-    for (C column in plotColumns.values) {
+    for (Object column in plotColumns.values) {
       coordinates.add(data[column]!.values.toList()[index]);
     }
     return coordinates;
   }
 
-  Bounds calculateBounds(C column) {
+  Bounds calculateBounds(Object column) {
     List<dynamic> values = data[column]!.values.toList();
     if (values.first is num) {
       return Bounds.fromList(values.map((e) => e as num).toList());
     } else {
-      throw DataConversionException("Unable to calculate bounds for column $C");
+      throw DataConversionException("Unable to calculate bounds for column $column");
     }
   }
 }
 
 @immutable
-class SeriesList<C, I, A> {
-  final List<Series<C, I, A>> values;
+class SeriesList {
+  final List<Series> values;
   final List<Color> colorCycle;
 
   const SeriesList(this.values, this.colorCycle);
@@ -179,7 +177,7 @@ class SeriesList<C, I, A> {
         );
   }
 
-  Series<C, I, A> operator [](int index) => values[index];
+  Series operator [](int index) => values[index];
 
   int get length => values.length;
 }

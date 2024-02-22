@@ -4,10 +4,10 @@ import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 
-class CombinedChart<C, I, A> extends StatefulWidget {
+class CombinedChart extends StatefulWidget {
   final String? title;
-  final SelectionController<I>? selectionController;
-  final List<List<ChartInfo<C, I, A>?>> children;
+  final SelectionController? selectionController;
+  final List<List<ChartInfo?>> children;
   final ChartTheme theme;
 
   const CombinedChart({
@@ -19,14 +19,14 @@ class CombinedChart<C, I, A> extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  CombinedChartState<C, I, A> createState() => CombinedChartState<C, I, A>();
+  CombinedChartState createState() => CombinedChartState();
 }
 
-class CombinedChartState<C, I, A> extends State<CombinedChart<C, I, A>> {
-  final List<List<ChartInfo<C, I, A>>> rows = [];
-  final List<List<ChartInfo<C, I, A>>> columns = [];
+class CombinedChartState extends State<CombinedChart> {
+  final List<List<ChartInfo>> rows = [];
+  final List<List<ChartInfo>> columns = [];
   final Map<AxisController, List<ChartInfo>> axesControllers = {};
-  final List<AxisId<A>> hiddenLabels = [];
+  final List<AxisId> hiddenLabels = [];
 
   @override
   void initState() {
@@ -34,7 +34,7 @@ class CombinedChartState<C, I, A> extends State<CombinedChart<C, I, A>> {
     for (int i = 0; i < widget.children.length; i++) {
       rows.add([]);
       for (int j = 0; j < widget.children[i].length; j++) {
-        ChartInfo<C, I, A>? info = widget.children[i][j];
+        ChartInfo? info = widget.children[i][j];
         if (info != null) {
           rows[i].add(info);
         }
@@ -43,12 +43,12 @@ class CombinedChartState<C, I, A> extends State<CombinedChart<C, I, A>> {
     for (int i = 0; i < rows.length; i++) {
       if (rows[i].length > 1) {
         List<ChartInfo> axisCharts = [];
-        Map<Series<C, I, A>, AxisId<A>> seriesToAxis = {};
+        Map<Series, AxisId> seriesToAxis = {};
         AxisLocation? rowLocation;
 
         for (int j = 0; j < rows[i].length; j++) {
-          ChartInfo<C, I, A> info = rows[i][j];
-          for (Series<C, I, A> series in info.allSeries) {
+          ChartInfo info = rows[i][j];
+          for (Series series in info.allSeries) {
             List<AxisLocation> locations = series.data.plotColumns.keys.map((e) => e.location).toList();
             if (rowLocation == null) {
               if (locations.contains(AxisLocation.left)) {
@@ -96,12 +96,12 @@ class CombinedChartState<C, I, A> extends State<CombinedChart<C, I, A>> {
     for (int i = 0; i < widget.children[0].length; i++) {
       if (columns[i].length > 1) {
         List<ChartInfo> axisCharts = [];
-        Map<Series<C, I, A>, AxisId<A>> seriesToAxis = {};
+        Map<Series, AxisId> seriesToAxis = {};
         AxisLocation? columnLocation;
 
         for (int j = 0; j < columns[i].length; j++) {
-          ChartInfo<C, I, A> info = columns[i][j];
-          for (Series<C, I, A> series in info.allSeries) {
+          ChartInfo info = columns[i][j];
+          for (Series series in info.allSeries) {
             List<AxisLocation> locations = series.data.plotColumns.keys.map((e) => e.location).toList();
             if (columnLocation == null) {
               if (locations.contains(AxisLocation.top)) {
@@ -261,8 +261,8 @@ class CombinedChartLayoutDelegate extends ChartLayoutDelegate {
   }
 }
 
-AxisId<A> _getAxisId<C, I, A>(Series<C, I, A> series, AxisLocation location) {
-  for (AxisId<A> axisId in series.data.plotColumns.keys) {
+AxisId _getAxisId<C, I, A>(Series series, AxisLocation location) {
+  for (AxisId axisId in series.data.plotColumns.keys) {
     if (axisId.location == location) {
       return axisId;
     }

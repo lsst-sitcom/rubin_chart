@@ -12,7 +12,7 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 
-class ScatterPlotInfo<C, I, A> extends ChartInfo<C, I, A> {
+class ScatterPlotInfo extends ChartInfo {
   ScatterPlotInfo({
     required super.allSeries,
     super.title,
@@ -22,11 +22,11 @@ class ScatterPlotInfo<C, I, A> extends ChartInfo<C, I, A> {
     super.colorCycle,
     super.projectionInitializer = CartesianProjection.fromAxes,
     super.interiorAxisLabelLocation,
-  }) : super(builder: ScatterPlot.builder<C, I, A>);
+  }) : super(builder: ScatterPlot.builder);
 }
 
-class ScatterPlot<C, I, A> extends StatefulWidget {
-  final ScatterPlotInfo<C, I, A> info;
+class ScatterPlot extends StatefulWidget {
+  final ScatterPlotInfo info;
   final SelectionController? selectionController;
   final List<AxisController>? axesControllers;
 
@@ -37,12 +37,12 @@ class ScatterPlot<C, I, A> extends StatefulWidget {
     this.axesControllers,
   }) : super(key: key);
 
-  static Widget builder<C, I, A>({
-    required ChartInfo<C, I, A> info,
+  static Widget builder({
+    required ChartInfo info,
     List<AxisController>? axesControllers,
-    SelectionController<I>? selectionController,
+    SelectionController? selectionController,
   }) {
-    if (info is! ScatterPlotInfo<C, I, A>) {
+    if (info is! ScatterPlotInfo) {
       throw ArgumentError("ScatterPlot.builder: info must be of type ScatterPlotInfo");
     }
     return ScatterPlot(
@@ -53,25 +53,25 @@ class ScatterPlot<C, I, A> extends StatefulWidget {
   ScatterPlotState createState() => ScatterPlotState();
 }
 
-class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMixin {
+class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   @override
-  SeriesList<C, I, A> get seriesList => SeriesList(
+  SeriesList get seriesList => SeriesList(
         widget.info.allSeries,
         widget.info.colorCycle ?? widget.info.theme.colorCycle,
       );
 
   /// The axes of the chart.
   @override
-  Map<A, ChartAxes<A>> get axes => _axes;
+  Map<Object, ChartAxes> get axes => _axes;
 
   /// The axes of the chart.
-  final Map<A, ChartAxes<A>> _axes = {};
+  final Map<Object, ChartAxes> _axes = {};
 
   /// Quadtree for the bottom left axes.
-  final Map<A, QuadTree<I>> _quadTrees = {};
+  final Map<Object, QuadTree<Object>> _quadTrees = {};
 
   /// The selected (and highlighted) data points.
-  List<I> selectedDataPoints = [];
+  List<Object> selectedDataPoints = [];
 
   bool get dragging => dragStart != null;
   Offset? dragStart;
@@ -81,7 +81,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
   void initState() {
     super.initState();
     // Initialize the axes
-    _axes.addAll(initializeSimpleAxes<C, I, A>(
+    _axes.addAll(initializeSimpleAxes(
       seriesList: widget.info.allSeries,
       axisInfo: widget.info.axisInfo,
       theme: widget.info.theme,
@@ -89,8 +89,8 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     ));
 
     // Initialize the quadtrees
-    List<A> axesIndices = _axes.keys.toList();
-    for (A axesIndex in axesIndices) {
+    List<Object> axesIndices = _axes.keys.toList();
+    for (Object axesIndex in axesIndices) {
       ChartAxis axis0 = _axes[axesIndex]!.axes.values.first;
       ChartAxis axis1 = _axes[axesIndex]!.axes.values.last;
 
@@ -250,9 +250,9 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     dragEnd = details.localPosition;
 
     selectedDataPoints = [];
-    for (MapEntry<A, QuadTree<I>> entry in _quadTrees.entries) {
-      A axesId = entry.key;
-      QuadTree<I> quadTree = entry.value;
+    for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
+      Object axesId = entry.key;
+      QuadTree<Object> quadTree = entry.value;
       // Select points that fit inside the selection box
       Projection projection = axisPainter.projections![axesId]!;
       Offset projectedStart = Offset(
@@ -288,9 +288,9 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
     }
 
     QuadTreeElement? nearest;
-    for (MapEntry<A, QuadTree<I>> entry in _quadTrees.entries) {
-      A axesId = entry.key;
-      QuadTree<I> quadTree = entry.value;
+    for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
+      Object axesId = entry.key;
+      QuadTree<Object> quadTree = entry.value;
       // Select nearest point in the quadtree.
       Projection projection = axisPainter.projections![axesId]!;
       double x = projection.xTransform
@@ -346,8 +346,8 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       return;
     }
 
-    for (MapEntry<A, ChartAxes> entry in _axes.entries) {
-      A axesId = entry.key;
+    for (MapEntry<Object, ChartAxes> entry in _axes.entries) {
+      Object axesId = entry.key;
       ChartAxes axes = entry.value;
       double dx = event.scrollDelta.dx;
       double dy = event.scrollDelta.dy;

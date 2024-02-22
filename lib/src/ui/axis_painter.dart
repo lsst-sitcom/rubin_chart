@@ -5,8 +5,8 @@ import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 
 /// Paint the frame, axes, and tick marks of a plot.
-class AxisPainter<A> extends CustomPainter {
-  final Map<A, ChartAxes<A>> allAxes;
+class AxisPainter extends CustomPainter {
+  final Map<Object, ChartAxes> allAxes;
   final ChartTheme theme;
   final Map<AxisId, List<TextPainter>?> _tickLabelPainters = {};
   final double tickPadding;
@@ -20,8 +20,8 @@ class AxisPainter<A> extends CustomPainter {
   }) {
     margin = EdgeInsets.zero;
 
-    for (ChartAxes<A> axes in allAxes.values) {
-      for (AxisId<A> axisId in axes.axes.keys) {
+    for (ChartAxes axes in allAxes.values) {
+      for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
         if (!(axis.showTicks || axis.showLabels)) {
           continue;
@@ -73,7 +73,7 @@ class AxisPainter<A> extends CustomPainter {
     }
   }
 
-  void _drawAxisTickLabels(Canvas canvas, Size size, AxisId<A> axisId, Projection projection, A axesId) {
+  void _drawAxisTickLabels(Canvas canvas, Size size, AxisId axisId, Projection projection, Object axesId) {
     ChartAxis axis = allAxes[axesId]![axisId];
     AxisTicks ticks = axis.ticks;
     bool minIsBound = ticks.bounds.min == axis.bounds.min;
@@ -108,7 +108,7 @@ class AxisPainter<A> extends CustomPainter {
     }
   }
 
-  Map<A, Projection>? projections;
+  Map<Object, Projection>? projections;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -125,10 +125,10 @@ class AxisPainter<A> extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = theme.tickThickness;
       for (MapEntry entry in allAxes.entries) {
-        A axesId = entry.key;
-        ChartAxes<A> axes = entry.value;
+        Object axesId = entry.key;
+        ChartAxes axes = entry.value;
         projections![axesId] = axes.projection(axes: axes.axes.values.toList(), plotSize: plotSize);
-        for (AxisId<A> axisId in axes.axes.keys) {
+        for (AxisId axisId in axes.axes.keys) {
           ChartAxis axis = axes[axisId];
           if (!(axis.showTicks || axis.showLabels)) {
             continue;

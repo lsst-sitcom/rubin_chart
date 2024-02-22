@@ -7,40 +7,40 @@ import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
 /// Callback when sources are selected or deselected.
-typedef SelectDatapointsCallback = void Function<T>(List<T> dataIds);
+typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
 /// A controller to manage the selection of data points across multiple series.
-class SelectionController<I> {
+class SelectionController {
   /// The selected data points.
-  final List<I> _selectedDataPoints = [];
+  final List<Object> _selectedDataPoints = [];
 
   SelectionController();
 
   /// Get the selected data points.
-  List<I> get selectedDataPoints => [..._selectedDataPoints];
+  List<Object> get selectedDataPoints => [..._selectedDataPoints];
 
   /// List of observers that are notified when the selection changes.
-  final List<SelectionUpdate<I>> _observers = [];
+  final List<SelectionUpdate> _observers = [];
 
   /// Subscribe to the selection controller.
-  void subscribe(SelectionUpdate<I> observer) {
+  void subscribe(SelectionUpdate observer) {
     _observers.add(observer);
   }
 
   /// Unsubscribe from the selection controller.
-  void unsubscribe(SelectionUpdate<I> observer) {
+  void unsubscribe(SelectionUpdate observer) {
     _observers.remove(observer);
   }
 
   /// Notify all observers that the selection has changed.
   void _notifyObservers() {
-    for (SelectionUpdate<I> observer in _observers) {
+    for (SelectionUpdate observer in _observers) {
       observer(selectedDataPoints);
     }
   }
 
   /// Update the selected datapoints.
-  void updateSelection(List<I> dataPoints) {
+  void updateSelection(List<Object> dataPoints) {
     _selectedDataPoints.clear();
     _selectedDataPoints.addAll(dataPoints);
     _notifyObservers();
@@ -56,13 +56,13 @@ mixin ChartMixin<T extends StatefulWidget, U> on State<T> {
 }
 
 /// Convert a list of [ChartAxisInfo] or a list of [Series] into a map of [ChartAxisInfo].
-Map<AxisId<A>, ChartAxisInfo<A>> _genAxisInfoMap<C, I, A>(
-  List<ChartAxisInfo<A>>? axisInfo,
-  List<Series<C, I, A>> allSeries,
+Map<AxisId, ChartAxisInfo> _genAxisInfoMap(
+  List<ChartAxisInfo>? axisInfo,
+  List<Series> allSeries,
 ) {
-  Map<AxisId<A>, ChartAxisInfo<A>> axisInfoMap = {};
+  Map<AxisId, ChartAxisInfo> axisInfoMap = {};
   if (axisInfo != null) {
-    for (ChartAxisInfo<A> info in axisInfo) {
+    for (ChartAxisInfo info in axisInfo) {
       axisInfoMap[info.axisId] = info;
     }
   } else {
@@ -73,15 +73,15 @@ Map<AxisId<A>, ChartAxisInfo<A>> _genAxisInfoMap<C, I, A>(
 
 /// Information required to build a chart.
 /// All charts accept a [ChartInfo] as a required input.
-class ChartInfo<C, I, A> {
+class ChartInfo {
   final String? title;
   final ChartTheme theme;
-  final List<Series<C, I, A>> allSeries;
+  final List<Series> allSeries;
   final Legend? legend;
-  final Map<AxisId<A>, ChartAxisInfo<A>> axisInfo;
+  final Map<AxisId, ChartAxisInfo> axisInfo;
   final List<Color>? colorCycle;
   final ProjectionInitializer projectionInitializer;
-  final ChartBuilder<C, I, A> builder;
+  final ChartBuilder builder;
   final AxisLocation? interiorAxisLabelLocation;
 
   ChartInfo({
@@ -91,18 +91,18 @@ class ChartInfo<C, I, A> {
     required this.projectionInitializer,
     required this.builder,
     this.legend,
-    List<ChartAxisInfo<A>>? axisInfo,
+    List<ChartAxisInfo>? axisInfo,
     this.colorCycle,
     this.interiorAxisLabelLocation,
   }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
-  SeriesList<C, I, A> get seriesList => SeriesList<C, I, A>(allSeries, colorCycle ?? theme.colorCycle);
+  SeriesList get seriesList => SeriesList(allSeries, colorCycle ?? theme.colorCycle);
 }
 
-typedef ChartBuilder<C, I, A> = Widget Function({
-  required ChartInfo<C, I, A> info,
+typedef ChartBuilder = Widget Function({
+  required ChartInfo info,
   List<AxisController>? axesControllers,
-  SelectionController<I>? selectionController,
+  SelectionController? selectionController,
 });
 
 /// Enum provinding the different components of a chart that might need to be laid out.
@@ -176,33 +176,33 @@ class ChartLayoutId<T> {
   String toString() => "AxisId($component, $id)";
 }
 
-class RubinChart<C, I, A, T> extends StatefulWidget {
-  final T chartId;
-  final ChartInfo<C, I, A> info;
-  final SelectionController<I>? selectionController;
-  final Map<AxisId<A>, AxisController> axisControllers;
+class RubinChart extends StatefulWidget {
+  final Object chartId;
+  final ChartInfo info;
+  final SelectionController? selectionController;
+  final Map<AxisId, AxisController> axisControllers;
 
   const RubinChart({
     super.key,
     required this.info,
-    T? chartId,
+    Object? chartId,
     this.selectionController,
     this.axisControllers = const {},
-  }) : chartId = chartId ?? 0 as T;
+  }) : chartId = chartId ?? 0;
 
   @override
-  State<RubinChart<C, I, A, T>> createState() => RubinChartState<C, I, A, T>();
+  State<RubinChart> createState() => RubinChartState();
 }
 
-mixin RubinChartMixin<C, I, A, T> {
+mixin RubinChartMixin {
   List<Widget> buildSingleChartChildren(
-    T chartId,
-    ChartInfo<C, I, A> info,
-    SelectionController<I>? selectionController,
-    Map<AxisId<A>, AxisController> axisControllers,
+    Object chartId,
+    ChartInfo info,
+    SelectionController? selectionController,
+    Map<AxisId, AxisController> axisControllers,
   ) {
     List<Widget> children = [];
-    Map<AxisId<A>, ChartAxisInfo<A>> axisInfo = info.axisInfo;
+    Map<AxisId, ChartAxisInfo> axisInfo = info.axisInfo;
 
     if (info.title != null) {
       children.add(
@@ -233,7 +233,7 @@ mixin RubinChartMixin<C, I, A, T> {
       }
     }
 
-    for (MapEntry<AxisId<A>, ChartAxisInfo> entry in axisInfo.entries) {
+    for (MapEntry<AxisId, ChartAxisInfo> entry in axisInfo.entries) {
       AxisLocation location = entry.value.axisId.location;
       ChartAxisInfo axisInfo = entry.value;
       Widget label = Text(axisInfo.label, style: info.theme.axisLabelStyle);
@@ -279,7 +279,7 @@ mixin RubinChartMixin<C, I, A, T> {
   }
 }
 
-class RubinChartState<C, I, A, T> extends State<RubinChart<C, I, A, T>> with RubinChartMixin<C, I, A, T> {
+class RubinChartState extends State<RubinChart> with RubinChartMixin {
   @override
   Widget build(BuildContext context) {
     return CustomMultiChildLayout(

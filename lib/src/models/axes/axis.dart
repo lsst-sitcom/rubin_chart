@@ -75,20 +75,20 @@ class AxisController {
 }
 
 /// An ID for a [ChartAxis] in a [ChartAxes].
-class AxisId<T> {
+class AxisId {
   /// The location of the axis in a chart.
   final AxisLocation location;
 
   /// The id of the [ChartAxes] that contains this [ChartAxis].
-  final T axesId;
+  final Object axesId;
 
   AxisId._(this.location, this.axesId);
 
   /// Create an [AxisId] from a location and (optional) chart ID.
-  factory AxisId(AxisLocation location, [T? chartId]) {
-    if (T == int || chartId == null) {
-      chartId ??= 0 as T;
-      return AxisId._(location, chartId as T);
+  factory AxisId(AxisLocation location, [Object? chartId]) {
+    if (chartId is int || chartId == null) {
+      chartId ??= 0;
+      return AxisId._(location, chartId);
     }
     return AxisId._(location, chartId);
   }
@@ -133,7 +133,7 @@ class ChartAxisInfo<A> {
   final String label;
   final Mapping mapping;
   final bool isInverted;
-  final AxisId<A> axisId;
+  final AxisId axisId;
 
   const ChartAxisInfo({
     required this.label,
@@ -417,9 +417,9 @@ class MissingAxisException implements Exception {
 }
 
 /// A collection of axes for a chart.
-class ChartAxes<A> {
+class ChartAxes {
   /// The axes of the chart.
-  final Map<AxisId<A>, ChartAxis> axes;
+  final Map<AxisId, ChartAxis> axes;
 
   /// The projection used to map the axes to pixel coordinates.
   final ProjectionInitializer projection;
@@ -430,7 +430,7 @@ class ChartAxes<A> {
   int get dimension => axes.length;
 
   /// Select an axis by its [AxisId].
-  ChartAxis operator [](AxisId<A> axisId) {
+  ChartAxis operator [](AxisId axisId) {
     if (!axes.containsKey(axisId)) {
       throw MissingAxisException("$axisId not contained in the axes.");
     }
@@ -457,10 +457,10 @@ class ChartAxes<A> {
 
 /// Initialize a set of plot axes from a list of [Series],
 /// assuming a linear mapping and naming the axes from the series columns.
-Map<AxisId<A>, ChartAxisInfo> getAxisInfoFromSeries<C, I, A>(SeriesList<C, I, A> seriesList) {
-  Map<AxisId<A>, ChartAxisInfo> axesInfo = {};
-  for (Series<C, I, A> series in seriesList.values) {
-    for (AxisId<A> axisId in series.data.plotColumns.keys) {
+Map<AxisId, ChartAxisInfo> getAxisInfoFromSeries(SeriesList seriesList) {
+  Map<AxisId, ChartAxisInfo> axesInfo = {};
+  for (Series series in seriesList.values) {
+    for (AxisId axisId in series.data.plotColumns.keys) {
       String label = series.data.plotColumns[axisId].toString();
       if (!axesInfo.containsKey(axisId)) {
         axesInfo[axisId] = ChartAxisInfo(
@@ -473,10 +473,10 @@ Map<AxisId<A>, ChartAxisInfo> getAxisInfoFromSeries<C, I, A>(SeriesList<C, I, A>
   return axesInfo;
 }
 
-ChartAxis initializeAxis<C, A, I>({
-  required Map<Series, AxisId<A>> allSeries,
+ChartAxis initializeAxis({
+  required Map<Series, AxisId> allSeries,
   required ChartTheme theme,
-  required ChartAxisInfo<A> axisInfo,
+  required ChartAxisInfo axisInfo,
 }) {
   // Check that the map of allSeries is value
   if (!allSeries.entries.every((entry) => entry.key.data.plotColumns.containsKey(entry.value))) {
@@ -491,7 +491,7 @@ ChartAxis initializeAxis<C, A, I>({
     return NumericalChartAxis.fromData(
       axisInfo: axisInfo,
       data:
-          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value])).toList(),
+          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value]!)).toList(),
       theme: theme,
     );
   } else if (data is String) {
@@ -510,15 +510,15 @@ ChartAxis initializeAxis<C, A, I>({
   throw AxisUpdateException("Data type not supported.");
 }
 
-Map<A, ChartAxes<A>> initializeSimpleAxes<C, I, A>({
-  required List<Series<C, I, A>> seriesList,
+Map<Object, ChartAxes> initializeSimpleAxes({
+  required List<Series> seriesList,
   required ProjectionInitializer projectionInitializer,
   required ChartTheme theme,
-  required Map<AxisId<A>, ChartAxisInfo<A>> axisInfo,
+  required Map<AxisId, ChartAxisInfo> axisInfo,
 }) {
-  final Map<AxisId<A>, ChartAxis> axes = {};
-  for (MapEntry<AxisId<A>, ChartAxisInfo> entry in axisInfo.entries) {
-    AxisId<A> axisId = entry.key;
+  final Map<AxisId, ChartAxis> axes = {};
+  for (MapEntry<AxisId, ChartAxisInfo> entry in axisInfo.entries) {
+    AxisId axisId = entry.key;
     Map<Series, AxisId> seriesForAxis = {};
     for (Series series in seriesList) {
       if (series.data.plotColumns.containsKey(axisId)) {
@@ -530,9 +530,9 @@ Map<A, ChartAxes<A>> initializeSimpleAxes<C, I, A>({
     }
     axes[axisId] = initializeAxis(allSeries: seriesForAxis, theme: theme, axisInfo: entry.value);
   }
-  final List<A> axesIds = axes.keys.map((e) => e.axesId).toList();
-  final Map<A, ChartAxes<A>> result = {};
-  for (A axesId in axesIds) {
+  final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();
+  final Map<Object, ChartAxes> result = {};
+  for (Object axesId in axesIds) {
     result[axesId] = ChartAxes(
       axes: Map.fromEntries(axes.entries.where((entry) => entry.key.axesId == axesId)),
       projection: projectionInitializer,
@@ -542,12 +542,12 @@ Map<A, ChartAxes<A>> initializeSimpleAxes<C, I, A>({
 }
 
 /// Initialize the basic information about all of the [ChartAxis] instances from a list of [Series].
-Map<AxisId<A>, ChartAxisInfo<A>> axisInfoFromSeriesList<C, I, A>(List<Series<C, I, A>> seriesList) {
-  Map<AxisId<A>, ChartAxisInfo<A>> axisInfo = {};
-  for (Series<C, I, A> series in seriesList) {
+Map<AxisId, ChartAxisInfo> axisInfoFromSeriesList(List<Series> seriesList) {
+  Map<AxisId, ChartAxisInfo> axisInfo = {};
+  for (Series series in seriesList) {
     if (!axisInfo.containsKey(series.axesId)) {
       List<ChartAxisInfo> axisInfos = [];
-      for (MapEntry<AxisId, C> entry in series.data.plotColumns.entries) {
+      for (MapEntry<AxisId, Object> entry in series.data.plotColumns.entries) {
         axisInfos.add(ChartAxisInfo(
           label: entry.value.toString(),
           axisId: entry.key,

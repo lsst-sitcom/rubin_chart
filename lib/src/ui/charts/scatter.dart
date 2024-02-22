@@ -21,6 +21,7 @@ class ScatterPlotInfo<C, I, A> extends ChartInfo<C, I, A> {
     super.axisInfo,
     super.colorCycle,
     super.projectionInitializer = CartesianProjection.fromAxes,
+    super.interiorAxisLabelLocation,
   }) : super(builder: ScatterPlot.builder<C, I, A>);
 }
 
@@ -61,10 +62,10 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
 
   /// The axes of the chart.
   @override
-  Map<A, ChartAxes> get axes => _axes;
+  Map<A, ChartAxes<A>> get axes => _axes;
 
   /// The axes of the chart.
-  final Map<A, ChartAxes> _axes = {};
+  final Map<A, ChartAxes<A>> _axes = {};
 
   /// Quadtree for the bottom left axes.
   final Map<A, QuadTree<I>> _quadTrees = {};
@@ -80,7 +81,7 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
   void initState() {
     super.initState();
     // Initialize the axes
-    _axes.addAll(initializeSimpleAxes(
+    _axes.addAll(initializeSimpleAxes<C, I, A>(
       seriesList: widget.info.allSeries,
       axisInfo: widget.info.axisInfo,
       theme: widget.info.theme,
@@ -358,7 +359,8 @@ class ScatterPlotState<C, I, A> extends State<ScatterPlot<C, I, A>> with ChartMi
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
 
-        if (axis.info.location == AxisLocation.bottom || axis.info.location == AxisLocation.top) {
+        if (axis.info.axisId.location == AxisLocation.bottom ||
+            axis.info.axisId.location == AxisLocation.top) {
           axis.translate(dx);
         } else {
           axis.translate(dy);

@@ -97,6 +97,8 @@ class SeriesData<C, I, A> {
   /// The number of data points in the series.
   int get length => data.values.first.length;
 
+  
+
   /// Create a [SeriesData] object from a list of data points.
   /// This is used to create the [SeriesData] instance with
   /// a map of string values to their plot coordinate along the axis.

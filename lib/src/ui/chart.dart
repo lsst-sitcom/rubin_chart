@@ -4,6 +4,7 @@ import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
+import 'package:rubin_chart/src/ui/legend.dart';
 
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function<T>(List<T> dataIds);
@@ -46,18 +47,28 @@ class SelectionController<I> {
   }
 }
 
-/// Callback when an axis label is tapped.
-typedef TapAxisCallback = void Function(int axisIndex);
-
-/// Callback when an axis is updated (for example nby a zoom or pan gesture).
-typedef AxisUpdateCallback = void Function(int axisIndex, ChartAxis axis);
-
 /// A mixin that provides access to the series, axes, and legend of a chart.
 /// This is made so that a state with a global key can have access to
 /// its properties in other widgets.
 mixin ChartMixin<T extends StatefulWidget, U> on State<T> {
   SeriesList get seriesList;
   Map<U, ChartAxes> get axes;
+}
+
+/// Convert a list of [ChartAxisInfo] or a list of [Series] into a map of [ChartAxisInfo].
+Map<AxisId<A>, ChartAxisInfo<A>> _genAxisInfoMap<C, I, A>(
+  List<ChartAxisInfo<A>>? axisInfo,
+  List<Series<C, I, A>> allSeries,
+) {
+  Map<AxisId<A>, ChartAxisInfo<A>> axisInfoMap = {};
+  if (axisInfo != null) {
+    for (ChartAxisInfo<A> info in axisInfo) {
+      axisInfoMap[info.axisId] = info;
+    }
+  } else {
+    axisInfoMap = axisInfoFromSeriesList(allSeries);
+  }
+  return axisInfoMap;
 }
 
 /// Information required to build a chart.
@@ -67,10 +78,11 @@ class ChartInfo<C, I, A> {
   final ChartTheme theme;
   final List<Series<C, I, A>> allSeries;
   final Legend? legend;
-  final Map<AxisId<A>, ChartAxisInfo> axisInfo;
+  final Map<AxisId<A>, ChartAxisInfo<A>> axisInfo;
   final List<Color>? colorCycle;
   final ProjectionInitializer projectionInitializer;
   final ChartBuilder<C, I, A> builder;
+  final AxisLocation? interiorAxisLabelLocation;
 
   ChartInfo({
     required this.allSeries,
@@ -79,9 +91,10 @@ class ChartInfo<C, I, A> {
     required this.projectionInitializer,
     required this.builder,
     this.legend,
-    Map<AxisId<A>, ChartAxisInfo>? axisInfo,
+    List<ChartAxisInfo<A>>? axisInfo,
     this.colorCycle,
-  }) : axisInfo = axisInfo ?? axisInfoFromSeriesList(allSeries);
+    this.interiorAxisLabelLocation,
+  }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
   SeriesList<C, I, A> get seriesList => SeriesList<C, I, A>(allSeries, colorCycle ?? theme.colorCycle);
 }
@@ -103,11 +116,225 @@ enum ChartComponent {
   bottomAxis,
   leftAxis,
   rightAxis,
-  chart,
+  chart;
+
+  static ChartComponent? legendFromLocation(LegendLocation location) {
+    if (location == LegendLocation.top) {
+      return ChartComponent.topLegend;
+    }
+    if (location == LegendLocation.bottom) {
+      return ChartComponent.bottomLegend;
+    }
+    if (location == LegendLocation.left) {
+      return ChartComponent.leftLegend;
+    }
+    if (location == LegendLocation.right) {
+      return ChartComponent.rightLegend;
+    }
+    if (location == LegendLocation.floating) {
+      throw UnimplementedError("Floating legends are not yet implemented.");
+    }
+    if (location == LegendLocation.none) {
+      return null;
+    }
+    throw UnimplementedError("Invalid legend location: $location");
+  }
+}
+
+/// An ID for a [ChartComponent] in a [MultiChildLayoutDelegate].
+/// This is intended to be the ID of a [LayoutId].
+class ChartLayoutId<T> {
+  /// The location of the component in a chart.
+  final ChartComponent component;
+
+  /// The id of this chart component.
+  final T id;
+
+  ChartLayoutId._(this.component, this.id);
+
+  /// Create an [AxisId] from a location and (optional) chart ID.
+  factory ChartLayoutId(ChartComponent location, [T? chartId]) {
+    if (T == int || chartId == null) {
+      chartId ??= 0 as T;
+      return ChartLayoutId._(location, chartId as T);
+    }
+    return ChartLayoutId._(location, chartId);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is ChartLayoutId) {
+      return component == other.component && id == other.id;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => Object.hash(component, id);
+
+  @override
+  String toString() => "AxisId($component, $id)";
+}
+
+class RubinChart<C, I, A, T> extends StatefulWidget {
+  final T chartId;
+  final ChartInfo<C, I, A> info;
+  final SelectionController<I>? selectionController;
+  final Map<AxisId<A>, AxisController> axisControllers;
+
+  const RubinChart({
+    super.key,
+    required this.info,
+    T? chartId,
+    this.selectionController,
+    this.axisControllers = const {},
+  }) : chartId = chartId ?? 0 as T;
+
+  @override
+  State<RubinChart<C, I, A, T>> createState() => RubinChartState<C, I, A, T>();
+}
+
+mixin RubinChartMixin<C, I, A, T> {
+  List<Widget> buildSingleChartChildren(
+    T chartId,
+    ChartInfo<C, I, A> info,
+    SelectionController<I>? selectionController,
+    Map<AxisId<A>, AxisController> axisControllers,
+  ) {
+    List<Widget> children = [];
+    Map<AxisId<A>, ChartAxisInfo<A>> axisInfo = info.axisInfo;
+
+    if (info.title != null) {
+      children.add(
+        LayoutId(
+          id: ChartLayoutId(ChartComponent.title, chartId),
+          child: Text(
+            info.title!,
+            style: info.theme.titleStyle,
+          ),
+        ),
+      );
+    }
+
+    if (info.legend != null) {
+      if (info.legend!.location == LegendLocation.left || info.legend!.location == LegendLocation.right) {
+        children.add(
+          LayoutId(
+            id: ChartLayoutId(ChartComponent.legendFromLocation(info.legend!.location)!, chartId),
+            child: VerticalLegendViewer(
+              legend: info.legend!,
+              theme: info.theme,
+              seriesList: info.seriesList,
+            ),
+          ),
+        );
+      } else {
+        throw UnimplementedError("Horizontal legends are not yet implemented.");
+      }
+    }
+
+    for (MapEntry<AxisId<A>, ChartAxisInfo> entry in axisInfo.entries) {
+      AxisLocation location = entry.value.axisId.location;
+      ChartAxisInfo axisInfo = entry.value;
+      Widget label = Text(axisInfo.label, style: info.theme.axisLabelStyle);
+      ChartComponent component;
+      if (location == AxisLocation.left || location == AxisLocation.right) {
+        label = RotatedBox(
+          quarterTurns: axisInfo.axisId.location == AxisLocation.left ? 3 : 1,
+          child: label,
+        );
+        if (location == AxisLocation.left) {
+          component = ChartComponent.leftAxis;
+        } else {
+          component = ChartComponent.rightAxis;
+        }
+      } else if (location == AxisLocation.bottom) {
+        component = ChartComponent.bottomAxis;
+      } else if (location == AxisLocation.top) {
+        component = ChartComponent.topAxis;
+      } else {
+        throw AxisUpdateException("Unknown axis location: $location for a cartesian chart");
+      }
+
+      children.add(
+        LayoutId(
+          id: ChartLayoutId(component, chartId),
+          child: label,
+        ),
+      );
+    }
+
+    children.add(
+      LayoutId(
+        id: ChartLayoutId(ChartComponent.chart, chartId),
+        child: info.builder(
+          info: info,
+          selectionController: selectionController,
+          axesControllers: axisControllers.values.toList(),
+        ),
+      ),
+    );
+
+    return children;
+  }
+}
+
+class RubinChartState<C, I, A, T> extends State<RubinChart<C, I, A, T>> with RubinChartMixin<C, I, A, T> {
+  @override
+  Widget build(BuildContext context) {
+    return CustomMultiChildLayout(
+      delegate: ChartLayoutDelegate(),
+      children: buildSingleChartChildren(
+        widget.chartId,
+        widget.info,
+        widget.selectionController,
+        widget.axisControllers,
+      ),
+    );
+  }
+}
+
+class ChartLayout<T> {
+  final EdgeInsets margin;
+  final Map<ChartLayoutId<T>, Offset> componentOffsets;
+  final Map<ChartLayoutId<T>, Size> componentSizes;
+
+  ChartLayout({
+    required this.margin,
+    required this.componentOffsets,
+    required this.componentSizes,
+  });
+}
+
+mixin ChartLayoutMixin<T> implements MultiChildLayoutDelegate {
+  Map<T, ChartLayout<T>> componentLayouts = {};
+
+  List<ChartComponent> get leftComponents => [
+        ChartComponent.leftLegend,
+        ChartComponent.leftAxis,
+      ];
+
+  List<ChartComponent> get rightComponents => [
+        ChartComponent.rightLegend,
+        ChartComponent.rightAxis,
+      ];
+
+  List<ChartComponent> get topComponents => [
+        ChartComponent.title,
+        ChartComponent.topLegend,
+        ChartComponent.topAxis,
+      ];
+
+  List<ChartComponent> get bottomComponents => [
+        ChartComponent.bottomLegend,
+        ChartComponent.bottomAxis,
+      ];
+
+  void layoutSingleChart(T chartId) {}
 }
 
 /// A delegate that lays out the components of a chart.
-class ChartLayoutDelegate extends MultiChildLayoutDelegate {
+class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
   @override
   void performLayout(Size size) {
     final Map<ChartComponent, Size> childSizes = {};
@@ -117,27 +344,6 @@ class ChartLayoutDelegate extends MultiChildLayoutDelegate {
         childSizes[component] = layoutChild(component, BoxConstraints.loose(size));
       }
     }
-
-    List<ChartComponent> leftComponents = [
-      ChartComponent.leftLegend,
-      ChartComponent.leftAxis,
-    ];
-
-    List<ChartComponent> rightComponents = [
-      ChartComponent.rightLegend,
-      ChartComponent.rightAxis,
-    ];
-
-    List<ChartComponent> topComponents = [
-      ChartComponent.title,
-      ChartComponent.topLegend,
-      ChartComponent.topAxis,
-    ];
-
-    List<ChartComponent> bottomComponents = [
-      ChartComponent.bottomLegend,
-      ChartComponent.bottomAxis,
-    ];
 
     double topHeight = childSizes.entries
         .where((entry) => topComponents.contains(entry.key))

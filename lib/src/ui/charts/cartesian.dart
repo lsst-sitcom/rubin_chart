@@ -3,7 +3,6 @@ import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
-import 'package:rubin_chart/src/ui/charts/scatter.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
 class CartesianChart<C, I, A> extends StatefulWidget {
@@ -71,13 +70,13 @@ class CartesianChartState<C, I, A> extends State<CartesianChart<C, I, A>> {
     }
 
     for (MapEntry<AxisId<A>, ChartAxisInfo> entry in axisInfo.entries) {
-      AxisLocation location = entry.value.location;
+      AxisLocation location = entry.value.axisId.location;
       ChartAxisInfo axisInfo = entry.value;
       Widget label = Text(axisInfo.label, style: widget.info.theme.axisLabelStyle);
       ChartComponent component;
       if (location == AxisLocation.left || location == AxisLocation.right) {
         label = RotatedBox(
-          quarterTurns: axisInfo.location == AxisLocation.left ? 3 : 1,
+          quarterTurns: axisInfo.axisId.location == AxisLocation.left ? 3 : 1,
           child: label,
         );
         if (location == AxisLocation.left) {

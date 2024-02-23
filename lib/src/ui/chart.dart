@@ -74,6 +74,7 @@ Map<AxisId, ChartAxisInfo> _genAxisInfoMap(
 /// Information required to build a chart.
 /// All charts accept a [ChartInfo] as a required input.
 class ChartInfo {
+  final Object id;
   final String? title;
   final ChartTheme theme;
   final List<Series> allSeries;
@@ -83,8 +84,11 @@ class ChartInfo {
   final ProjectionInitializer projectionInitializer;
   final ChartBuilder builder;
   final AxisLocation? interiorAxisLabelLocation;
+  final double flexX;
+  final double flexY;
 
   ChartInfo({
+    required this.id,
     required this.allSeries,
     this.title,
     this.theme = ChartTheme.defaultTheme,
@@ -94,6 +98,8 @@ class ChartInfo {
     List<ChartAxisInfo>? axisInfo,
     this.colorCycle,
     this.interiorAxisLabelLocation,
+    this.flexX = 1,
+    this.flexY = 1,
   }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
   SeriesList get seriesList => SeriesList(allSeries, colorCycle ?? theme.colorCycle);
@@ -143,23 +149,14 @@ enum ChartComponent {
 
 /// An ID for a [ChartComponent] in a [MultiChildLayoutDelegate].
 /// This is intended to be the ID of a [LayoutId].
-class ChartLayoutId<T> {
+class ChartLayoutId {
   /// The location of the component in a chart.
   final ChartComponent component;
 
   /// The id of this chart component.
-  final T id;
+  final Object id;
 
-  ChartLayoutId._(this.component, this.id);
-
-  /// Create an [AxisId] from a location and (optional) chart ID.
-  factory ChartLayoutId(ChartComponent location, [T? chartId]) {
-    if (T == int || chartId == null) {
-      chartId ??= 0 as T;
-      return ChartLayoutId._(location, chartId as T);
-    }
-    return ChartLayoutId._(location, chartId);
-  }
+  ChartLayoutId(this.component, [this.id = 0]);
 
   @override
   bool operator ==(Object other) {
@@ -188,7 +185,7 @@ class RubinChart extends StatefulWidget {
     Object? chartId,
     this.selectionController,
     this.axisControllers = const {},
-  }) : chartId = chartId ?? 0;
+  }) : chartId = chartId ?? "Chart-0";
 
   @override
   State<RubinChart> createState() => RubinChartState();
@@ -283,7 +280,7 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   @override
   Widget build(BuildContext context) {
     return CustomMultiChildLayout(
-      delegate: ChartLayoutDelegate(),
+      delegate: ChartLayoutDelegate(chartId: widget.chartId),
       children: buildSingleChartChildren(
         widget.chartId,
         widget.info,
@@ -294,10 +291,10 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   }
 }
 
-class ChartLayout<T> {
+class ChartLayout {
   final EdgeInsets margin;
-  final Map<ChartLayoutId<T>, Offset> componentOffsets;
-  final Map<ChartLayoutId<T>, Size> componentSizes;
+  final Map<ChartLayoutId, Offset> componentOffsets;
+  final Map<ChartLayoutId, Size> componentSizes;
 
   ChartLayout({
     required this.margin,
@@ -306,8 +303,8 @@ class ChartLayout<T> {
   });
 }
 
-mixin ChartLayoutMixin<T> implements MultiChildLayoutDelegate {
-  Map<T, ChartLayout<T>> componentLayouts = {};
+mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
+  Map<Object, ChartLayout> componentLayouts = {};
 
   List<ChartComponent> get leftComponents => [
         ChartComponent.leftLegend,
@@ -330,105 +327,127 @@ mixin ChartLayoutMixin<T> implements MultiChildLayoutDelegate {
         ChartComponent.bottomAxis,
       ];
 
-  void layoutSingleChart(T chartId) {}
+  Map<ChartLayoutId, Size> calcComponentSizes(Object chartId, Size size) {
+    final Map<ChartLayoutId, Size> componentSizes = {};
+
+    for (ChartComponent component in ChartComponent.values) {
+      ChartLayoutId id = ChartLayoutId(component, chartId);
+      if (hasChild(id) && component != ChartComponent.chart) {
+        componentSizes[id] = layoutChild(id, BoxConstraints.loose(size));
+      }
+    }
+
+    return componentSizes;
+  }
+
+  /// Calculate the margin for a single chart.
+  /// This is the space required for the axis lables and legend.
+  EdgeInsets calcSingleChartMargin(Map<ChartLayoutId, Size> componentSizes) {
+    double top = componentSizes.entries
+        .where((entry) => topComponents.contains(entry.key.component))
+        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
+
+    double bottom = componentSizes.entries
+        .where((entry) => bottomComponents.contains(entry.key.component))
+        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
+
+    double left = componentSizes.entries
+        .where((entry) => leftComponents.contains(entry.key.component))
+        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
+
+    double right = componentSizes.entries
+        .where((entry) => rightComponents.contains(entry.key.component))
+        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
+
+    return EdgeInsets.fromLTRB(left, top, right, bottom);
+  }
+
+  /// Layout a single chart.
+  void layoutSingleChart(Object chartId, Size chartSize, Offset offset, Map<ChartLayoutId, Size> childSizes) {
+    // Layout the chart
+    layoutChild(ChartLayoutId(ChartComponent.chart, chartId), BoxConstraints.tight(chartSize));
+
+    for (ChartComponent component in ChartComponent.values) {
+      ChartLayoutId id = ChartLayoutId(component, chartId);
+      if (hasChild(id)) {
+        switch (id.component) {
+          case ChartComponent.title:
+            positionChild(id, Offset(offset.dx + chartSize.width / 2 - childSizes[id]!.width / 2, 0));
+            break;
+          case ChartComponent.topLegend:
+            positionChild(
+                id,
+                Offset(offset.dx + chartSize.width / 2 - childSizes[id]!.width / 2,
+                    childSizes[ChartComponent.title]?.height ?? 0));
+            break;
+          case ChartComponent.topAxis:
+            positionChild(
+                id,
+                Offset(
+                    offset.dx + chartSize.width / 2 - childSizes[id]!.width / 2,
+                    (childSizes[ChartComponent.title]?.height ?? 0) +
+                        (childSizes[ChartComponent.topLegend]?.height ?? 0)));
+            break;
+          case ChartComponent.leftLegend:
+            positionChild(id, Offset(0, offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
+            break;
+          case ChartComponent.leftAxis:
+            positionChild(
+                id,
+                Offset(childSizes[ChartComponent.leftLegend]?.width ?? 0,
+                    offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
+            break;
+          case ChartComponent.rightAxis:
+            positionChild(
+                id,
+                Offset(offset.dx + chartSize.width,
+                    offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
+            break;
+          case ChartComponent.rightLegend:
+            positionChild(
+                id,
+                Offset(offset.dx + chartSize.width + (childSizes[ChartComponent.rightAxis]?.width ?? 0),
+                    offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
+            break;
+          case ChartComponent.bottomAxis:
+            positionChild(
+                id,
+                Offset(offset.dx + chartSize.width / 2 - childSizes[id]!.width / 2,
+                    offset.dy + chartSize.height));
+            break;
+          case ChartComponent.bottomLegend:
+            positionChild(
+                id,
+                Offset(offset.dx + chartSize.width / 2 - childSizes[id]!.width / 2,
+                    offset.dy + chartSize.height + (childSizes[ChartComponent.bottomAxis]?.height ?? 0)));
+            break;
+          case ChartComponent.chart:
+            positionChild(id, offset);
+            break;
+        }
+      }
+    }
+  }
 }
 
 /// A delegate that lays out the components of a chart.
 class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
+  Object chartId;
+
+  ChartLayoutDelegate({required this.chartId});
+
   @override
   void performLayout(Size size) {
-    final Map<ChartComponent, Size> childSizes = {};
-
-    for (ChartComponent component in ChartComponent.values) {
-      if (hasChild(component) && component != ChartComponent.chart) {
-        childSizes[component] = layoutChild(component, BoxConstraints.loose(size));
-      }
-    }
-
-    double topHeight = childSizes.entries
-        .where((entry) => topComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
-
-    double bottomHeight = childSizes.entries
-        .where((entry) => bottomComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
-
-    double leftWidth = childSizes.entries
-        .where((entry) => leftComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
-
-    double rightWidth = childSizes.entries
-        .where((entry) => rightComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
+    Map<ChartLayoutId, Size> componentSizes = calcComponentSizes(chartId, size);
+    EdgeInsets margin = calcSingleChartMargin(componentSizes);
 
     Size chartSize = Size(
-      size.width - leftWidth - rightWidth,
-      size.height - topHeight - bottomHeight,
+      size.width - margin.left - margin.right,
+      size.height - margin.top - margin.bottom,
     );
 
-    // Layout the chart
-    layoutChild(ChartComponent.chart, BoxConstraints.tight(chartSize));
-
-    // Position all of the components.
-    if (hasChild(ChartComponent.title)) {
-      positionChild(ChartComponent.title,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.title]!.width / 2, 0));
-    }
-    if (hasChild(ChartComponent.topLegend)) {
-      positionChild(
-          ChartComponent.topLegend,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.topLegend]!.width / 2,
-              childSizes[ChartComponent.title]?.height ?? 0));
-    }
-    if (hasChild(ChartComponent.topAxis)) {
-      positionChild(
-          ChartComponent.topAxis,
-          Offset(
-              leftWidth + chartSize.width / 2 - childSizes[ChartComponent.topAxis]!.width / 2,
-              (childSizes[ChartComponent.title]?.height ?? 0) +
-                  (childSizes[ChartComponent.topLegend]?.height ?? 0)));
-    }
-    if (hasChild(ChartComponent.leftLegend)) {
-      positionChild(ChartComponent.leftLegend,
-          Offset(0, topHeight + chartSize.height / 2 - childSizes[ChartComponent.leftLegend]!.height / 2));
-    }
-    if (hasChild(ChartComponent.leftAxis)) {
-      positionChild(
-          ChartComponent.leftAxis,
-          Offset(childSizes[ChartComponent.leftLegend]?.width ?? 0,
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.leftAxis]!.height / 2));
-    }
-
-    // The chart always exists
-    positionChild(ChartComponent.chart, Offset(leftWidth, topHeight));
-
-    if (hasChild(ChartComponent.rightAxis)) {
-      positionChild(
-          ChartComponent.rightAxis,
-          Offset(leftWidth + chartSize.width,
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.rightAxis]!.height / 2));
-    }
-
-    if (hasChild(ChartComponent.rightLegend)) {
-      positionChild(
-          ChartComponent.rightLegend,
-          Offset(leftWidth + chartSize.width + (childSizes[ChartComponent.rightAxis]?.width ?? 0),
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.rightLegend]!.height / 2));
-    }
-
-    if (hasChild(ChartComponent.bottomAxis)) {
-      positionChild(
-          ChartComponent.bottomAxis,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.bottomAxis]!.width / 2,
-              topHeight + chartSize.height));
-    }
-
-    if (hasChild(ChartComponent.bottomLegend)) {
-      positionChild(
-          ChartComponent.bottomLegend,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.bottomLegend]!.width / 2,
-              topHeight + chartSize.height + (childSizes[ChartComponent.bottomAxis]?.height ?? 0)));
-    }
+    // Position the chart and its labels
+    layoutSingleChart(chartId, chartSize, Offset(margin.left, margin.top), componentSizes);
   }
 
   @override

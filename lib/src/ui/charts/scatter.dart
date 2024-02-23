@@ -14,6 +14,7 @@ import 'package:rubin_chart/src/utils/quadtree.dart';
 
 class ScatterPlotInfo extends ChartInfo {
   ScatterPlotInfo({
+    required super.id,
     required super.allSeries,
     super.title,
     super.theme,
@@ -22,6 +23,8 @@ class ScatterPlotInfo extends ChartInfo {
     super.colorCycle,
     super.projectionInitializer = CartesianProjection.fromAxes,
     super.interiorAxisLabelLocation,
+    super.flexX,
+    super.flexY,
   }) : super(builder: ScatterPlot.builder);
 }
 

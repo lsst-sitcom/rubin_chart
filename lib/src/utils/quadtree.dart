@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 /// An element in a [QuadtTree] and it's location.
-class QuadTreeElement<T> {
+class QuadTreeElement<T extends Object> {
   /// The item in the [QuadTree].
   final T element;
 
@@ -15,7 +15,7 @@ class QuadTreeElement<T> {
 }
 
 /// A 2D space partitioning data structure.
-class QuadTree<T> extends Rect {
+class QuadTree<T extends Object> extends Rect {
   /// Maximum depth of the tree.
   final int maxDepth;
 

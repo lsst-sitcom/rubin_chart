@@ -82,16 +82,7 @@ class AxisId {
   /// The id of the [ChartAxes] that contains this [ChartAxis].
   final Object axesId;
 
-  AxisId._(this.location, this.axesId);
-
-  /// Create an [AxisId] from a location and (optional) chart ID.
-  factory AxisId(AxisLocation location, [Object? chartId]) {
-    if (chartId is int || chartId == null) {
-      chartId ??= 0;
-      return AxisId._(location, chartId);
-    }
-    return AxisId._(location, chartId);
-  }
+  AxisId(this.location, [this.axesId = 0]);
 
   @override
   bool operator ==(Object other) {
@@ -129,7 +120,7 @@ enum AxisDataType {
 }
 
 @immutable
-class ChartAxisInfo<A> {
+class ChartAxisInfo {
   final String label;
   final Mapping mapping;
   final bool isInverted;
@@ -144,7 +135,7 @@ class ChartAxisInfo<A> {
 }
 
 /// Parameters needed to define an axis.
-abstract class ChartAxis<T> {
+abstract class ChartAxis<T extends Object> {
   ChartAxisInfo _info;
 
   /// The max/min bounds of the axis displayed in a chart.

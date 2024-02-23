@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/series.dart';
@@ -150,106 +152,92 @@ class CombinedChartState extends State<CombinedChart> {
   @override
   Widget build(BuildContext context) {
     return CustomMultiChildLayout(
-      delegate: CombinedChartLayoutDelegate(),
+      delegate: CombinedChartLayoutDelegate(children: widget.children, rows: rows, columns: columns),
     );
   }
 }
 
 /// A delegate that lays out the components of a chart.
-class CombinedChartLayoutDelegate extends ChartLayoutDelegate {
+class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
+  final List<List<ChartInfo?>> children;
+  final List<List<ChartInfo>> rows;
+  final List<List<ChartInfo>> columns;
+
+  CombinedChartLayoutDelegate({
+    required this.children,
+    required this.rows,
+    required this.columns,
+  });
+
   @override
   void performLayout(Size size) {
-    final Map<ChartComponent, Size> childSizes = {};
+    // Get the unique chart ids
+    final Set<Object> chartIds = {
+      ...rows.expand((e) => e).map((chartInfo) => chartInfo.id),
+      ...columns.expand((e) => e).map((chartInfo) => chartInfo.id)
+    };
+    // Layout each chart internally, calculting the size of each non-chart component.
+    Map<ChartLayoutId, Size> componentSizes = {};
+    for (Object chartId in chartIds) {
+      componentSizes.addAll(calcComponentSizes(chartId, size));
+    }
 
-    for (ChartComponent component in ChartComponent.values) {
-      if (hasChild(component) && component != ChartComponent.chart) {
-        childSizes[component] = layoutChild(component, BoxConstraints.loose(size));
+    // Calculate the margin for all of the charts
+    // (the space required for labels for the edge charts).
+    double left = 0;
+    double right = 0;
+    double top = 0;
+    double bottom = 0;
+    for (ChartInfo childInfo in columns[0]) {
+      ChartLayoutId id = ChartLayoutId(ChartComponent.leftAxis, childInfo.id);
+      if (hasChild(id)) {
+        left = math.max(left, componentSizes[id]!.width);
+      }
+    }
+    for (ChartInfo childInfo in columns[columns.length - 1]) {
+      ChartLayoutId id = ChartLayoutId(ChartComponent.rightAxis, childInfo.id);
+      if (hasChild(id)) {
+        right = math.max(right, componentSizes[id]!.width);
+      }
+    }
+    for (ChartInfo childInfo in rows[0]) {
+      ChartLayoutId id = ChartLayoutId(ChartComponent.topAxis, childInfo.id);
+      if (hasChild(id)) {
+        top = math.max(top, componentSizes[id]!.height);
+      }
+    }
+    for (ChartInfo childInfo in rows[rows.length - 1]) {
+      ChartLayoutId id = ChartLayoutId(ChartComponent.bottomAxis, childInfo.id);
+      if (hasChild(id)) {
+        bottom = math.max(bottom, componentSizes[id]!.height);
       }
     }
 
-    double topHeight = childSizes.entries
-        .where((entry) => topComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
-
-    double bottomHeight = childSizes.entries
-        .where((entry) => bottomComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.height);
-
-    double leftWidth = childSizes.entries
-        .where((entry) => leftComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
-
-    double rightWidth = childSizes.entries
-        .where((entry) => rightComponents.contains(entry.key))
-        .fold(0, (double previousValue, entry) => previousValue + entry.value.width);
-
-    Size chartSize = Size(
-      size.width - leftWidth - rightWidth,
-      size.height - topHeight - bottomHeight,
-    );
-
-    // Layout the chart
-    layoutChild(ChartComponent.chart, BoxConstraints.tight(chartSize));
-
-    // Position all of the components.
-    if (hasChild(ChartComponent.title)) {
-      positionChild(ChartComponent.title,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.title]!.width / 2, 0));
+    // Calculate the size of the charts
+    List<double> widths = [];
+    List<double> heights = [];
+    double totalFlexX = rows.expand((list) => list).fold(0.0, (sum, current) => sum + current.flexX);
+    double totalFlexY = columns.expand((list) => list).fold(0.0, (sum, current) => sum + current.flexY);
+    for (ChartInfo info in rows.expand((row) => row)) {
+      widths.add((size.width - left - right) * info.flexX / totalFlexX);
     }
-    if (hasChild(ChartComponent.topLegend)) {
-      positionChild(
-          ChartComponent.topLegend,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.topLegend]!.width / 2,
-              childSizes[ChartComponent.title]?.height ?? 0));
-    }
-    if (hasChild(ChartComponent.topAxis)) {
-      positionChild(
-          ChartComponent.topAxis,
-          Offset(
-              leftWidth + chartSize.width / 2 - childSizes[ChartComponent.topAxis]!.width / 2,
-              (childSizes[ChartComponent.title]?.height ?? 0) +
-                  (childSizes[ChartComponent.topLegend]?.height ?? 0)));
-    }
-    if (hasChild(ChartComponent.leftLegend)) {
-      positionChild(ChartComponent.leftLegend,
-          Offset(0, topHeight + chartSize.height / 2 - childSizes[ChartComponent.leftLegend]!.height / 2));
-    }
-    if (hasChild(ChartComponent.leftAxis)) {
-      positionChild(
-          ChartComponent.leftAxis,
-          Offset(childSizes[ChartComponent.leftLegend]?.width ?? 0,
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.leftAxis]!.height / 2));
+    for (ChartInfo info in columns.expand((column) => column)) {
+      heights.add((size.height - top - bottom) * info.flexY / totalFlexY);
     }
 
-    // The chart always exists
-    positionChild(ChartComponent.chart, Offset(leftWidth, topHeight));
-
-    if (hasChild(ChartComponent.rightAxis)) {
-      positionChild(
-          ChartComponent.rightAxis,
-          Offset(leftWidth + chartSize.width,
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.rightAxis]!.height / 2));
-    }
-
-    if (hasChild(ChartComponent.rightLegend)) {
-      positionChild(
-          ChartComponent.rightLegend,
-          Offset(leftWidth + chartSize.width + (childSizes[ChartComponent.rightAxis]?.width ?? 0),
-              topHeight + chartSize.height / 2 - childSizes[ChartComponent.rightLegend]!.height / 2));
-    }
-
-    if (hasChild(ChartComponent.bottomAxis)) {
-      positionChild(
-          ChartComponent.bottomAxis,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.bottomAxis]!.width / 2,
-              topHeight + chartSize.height));
-    }
-
-    if (hasChild(ChartComponent.bottomLegend)) {
-      positionChild(
-          ChartComponent.bottomLegend,
-          Offset(leftWidth + chartSize.width / 2 - childSizes[ChartComponent.bottomLegend]!.width / 2,
-              topHeight + chartSize.height + (childSizes[ChartComponent.bottomAxis]?.height ?? 0)));
+    // Layout the charts
+    double offsetY = top;
+    for (int i = 0; i < children.length; i++) {
+      double offsetX = left;
+      for (int j = 0; j < children[i].length; j++) {
+        ChartInfo? info = children[i][j];
+        if (info != null) {
+          Offset offset = Offset(offsetX, offsetY);
+          layoutSingleChart(info.id, Size(widths[j], heights[i]), offset, componentSizes);
+        }
+        offsetX += widths[j];
+      }
+      offsetY += heights[i];
     }
   }
 
@@ -261,7 +249,7 @@ class CombinedChartLayoutDelegate extends ChartLayoutDelegate {
   }
 }
 
-AxisId _getAxisId<C, I, A>(Series series, AxisLocation location) {
+AxisId _getAxisId(Series series, AxisLocation location) {
   for (AxisId axisId in series.data.plotColumns.keys) {
     if (axisId.location == location) {
       return axisId;

@@ -50,7 +50,6 @@ class ScatterPlot extends StatefulWidget {
     SelectionController? selectionController,
     List<AxisId>? hiddenAxes,
   }) {
-    print("building with $hiddenAxes");
     if (info is! ScatterPlotInfo) {
       throw ArgumentError("ScatterPlot.builder: info must be of type ScatterPlotInfo");
     }
@@ -95,6 +94,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   void initState() {
     super.initState();
     axisControllers.addAll(widget.axesControllers.values);
+    if (widget.selectionController != null) {
+      widget.selectionController!.subscribe((List<Object> dataPoints) {
+        selectedDataPoints = dataPoints;
+        setState(() {});
+      });
+    }
 
     // Initialize the axes
     _axes.addAll(initializeSimpleAxes(
@@ -104,8 +109,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       projectionInitializer: widget.info.projectionInitializer,
     ));
 
-    print("hidden axes in scatter plot: ${widget.hiddenAxes}");
-
     // Initialize the axis controllers
     for (ChartAxes axes in _axes.values) {
       for (ChartAxis axis in axes.axes.values) {
@@ -113,10 +116,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
           axis.controller = widget.axesControllers[axis.info.axisId];
         }
         if (widget.hiddenAxes.contains(axis.info.axisId)) {
-          print("hiding labels!");
           axis.showLabels = false;
-        } else {
-          print("not hiding ${axis.info.axisId}");
         }
       }
     }
@@ -317,6 +317,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       ));
     }
 
+    if (widget.selectionController != null) {
+      widget.selectionController!.updateSelection(selectedDataPoints);
+    }
+
     setState(() {});
   }
 
@@ -370,6 +374,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       selectedDataPoints = [];
     } else {
       selectedDataPoints = [nearest.element];
+    }
+    if (widget.selectionController != null) {
+      widget.selectionController!.updateSelection(selectedDataPoints);
     }
     setState(() {});
   }

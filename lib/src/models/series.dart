@@ -21,8 +21,6 @@ class DataConversionException implements Exception {
   String toString() => "$runtimeType:\n\t$message";
 }
 
-typedef SelectionUpdate = void Function(List<Object> dataPoints);
-
 /// A series that is displayed in a chart.
 @immutable
 class Series {

@@ -30,10 +30,12 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
   final List<ChartLayoutId> hiddenLabels = [];
   final List<AxisId> hiddenAxes = [];
+  late final SelectionController selectionController;
 
   @override
   void initState() {
     super.initState();
+    selectionController = widget.selectionController ?? SelectionController();
     int nRows = widget.children.length;
     int nCols = widget.children[0].length;
     for (int i = 0; i < nRows; i++) {
@@ -169,14 +171,13 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         axisControllers[infoEntry.key] = controller;
       }
     }
-    print("hidden labels in build: $hiddenAxes");
     List<Widget> children = [];
     for (ChartInfo? info in widget.children.expand((e) => e)) {
       if (info != null) {
         children.addAll(buildSingleChartChildren(
           chartId: info.id,
           info: info,
-          selectionController: widget.selectionController,
+          selectionController: selectionController,
           axisControllers: axisControllers,
           hidden: hiddenLabels,
           hiddenAxes: hiddenAxes,

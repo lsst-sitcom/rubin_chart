@@ -9,6 +9,8 @@ import 'package:rubin_chart/src/ui/legend.dart';
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
+typedef SelectionUpdate = void Function(List<Object> dataPoints);
+
 /// A controller to manage the selection of data points across multiple series.
 class SelectionController {
   /// The selected data points.
@@ -278,8 +280,6 @@ mixin RubinChartMixin {
         );
       }
     }
-
-    print("hidden axes in single: $hiddenAxes");
 
     children.add(
       LayoutId(

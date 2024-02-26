@@ -29,6 +29,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final List<List<ChartInfo>> columns = [];
   final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
   final List<ChartLayoutId> hiddenLabels = [];
+  final List<AxisId> hiddenAxes = [];
 
   @override
   void initState() {
@@ -79,10 +80,10 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             }
             axisId = _getAxisId(series, rowLocation);
             seriesToAxis[series] = axisId;
-            if (rowLocation == AxisLocation.left && j > 0) {
+            if (rowLocation == AxisLocation.left && j > 0 ||
+                rowLocation == AxisLocation.right && j < rows[i].length - 1) {
               hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
-            } else if (rowLocation == AxisLocation.right && j < rows[i].length - 1) {
-              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
+              hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
           }
@@ -132,10 +133,10 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             }
             axisId = _getAxisId(series, columnLocation);
             seriesToAxis[series] = axisId;
-            if (columnLocation == AxisLocation.top && j > 0) {
+            if (columnLocation == AxisLocation.top && j > 0 ||
+                columnLocation == AxisLocation.bottom && j < columns[i].length - 1) {
               hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
-            } else if (columnLocation == AxisLocation.bottom && j < columns[i].length - 1) {
-              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
+              hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
           }
@@ -168,6 +169,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         axisControllers[infoEntry.key] = controller;
       }
     }
+    print("hidden labels in build: $hiddenAxes");
     List<Widget> children = [];
     for (ChartInfo? info in widget.children.expand((e) => e)) {
       if (info != null) {
@@ -177,6 +179,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
           selectionController: widget.selectionController,
           axisControllers: axisControllers,
           hidden: hiddenLabels,
+          hiddenAxes: hiddenAxes,
         ));
       }
     }

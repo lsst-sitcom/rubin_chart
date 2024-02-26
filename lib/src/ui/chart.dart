@@ -107,8 +107,9 @@ class ChartInfo {
 
 typedef ChartBuilder = Widget Function({
   required ChartInfo info,
-  Map<AxisId, AxisController> axesControllers,
+  Map<AxisId, AxisController>? axesControllers,
   SelectionController? selectionController,
+  List<AxisId>? hiddenAxes,
 });
 
 /// Enum provinding the different components of a chart that might need to be laid out.
@@ -206,6 +207,7 @@ mixin RubinChartMixin {
     required SelectionController? selectionController,
     required Map<AxisId, AxisController> axisControllers,
     List<ChartLayoutId> hidden = const [],
+    List<AxisId> hiddenAxes = const [],
   }) {
     List<Widget> children = [];
     Map<AxisId, ChartAxisInfo> axisInfo = info.axisInfo;
@@ -277,6 +279,8 @@ mixin RubinChartMixin {
       }
     }
 
+    print("hidden axes in single: $hiddenAxes");
+
     children.add(
       LayoutId(
         id: ChartLayoutId(ChartComponent.chart, chartId),
@@ -284,6 +288,7 @@ mixin RubinChartMixin {
           info: info,
           selectionController: selectionController,
           axesControllers: axisControllers,
+          hiddenAxes: hiddenAxes,
         ),
       ),
     );

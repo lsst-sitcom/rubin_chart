@@ -23,7 +23,7 @@ class AxisPainter extends CustomPainter {
     for (ChartAxes axes in allAxes.values) {
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
-        if (!(axis.showTicks || axis.showLabels)) {
+        if (!axis.showLabels) {
           continue;
         }
         AxisTicks ticks = axis.ticks;
@@ -130,14 +130,16 @@ class AxisPainter extends CustomPainter {
         projections![axesId] = axes.projection(axes: axes.axes.values.toList(), plotSize: plotSize);
         for (AxisId axisId in axes.axes.keys) {
           ChartAxis axis = axes[axisId];
-          if (!(axis.showTicks || axis.showLabels)) {
-            continue;
+          if (axis.showTicks) {
+            AxisTicks ticks = axis.ticks;
+            for (double tick in ticks.ticks) {
+              _drawTick(canvas, plotSize, tick, axisId.location, projections![axesId]!, tickPaint);
+            }
           }
-          AxisTicks ticks = axis.ticks;
-          for (double tick in ticks.ticks) {
-            _drawTick(canvas, plotSize, tick, axisId.location, projections![axesId]!, tickPaint);
+
+          if (axis.showLabels) {
+            _drawAxisTickLabels(canvas, plotSize, axisId, projections![axesId]!, axesId);
           }
-          _drawAxisTickLabels(canvas, plotSize, axisId, projections![axesId]!, axesId);
         }
       }
     }

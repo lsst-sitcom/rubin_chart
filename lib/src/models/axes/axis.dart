@@ -151,10 +151,10 @@ abstract class ChartAxis<T extends Object> {
   AxisController? controller;
 
   /// Whether to show the ticks on the axis.
-  final bool showTicks;
+  bool showTicks;
 
   /// Whether to show the labels on the axis.
-  final bool showLabels;
+  bool showLabels;
 
   ChartAxis._({
     required ChartAxisInfo info,

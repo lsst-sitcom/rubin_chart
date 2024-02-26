@@ -34,24 +34,32 @@ class ScatterPlot extends StatefulWidget {
   final ScatterPlotInfo info;
   final SelectionController? selectionController;
   final Map<AxisId, AxisController> axesControllers;
+  final List<AxisId> hiddenAxes;
 
   const ScatterPlot({
     Key? key,
     required this.info,
     this.selectionController,
     this.axesControllers = const {},
+    this.hiddenAxes = const [],
   }) : super(key: key);
 
   static Widget builder({
     required ChartInfo info,
-    Map<AxisId, AxisController> axesControllers = const {},
+    Map<AxisId, AxisController>? axesControllers,
     SelectionController? selectionController,
+    List<AxisId>? hiddenAxes,
   }) {
+    print("building with $hiddenAxes");
     if (info is! ScatterPlotInfo) {
       throw ArgumentError("ScatterPlot.builder: info must be of type ScatterPlotInfo");
     }
     return ScatterPlot(
-        info: info, selectionController: selectionController, axesControllers: axesControllers);
+      info: info,
+      selectionController: selectionController,
+      axesControllers: axesControllers ?? {},
+      hiddenAxes: hiddenAxes ?? [],
+    );
   }
 
   @override
@@ -96,11 +104,19 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       projectionInitializer: widget.info.projectionInitializer,
     ));
 
+    print("hidden axes in scatter plot: ${widget.hiddenAxes}");
+
     // Initialize the axis controllers
     for (ChartAxes axes in _axes.values) {
       for (ChartAxis axis in axes.axes.values) {
         if (widget.axesControllers.containsKey(axis.info.axisId)) {
           axis.controller = widget.axesControllers[axis.info.axisId];
+        }
+        if (widget.hiddenAxes.contains(axis.info.axisId)) {
+          print("hiding labels!");
+          axis.showLabels = false;
+        } else {
+          print("not hiding ${axis.info.axisId}");
         }
       }
     }

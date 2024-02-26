@@ -84,10 +84,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             } else if (rowLocation == AxisLocation.right && j < rows[i].length - 1) {
               hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             }
-            axisCharts[AxisId(
-              rowLocation,
-              axisId,
-            )] = info;
+            axisCharts[axisId] = info;
           }
         }
         ChartAxis axis = initializeAxis(
@@ -140,10 +137,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             } else if (columnLocation == AxisLocation.bottom && j < columns[i].length - 1) {
               hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             }
-            axisCharts[AxisId(
-              columnLocation,
-              axisId,
-            )] = info;
+            axisCharts[axisId] = info;
           }
         }
         ChartAxis axis = initializeAxis(

@@ -107,7 +107,7 @@ class ChartInfo {
 
 typedef ChartBuilder = Widget Function({
   required ChartInfo info,
-  List<AxisController>? axesControllers,
+  Map<AxisId, AxisController> axesControllers,
   SelectionController? selectionController,
 });
 
@@ -283,7 +283,7 @@ mixin RubinChartMixin {
         child: info.builder(
           info: info,
           selectionController: selectionController,
-          axesControllers: axisControllers.values.toList(),
+          axesControllers: axisControllers,
         ),
       ),
     );

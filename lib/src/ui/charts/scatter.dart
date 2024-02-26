@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
+import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
+import 'package:rubin_chart/src/utils/utils.dart';
 
 class ScatterPlotInfo extends ChartInfo {
   ScatterPlotInfo({
@@ -31,18 +33,18 @@ class ScatterPlotInfo extends ChartInfo {
 class ScatterPlot extends StatefulWidget {
   final ScatterPlotInfo info;
   final SelectionController? selectionController;
-  final List<AxisController>? axesControllers;
+  final Map<AxisId, AxisController> axesControllers;
 
   const ScatterPlot({
     Key? key,
     required this.info,
     this.selectionController,
-    this.axesControllers,
+    this.axesControllers = const {},
   }) : super(key: key);
 
   static Widget builder({
     required ChartInfo info,
-    List<AxisController>? axesControllers,
+    Map<AxisId, AxisController> axesControllers = const {},
     SelectionController? selectionController,
   }) {
     if (info is! ScatterPlotInfo) {
@@ -79,10 +81,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   bool get dragging => dragStart != null;
   Offset? dragStart;
   Offset? dragEnd;
+  Set<AxisController> axisControllers = {};
 
   @override
   void initState() {
     super.initState();
+    axisControllers.addAll(widget.axesControllers.values);
+
     // Initialize the axes
     _axes.addAll(initializeSimpleAxes(
       seriesList: widget.info.allSeries,
@@ -90,6 +95,30 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       theme: widget.info.theme,
       projectionInitializer: widget.info.projectionInitializer,
     ));
+
+    // Initialize the axis controllers
+    for (ChartAxes axes in _axes.values) {
+      for (ChartAxis axis in axes.axes.values) {
+        if (widget.axesControllers.containsKey(axis.info.axisId)) {
+          axis.controller = widget.axesControllers[axis.info.axisId];
+        }
+      }
+    }
+
+    // Subscribe to the axis controllers
+    for (AxisController controller in axisControllers) {
+      controller.subscribe(({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
+        for (AxisId axisId in widget.axesControllers.keys) {
+          for (ChartAxes axes in _axes.values) {
+            if (axes.axes.containsKey(axisId)) {
+              ChartAxis axis = axes[axisId];
+              axis.update(bounds: bounds, ticks: ticks, info: info, state: this);
+            }
+          }
+        }
+        setState(() {});
+      });
+    }
 
     // Initialize the quadtrees
     List<Object> axesIndices = _axes.keys.toList();

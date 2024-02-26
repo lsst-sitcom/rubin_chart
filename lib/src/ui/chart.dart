@@ -124,26 +124,34 @@ enum ChartComponent {
   rightAxis,
   chart;
 
-  static ChartComponent? legendFromLocation(LegendLocation location) {
-    if (location == LegendLocation.top) {
-      return ChartComponent.topLegend;
+  static ChartComponent legendFromLocation(LegendLocation location) {
+    switch (location) {
+      case LegendLocation.top:
+        return ChartComponent.topLegend;
+      case LegendLocation.bottom:
+        return ChartComponent.bottomLegend;
+      case LegendLocation.left:
+        return ChartComponent.leftLegend;
+      case LegendLocation.right:
+        return ChartComponent.rightLegend;
+      default:
+        throw UnimplementedError("Invalid legend location: $location");
     }
-    if (location == LegendLocation.bottom) {
-      return ChartComponent.bottomLegend;
+  }
+
+  static ChartComponent axisFromLocation(AxisLocation location) {
+    switch (location) {
+      case AxisLocation.top:
+        return ChartComponent.topAxis;
+      case AxisLocation.bottom:
+        return ChartComponent.bottomAxis;
+      case AxisLocation.left:
+        return ChartComponent.leftAxis;
+      case AxisLocation.right:
+        return ChartComponent.rightAxis;
+      default:
+        throw UnimplementedError("Invalid axis location: $location");
     }
-    if (location == LegendLocation.left) {
-      return ChartComponent.leftLegend;
-    }
-    if (location == LegendLocation.right) {
-      return ChartComponent.rightLegend;
-    }
-    if (location == LegendLocation.floating) {
-      throw UnimplementedError("Floating legends are not yet implemented.");
-    }
-    if (location == LegendLocation.none) {
-      return null;
-    }
-    throw UnimplementedError("Invalid legend location: $location");
   }
 }
 
@@ -192,12 +200,13 @@ class RubinChart extends StatefulWidget {
 }
 
 mixin RubinChartMixin {
-  List<Widget> buildSingleChartChildren(
-    Object chartId,
-    ChartInfo info,
-    SelectionController? selectionController,
-    Map<AxisId, AxisController> axisControllers,
-  ) {
+  List<Widget> buildSingleChartChildren({
+    required Object chartId,
+    required ChartInfo info,
+    required SelectionController? selectionController,
+    required Map<AxisId, AxisController> axisControllers,
+    List<ChartLayoutId> hidden = const [],
+  }) {
     List<Widget> children = [];
     Map<AxisId, ChartAxisInfo> axisInfo = info.axisInfo;
 
@@ -215,16 +224,20 @@ mixin RubinChartMixin {
 
     if (info.legend != null) {
       if (info.legend!.location == LegendLocation.left || info.legend!.location == LegendLocation.right) {
-        children.add(
-          LayoutId(
-            id: ChartLayoutId(ChartComponent.legendFromLocation(info.legend!.location)!, chartId),
-            child: VerticalLegendViewer(
-              legend: info.legend!,
-              theme: info.theme,
-              seriesList: info.seriesList,
+        ChartLayoutId layoutId =
+            ChartLayoutId(ChartComponent.legendFromLocation(info.legend!.location), chartId);
+        if (!hidden.contains(layoutId)) {
+          children.add(
+            LayoutId(
+              id: layoutId,
+              child: VerticalLegendViewer(
+                legend: info.legend!,
+                theme: info.theme,
+                seriesList: info.seriesList,
+              ),
             ),
-          ),
-        );
+          );
+        }
       } else {
         throw UnimplementedError("Horizontal legends are not yet implemented.");
       }
@@ -253,12 +266,15 @@ mixin RubinChartMixin {
         throw AxisUpdateException("Unknown axis location: $location for a cartesian chart");
       }
 
-      children.add(
-        LayoutId(
-          id: ChartLayoutId(component, chartId),
-          child: label,
-        ),
-      );
+      ChartLayoutId layoutId = ChartLayoutId(component, chartId);
+      if (!hidden.contains(layoutId)) {
+        children.add(
+          LayoutId(
+            id: layoutId,
+            child: label,
+          ),
+        );
+      }
     }
 
     children.add(
@@ -282,10 +298,10 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
     return CustomMultiChildLayout(
       delegate: ChartLayoutDelegate(chartId: widget.chartId),
       children: buildSingleChartChildren(
-        widget.chartId,
-        widget.info,
-        widget.selectionController,
-        widget.axisControllers,
+        chartId: widget.chartId,
+        info: widget.info,
+        selectionController: widget.selectionController,
+        axisControllers: widget.axisControllers,
       ),
     );
   }

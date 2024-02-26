@@ -515,6 +515,7 @@ Map<Object, ChartAxes> initializeSimpleAxes({
       if (series.data.plotColumns.containsKey(axisId)) {
         seriesForAxis[series] = axisId;
       }
+      print("${series.name}, ${series.data.plotColumns.keys}");
     }
     if (seriesForAxis.isEmpty) {
       throw AxisUpdateException("Axis $axisId has no series linked to it.");

@@ -14,7 +14,7 @@ class CombinedChart extends StatefulWidget {
 
   const CombinedChart({
     Key? key,
-    required this.title,
+    this.title,
     this.theme = ChartTheme.defaultTheme,
     this.selectionController,
     required this.children,
@@ -24,29 +24,40 @@ class CombinedChart extends StatefulWidget {
   CombinedChartState createState() => CombinedChartState();
 }
 
-class CombinedChartState extends State<CombinedChart> {
+class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final List<List<ChartInfo>> rows = [];
   final List<List<ChartInfo>> columns = [];
-  final Map<AxisController, List<ChartInfo>> axesControllers = {};
-  final List<AxisId> hiddenLabels = [];
+  final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
+  final List<ChartLayoutId> hiddenLabels = [];
 
   @override
   void initState() {
     super.initState();
-    for (int i = 0; i < widget.children.length; i++) {
+    int nRows = widget.children.length;
+    int nCols = widget.children[0].length;
+    for (int i = 0; i < nRows; i++) {
       rows.add([]);
+    }
+    for (int i = 0; i < nCols; i++) {
+      columns.add([]);
+    }
+
+    for (int i = 0; i < widget.children.length; i++) {
       for (int j = 0; j < widget.children[i].length; j++) {
         ChartInfo? info = widget.children[i][j];
         if (info != null) {
           rows[i].add(info);
+          columns[j].add(info);
         }
       }
     }
+
     for (int i = 0; i < rows.length; i++) {
       if (rows[i].length > 1) {
-        List<ChartInfo> axisCharts = [];
+        Map<AxisId, ChartInfo> axisCharts = {};
         Map<Series, AxisId> seriesToAxis = {};
         AxisLocation? rowLocation;
+        AxisId axisId;
 
         for (int j = 0; j < rows[i].length; j++) {
           ChartInfo info = rows[i][j];
@@ -63,26 +74,28 @@ class CombinedChartState extends State<CombinedChart> {
               } else {
                 throw AxisUpdateException("No horizontal axis found in the series");
               }
-              seriesToAxis[series] = _getAxisId(series, rowLocation);
-            } else if (locations.contains(rowLocation)) {
-              seriesToAxis[series] = _getAxisId(series, rowLocation);
-            } else {
+            } else if (!locations.contains(rowLocation)) {
               throw AxisUpdateException("No matching axis for $rowLocation found for series $series");
             }
+            axisId = _getAxisId(series, rowLocation);
+            seriesToAxis[series] = axisId;
             if (rowLocation == AxisLocation.left && j > 0) {
-              hiddenLabels.add(seriesToAxis[series]!);
+              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             } else if (rowLocation == AxisLocation.right && j < rows[i].length - 1) {
-              hiddenLabels.add(seriesToAxis[series]!);
+              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             }
+            axisCharts[AxisId(
+              rowLocation,
+              axisId,
+            )] = info;
           }
-          axisCharts.add(info);
         }
         ChartAxis axis = initializeAxis(
           allSeries: seriesToAxis,
           theme: widget.theme,
           axisInfo: ChartAxisInfo(
             label: "x",
-            axisId: AxisId(rowLocation!),
+            axisId: AxisId(rowLocation!, "dummy"),
           ),
         );
 
@@ -95,11 +108,12 @@ class CombinedChartState extends State<CombinedChart> {
       }
     }
 
-    for (int i = 0; i < widget.children[0].length; i++) {
+    for (int i = 0; i < columns.length; i++) {
       if (columns[i].length > 1) {
-        List<ChartInfo> axisCharts = [];
+        Map<AxisId, ChartInfo> axisCharts = {};
         Map<Series, AxisId> seriesToAxis = {};
         AxisLocation? columnLocation;
+        AxisId axisId;
 
         for (int j = 0; j < columns[i].length; j++) {
           ChartInfo info = columns[i][j];
@@ -116,26 +130,28 @@ class CombinedChartState extends State<CombinedChart> {
               } else {
                 throw AxisUpdateException("No vertical axis found in the series");
               }
-              seriesToAxis[series] = _getAxisId(series, columnLocation);
-            } else if (locations.contains(columnLocation)) {
-              seriesToAxis[series] = _getAxisId(series, columnLocation);
-            } else {
+            } else if (!locations.contains(columnLocation)) {
               throw AxisUpdateException("No matching axis for $columnLocation found for series $series");
             }
+            axisId = _getAxisId(series, columnLocation);
+            seriesToAxis[series] = axisId;
             if (columnLocation == AxisLocation.top && j > 0) {
-              hiddenLabels.add(seriesToAxis[series]!);
+              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             } else if (columnLocation == AxisLocation.bottom && j < columns[i].length - 1) {
-              hiddenLabels.add(seriesToAxis[series]!);
+              hiddenLabels.add(ChartLayoutId(ChartComponent.axisFromLocation(axisId.location), info.id));
             }
+            axisCharts[AxisId(
+              columnLocation,
+              axisId,
+            )] = info;
           }
-          axisCharts.add(info);
         }
         ChartAxis axis = initializeAxis(
           allSeries: seriesToAxis,
           theme: widget.theme,
           axisInfo: ChartAxisInfo(
             label: "y",
-            axisId: AxisId(columnLocation!),
+            axisId: AxisId(columnLocation!, "dummy"),
           ),
         );
 
@@ -151,8 +167,29 @@ class CombinedChartState extends State<CombinedChart> {
 
   @override
   Widget build(BuildContext context) {
+    Map<AxisId, AxisController> axisControllers = {};
+    for (MapEntry<AxisController, Map<AxisId, ChartInfo>> entry in axesControllers.entries) {
+      AxisController controller = entry.key;
+      for (MapEntry<AxisId, ChartInfo> infoEntry in entry.value.entries) {
+        axisControllers[infoEntry.key] = controller;
+      }
+    }
+    List<Widget> children = [];
+    for (ChartInfo? info in widget.children.expand((e) => e)) {
+      if (info != null) {
+        children.addAll(buildSingleChartChildren(
+          chartId: info.id,
+          info: info,
+          selectionController: widget.selectionController,
+          axisControllers: axisControllers,
+          hidden: hiddenLabels,
+        ));
+      }
+    }
+
     return CustomMultiChildLayout(
       delegate: CombinedChartLayoutDelegate(children: widget.children, rows: rows, columns: columns),
+      children: children,
     );
   }
 }
@@ -216,13 +253,26 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
     // Calculate the size of the charts
     List<double> widths = [];
     List<double> heights = [];
-    double totalFlexX = rows.expand((list) => list).fold(0.0, (sum, current) => sum + current.flexX);
-    double totalFlexY = columns.expand((list) => list).fold(0.0, (sum, current) => sum + current.flexY);
-    for (ChartInfo info in rows.expand((row) => row)) {
-      widths.add((size.width - left - right) * info.flexX / totalFlexX);
+    double totalFlexX = 0;
+    double totalFlexY = 0;
+    List<double> flexX = [];
+    List<double> flexY = [];
+    for (int i = 0; i < rows.length; i++) {
+      double flex = rows[i].map((e) => e.flexY).reduce(math.min);
+      totalFlexY += flex;
+      flexY.add(flex);
     }
-    for (ChartInfo info in columns.expand((column) => column)) {
-      heights.add((size.height - top - bottom) * info.flexY / totalFlexY);
+    for (int i = 0; i < columns.length; i++) {
+      double flex = columns[i].map((e) => e.flexX).reduce(math.min);
+      totalFlexX += flex;
+      flexX.add(flex);
+    }
+
+    for (double flex in flexX) {
+      widths.add((size.width - left - right) * flex / totalFlexX);
+    }
+    for (double flex in flexY) {
+      heights.add((size.height - top - bottom) * flex / totalFlexY);
     }
 
     // Layout the charts

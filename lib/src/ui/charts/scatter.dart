@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
@@ -90,9 +91,16 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   Offset? dragEnd;
   Set<AxisController> axisControllers = {};
 
+  // Used to detect key presses if the widget has focus
+  final FocusNode _focusNode = FocusNode();
+  LogicalKeyboardKey? _shiftKey;
+
   @override
   void initState() {
     super.initState();
+    // Add key detector
+    _focusNode.addListener(_focusNodeListener);
+
     axisControllers.addAll(widget.axesControllers.values);
     if (widget.selectionController != null) {
       widget.selectionController!.subscribe((List<Object> dataPoints) {
@@ -243,45 +251,79 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       ));
     }
 
-    return Listener(
-        onPointerSignal: (PointerSignalEvent event) {
-          if (event is PointerScrollEvent) {
-            _onPan(event, axisPainter);
-          } else if (event is PointerScaleEvent) {
-            _onScale(event, axisPainter);
-          }
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: (TapUpDetails details) {
-            _onTapUp(details, axisPainter);
-          },
-          onPanStart: (DragStartDetails details) {
-            _onDragStart(details, axisPainter);
-          },
-          onPanUpdate: (DragUpdateDetails details) {
-            _onDragUpdate(details, axisPainter);
-          },
-          onPanEnd: (DragEndDetails details) {
-            _onDragEnd(details, axisPainter);
-          },
-          onPanCancel: () {
-            _onDragCancel();
-          },
-          child: Container(
-            /*decoration: BoxDecoration(
+    return Focus(
+        focusNode: _focusNode,
+        //autofocus: true,
+        child: Listener(
+            onPointerSignal: (PointerSignalEvent event) {
+              if (event is PointerScrollEvent) {
+                _onPan(event, axisPainter);
+              } else if (event is PointerScaleEvent) {
+                _onScale(event, axisPainter);
+              }
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (TapUpDetails details) {
+                _onTapUp(details, axisPainter);
+              },
+              onPanStart: (DragStartDetails details) {
+                _onDragStart(details, axisPainter);
+              },
+              onPanUpdate: (DragUpdateDetails details) {
+                _onDragUpdate(details, axisPainter);
+              },
+              onPanEnd: (DragEndDetails details) {
+                _onDragEnd(details, axisPainter);
+              },
+              onPanCancel: () {
+                _onDragCancel();
+              },
+              child: Container(
+                /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,
                 width: 2,
               ),
               //borderRadius: BorderRadius.circular(10),
             ),*/
-            child: Stack(children: children),
-          ),
-        ));
+                child: Stack(children: children),
+              ),
+            )));
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_focusNodeListener);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _focusNodeListener() {
+    if (_focusNode.hasFocus) {
+      _focusNode.onKeyEvent = _handleKeyEvent;
+    } else {
+      _focusNode.onKeyEvent = null;
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      setState(() {
+        if (event.logicalKey == LogicalKeyboardKey.keyX || event.logicalKey == LogicalKeyboardKey.keyY) {
+          _shiftKey = event.logicalKey;
+        }
+      });
+    } else if (event is KeyUpEvent) {
+      setState(() {
+        _shiftKey = null;
+      });
+    }
+    return KeyEventResult.ignored;
   }
 
   void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
+    _focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -292,6 +334,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
+    _focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -335,6 +378,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
+    _focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -389,7 +433,18 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     for (ChartAxes axes in _axes.values) {
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
-        axis.scale(event.scale);
+        AxisLocation location = axis.info.axisId.location;
+
+        if (_shiftKey == null) {
+          axis.scale(event.scale);
+        } else if (_shiftKey == LogicalKeyboardKey.keyX &&
+            [AxisLocation.bottom, AxisLocation.top].contains(location)) {
+          axis.scale(event.scale);
+        } else if (_shiftKey == LogicalKeyboardKey.keyY &&
+            [AxisLocation.left, AxisLocation.right].contains(location)) {
+          ChartAxis axis = axes[axisId];
+          axis.scale(event.scale);
+        }
       }
     }
 

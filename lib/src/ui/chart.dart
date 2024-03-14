@@ -1,9 +1,13 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
+import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
 /// Callback when sources are selected or deselected.
@@ -52,9 +56,18 @@ class SelectionController {
 /// A mixin that provides access to the series, axes, and legend of a chart.
 /// This is made so that a state with a global key can have access to
 /// its properties in other widgets.
-mixin ChartMixin<T extends StatefulWidget, U> on State<T> {
+mixin ChartMixin<T extends StatefulWidget> on State<T> {
+  /// All of the series in the chart.
   SeriesList get seriesList;
-  Map<U, ChartAxes> get axes;
+
+  /// The axes of the chart.
+  Map<Object, ChartAxes> get axes;
+
+  /// The selected (and highlighted) data points.
+  List<Object> selectedDataPoints = [];
+
+  /// Controllers to synch aligned axes.
+  Set<AxisController> axisControllers = {};
 }
 
 /// Convert a list of [ChartAxisInfo] or a list of [Series] into a map of [ChartAxisInfo].
@@ -71,6 +84,117 @@ Map<AxisId, ChartAxisInfo> _genAxisInfoMap(
     axisInfoMap = axisInfoFromSeriesList(allSeries);
   }
   return axisInfoMap;
+}
+
+mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
+  /// Whether a drag gesture is currently active.
+  bool get dragging => dragStart != null;
+
+  /// The location of the pointer when the drag gesture started.
+  Offset? dragStart;
+
+  /// The location of the pointer when the drag gesture ended.
+  Offset? dragEnd;
+
+  /// The currently pressed key (either "x" or "y") used to scale a single axis.
+  LogicalKeyboardKey? scaleShiftKey;
+
+  /// Used to detect key presses if the widget has focus.
+  /// This property must be initialized in the initState method to add the listiner.
+  /// For some plots, like radial plots, there is only one scaling.
+  /// In that case focusNode isn't used.
+  final FocusNode focusNode = FocusNode();
+
+  /// Scale an axis, or both axes.
+  void onScale(PointerScaleEvent event, AxisPainter axisPainter) {
+    if (axisPainter.projections == null) {
+      return;
+    }
+
+    for (ChartAxes axes in this.axes.values) {
+      for (AxisId axisId in axes.axes.keys) {
+        ChartAxis axis = axes[axisId];
+        AxisLocation location = axis.info.axisId.location;
+
+        if (scaleShiftKey == null) {
+          axis.scale(event.scale);
+        } else if (scaleShiftKey == LogicalKeyboardKey.keyX &&
+            [AxisLocation.bottom, AxisLocation.top].contains(location)) {
+          axis.scale(event.scale);
+        } else if (scaleShiftKey == LogicalKeyboardKey.keyY &&
+            [AxisLocation.left, AxisLocation.right].contains(location)) {
+          ChartAxis axis = axes[axisId];
+          axis.scale(event.scale);
+        }
+      }
+    }
+
+    setState(() {});
+  }
+
+  /// Pan the chart.
+  void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
+    if (axisPainter.projections == null) {
+      return;
+    }
+
+    for (MapEntry<Object, ChartAxes> entry in axes.entries) {
+      Object axesId = entry.key;
+      ChartAxes axes = entry.value;
+      double dx = event.scrollDelta.dx;
+      double dy = event.scrollDelta.dy;
+
+      Projection projection = axisPainter.projections![axesId]!;
+      dx /= projection.xTransform.scale;
+      dy /= projection.yTransform.scale;
+
+      for (AxisId axisId in axes.axes.keys) {
+        ChartAxis axis = axes[axisId];
+
+        if (axis.info.axisId.location == AxisLocation.bottom ||
+            axis.info.axisId.location == AxisLocation.top) {
+          axis.translate(dx);
+        } else {
+          axis.translate(dy);
+        }
+      }
+    }
+
+    setState(() {});
+  }
+
+  /// Remove the focus node listener when the widget is disposed.
+  @override
+  void dispose() {
+    focusNode.removeListener(focusNodeListener);
+    focusNode.dispose();
+    super.dispose();
+  }
+
+  /// Handle a pressed key when the widget has focus.
+  void focusNodeListener() {
+    if (focusNode.hasFocus) {
+      focusNode.onKeyEvent = handleKeyEvent;
+    } else {
+      focusNode.onKeyEvent = null;
+    }
+  }
+
+  /// Handle a key event.
+  KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      setState(() {
+        if (event.logicalKey == LogicalKeyboardKey.keyX || event.logicalKey == LogicalKeyboardKey.keyY) {
+          scaleShiftKey = event.logicalKey;
+        }
+      });
+    } else if (event is KeyUpEvent) {
+      setState(() {
+        scaleShiftKey = null;
+      });
+    }
+    return KeyEventResult.ignored;
+  }
 }
 
 /// Information required to build a chart.
@@ -109,7 +233,7 @@ class ChartInfo {
 
 typedef ChartBuilder = Widget Function({
   required ChartInfo info,
-  Map<AxisId, AxisController>? axesControllers,
+  Map<AxisId, AxisController>? axisControllers,
   SelectionController? selectionController,
   List<AxisId>? hiddenAxes,
 });
@@ -287,7 +411,7 @@ mixin RubinChartMixin {
         child: info.builder(
           info: info,
           selectionController: selectionController,
-          axesControllers: axisControllers,
+          axisControllers: axisControllers,
           hiddenAxes: hiddenAxes,
         ),
       ),

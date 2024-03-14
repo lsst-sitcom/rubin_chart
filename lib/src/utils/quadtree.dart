@@ -152,9 +152,8 @@ class QuadTree<T extends Object> extends Rect {
     return _insert(item, location);
   }
 
-  /// Search for all items in the [QuadTree] that overlap with [rect].
-  List<T> queryRect(Rect rect) {
-    List<T> result = [];
+  List<QuadTreeElement<T>> _queryRect(Rect rect) {
+    List<QuadTreeElement<T>> result = [];
     if (!overlaps(rect)) {
       return result;
     }
@@ -162,16 +161,22 @@ class QuadTree<T extends Object> extends Rect {
     if (contents.isNotEmpty) {
       for (QuadTreeElement<T> element in contents) {
         if (rect.contains(element.center)) {
-          result.add(element.element);
+          result.add(element);
         }
       }
     } else {
       for (QuadTree<T> child in children) {
-        result.addAll(child.queryRect(rect));
+        result.addAll(child._queryRect(rect));
       }
     }
 
     return result;
+  }
+
+  /// Search for all items in the [QuadTree] that overlap with [rect].
+  List<T> queryRect(Rect rect) {
+    List<QuadTreeElement<T>> elements = _queryRect(rect);
+    return elements.map((e) => e.element).toList();
   }
 
   /// Return the point on the nearest edge to the given [location].
@@ -249,7 +254,21 @@ class QuadTree<T extends Object> extends Rect {
   }
 
   /// Return the item in the tree that is the closest to [location].
-  QuadTreeElement<T>? queryPoint(Offset location) => _nearestNeighbor(location);
+  QuadTreeElement<T>? queryPoint(Offset location, {Offset? distance}) {
+    if (distance != null) {
+      Rect searchRect = Rect.fromLTWH(
+          location.dx - distance.dx, location.dy - distance.dy, distance.dx * 2, distance.dy * 2);
+      List<QuadTreeElement<T>> elements = _queryRect(searchRect);
+      if (elements.isNotEmpty) {
+        return elements.reduce(
+            (a, b) => (a.center - location).distanceSquared < (b.center - location).distanceSquared ? a : b);
+      }
+      return null;
+    }
+    throw UnimplementedError("queryPoint without distance is not implemented");
+    // TODO: Figure out why this doesn't work.
+    return _nearestNeighbor(location);
+  }
 
   void _printTreeStructure(int depth) {
     print("Depth: $depth, Contents: ${contents.length}");

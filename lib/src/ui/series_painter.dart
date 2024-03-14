@@ -66,7 +66,7 @@ class SeriesPainter extends CustomPainter {
 
     //int nDisplayed = 0;
 
-    Marker selectionMarker = marker.copyWith(size: marker.size * 2, edgeColor: Colors.black);
+    Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
 
     for (int i = 0; i < data.length; i++) {
       Offset point = projection.project(data: data.getRow(i), axes: axes.axes.values.toList()) + offset;
@@ -77,12 +77,16 @@ class SeriesPainter extends CustomPainter {
       }
     }
 
+    paintEdge = Paint()
+      ..color = Colors.black
+      ..strokeWidth = selectionMarker.size / 10
+      ..style = PaintingStyle.stroke;
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         int index = data.data.values.first.keys.toList().indexOf(dataId);
         Offset point = projection.project(data: data.getRow(index), axes: axes.axes.values.toList()) + offset;
         if (plotWindow.contains(point)) {
-          selectionMarker.paint(canvas, Paint()..color = Colors.black, paintEdge, point);
+          selectionMarker.paint(canvas, paintFill, paintEdge, point);
           //nDisplayed++;
         }
       }

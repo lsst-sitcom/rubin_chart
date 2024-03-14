@@ -14,7 +14,7 @@ class Marker {
   final Color? edgeColor;
 
   const Marker({
-    this.size = 10,
+    this.size = 5,
     this.color = Colors.black,
     this.edgeColor = Colors.white,
     this.type = MarkerTypes.circle,
@@ -38,10 +38,10 @@ class Marker {
     // TODO: support marker types other than circles
     if (type == MarkerTypes.circle) {
       if (paintFill != null) {
-        canvas.drawCircle(Offset(point.dx, point.dy), 5, paintFill);
+        canvas.drawCircle(Offset(point.dx, point.dy), size, paintFill);
       }
       if (paintEdge != null) {
-        canvas.drawCircle(Offset(point.dx, point.dy), 5, paintEdge);
+        canvas.drawCircle(Offset(point.dx, point.dy), size, paintEdge);
       }
     } else {
       throw UnimplementedError("Only circle markers are supported at this time");

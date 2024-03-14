@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
@@ -34,20 +33,20 @@ class ScatterPlotInfo extends ChartInfo {
 class ScatterPlot extends StatefulWidget {
   final ScatterPlotInfo info;
   final SelectionController? selectionController;
-  final Map<AxisId, AxisController> axesControllers;
+  final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
 
   const ScatterPlot({
     Key? key,
     required this.info,
     this.selectionController,
-    this.axesControllers = const {},
+    this.axisControllers = const {},
     this.hiddenAxes = const [],
   }) : super(key: key);
 
   static Widget builder({
     required ChartInfo info,
-    Map<AxisId, AxisController>? axesControllers,
+    Map<AxisId, AxisController>? axisControllers,
     SelectionController? selectionController,
     List<AxisId>? hiddenAxes,
   }) {
@@ -57,7 +56,7 @@ class ScatterPlot extends StatefulWidget {
     return ScatterPlot(
       info: info,
       selectionController: selectionController,
-      axesControllers: axesControllers ?? {},
+      axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
     );
   }
@@ -66,7 +65,7 @@ class ScatterPlot extends StatefulWidget {
   ScatterPlotState createState() => ScatterPlotState();
 }
 
-class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
+class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DChartMixin {
   @override
   SeriesList get seriesList => SeriesList(
         widget.info.allSeries,
@@ -83,25 +82,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
-  /// The selected (and highlighted) data points.
-  List<Object> selectedDataPoints = [];
-
-  bool get dragging => dragStart != null;
-  Offset? dragStart;
-  Offset? dragEnd;
-  Set<AxisController> axisControllers = {};
-
-  // Used to detect key presses if the widget has focus
-  final FocusNode _focusNode = FocusNode();
-  LogicalKeyboardKey? _shiftKey;
-
   @override
   void initState() {
     super.initState();
     // Add key detector
-    _focusNode.addListener(_focusNodeListener);
+    focusNode.addListener(focusNodeListener);
 
-    axisControllers.addAll(widget.axesControllers.values);
+    axisControllers.addAll(widget.axisControllers.values);
     if (widget.selectionController != null) {
       widget.selectionController!.subscribe((List<Object> dataPoints) {
         selectedDataPoints = dataPoints;
@@ -120,8 +107,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     // Initialize the axis controllers
     for (ChartAxes axes in _axes.values) {
       for (ChartAxis axis in axes.axes.values) {
-        if (widget.axesControllers.containsKey(axis.info.axisId)) {
-          axis.controller = widget.axesControllers[axis.info.axisId];
+        if (widget.axisControllers.containsKey(axis.info.axisId)) {
+          axis.controller = widget.axisControllers[axis.info.axisId];
         }
         if (widget.hiddenAxes.contains(axis.info.axisId)) {
           axis.showLabels = false;
@@ -132,7 +119,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     // Subscribe to the axis controllers
     for (AxisController controller in axisControllers) {
       controller.subscribe(({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
-        for (AxisId axisId in widget.axesControllers.keys) {
+        for (AxisId axisId in widget.axisControllers.keys) {
           for (ChartAxes axes in _axes.values) {
             if (axes.axes.containsKey(axisId)) {
               ChartAxis axis = axes[axisId];
@@ -252,14 +239,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     }
 
     return Focus(
-        focusNode: _focusNode,
+        focusNode: focusNode,
         //autofocus: true,
         child: Listener(
             onPointerSignal: (PointerSignalEvent event) {
               if (event is PointerScrollEvent) {
-                _onPan(event, axisPainter);
+                onPan(event, axisPainter);
               } else if (event is PointerScaleEvent) {
-                _onScale(event, axisPainter);
+                onScale(event, axisPainter);
               }
             },
             child: GestureDetector(
@@ -292,38 +279,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
             )));
   }
 
-  @override
-  void dispose() {
-    _focusNode.removeListener(_focusNodeListener);
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _focusNodeListener() {
-    if (_focusNode.hasFocus) {
-      _focusNode.onKeyEvent = _handleKeyEvent;
-    } else {
-      _focusNode.onKeyEvent = null;
-    }
-  }
-
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent) {
-      setState(() {
-        if (event.logicalKey == LogicalKeyboardKey.keyX || event.logicalKey == LogicalKeyboardKey.keyY) {
-          _shiftKey = event.logicalKey;
-        }
-      });
-    } else if (event is KeyUpEvent) {
-      setState(() {
-        _shiftKey = null;
-      });
-    }
-    return KeyEventResult.ignored;
-  }
-
   void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
-    _focusNode.requestFocus();
+    focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -334,7 +291,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
-    _focusNode.requestFocus();
+    focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -378,7 +335,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
   }
 
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
-    _focusNode.requestFocus();
+    focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -394,7 +351,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
       double y = projection.yTransform
           .inverse(details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding);
 
-      QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y));
+      QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y),
+          distance: Offset(10 / projection.xTransform.scale, 10 / projection.yTransform.scale));
       if (localNearest != null) {
         Offset diff = (localNearest.center - Offset(x, y));
         double dx = projection.xTransform.scale * diff.dx;
@@ -413,6 +371,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
         }
       }
     }
+    print("nearest is $nearest");
 
     if (nearest == null) {
       selectedDataPoints = [];
@@ -422,62 +381,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin {
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(selectedDataPoints);
     }
-    setState(() {});
-  }
-
-  void _onScale(PointerScaleEvent event, AxisPainter axisPainter) {
-    if (axisPainter.projections == null) {
-      return;
-    }
-
-    for (ChartAxes axes in _axes.values) {
-      for (AxisId axisId in axes.axes.keys) {
-        ChartAxis axis = axes[axisId];
-        AxisLocation location = axis.info.axisId.location;
-
-        if (_shiftKey == null) {
-          axis.scale(event.scale);
-        } else if (_shiftKey == LogicalKeyboardKey.keyX &&
-            [AxisLocation.bottom, AxisLocation.top].contains(location)) {
-          axis.scale(event.scale);
-        } else if (_shiftKey == LogicalKeyboardKey.keyY &&
-            [AxisLocation.left, AxisLocation.right].contains(location)) {
-          ChartAxis axis = axes[axisId];
-          axis.scale(event.scale);
-        }
-      }
-    }
-
-    setState(() {});
-  }
-
-  void _onPan(PointerScrollEvent event, AxisPainter axisPainter) {
-    if (axisPainter.projections == null) {
-      return;
-    }
-
-    for (MapEntry<Object, ChartAxes> entry in _axes.entries) {
-      Object axesId = entry.key;
-      ChartAxes axes = entry.value;
-      double dx = event.scrollDelta.dx;
-      double dy = event.scrollDelta.dy;
-
-      Projection projection = axisPainter.projections![axesId]!;
-      dx /= projection.xTransform.scale;
-      dy /= projection.yTransform.scale;
-
-      for (AxisId axisId in axes.axes.keys) {
-        ChartAxis axis = axes[axisId];
-
-        if (axis.info.axisId.location == AxisLocation.bottom ||
-            axis.info.axisId.location == AxisLocation.top) {
-          axis.translate(dx);
-        } else {
-          axis.translate(dy);
-        }
-      }
-    }
-
     setState(() {});
   }
 }

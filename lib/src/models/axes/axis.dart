@@ -31,11 +31,9 @@ typedef AxisUpdate = void Function({Bounds? bounds, AxisTicks? ticks, ChartAxisI
 class AxisController {
   Bounds bounds;
   AxisTicks ticks;
+  Bounds? maxBounds;
 
-  AxisController({
-    required this.bounds,
-    required this.ticks,
-  });
+  AxisController({required this.bounds, required this.ticks, this.maxBounds});
 
   /// Observers list
   final List<AxisUpdate> _observers = [];
@@ -59,13 +57,41 @@ class AxisController {
     }
   }
 
+  /// Update the maximum bounds of the axis with the intersection of the current bounds.
+  void updateMaxBoundsIntersection(Bounds bounds) {
+    if (maxBounds != null) {
+      num min = math.max(bounds.min, maxBounds!.min);
+      num max = math.min(bounds.max, maxBounds!.max);
+      this.bounds = Bounds(min, max);
+    } else {
+      maxBounds = bounds;
+    }
+  }
+
+  /// Update the maximum bounds of the axis with the union of the current bounds.
+  void updateMaxBoundsUnion(Bounds bounds) {
+    if (maxBounds != null) {
+      num min = math.min(bounds.min, maxBounds!.min);
+      num max = math.max(bounds.max, maxBounds!.max);
+      this.bounds = Bounds(min, max);
+    } else {
+      maxBounds = bounds;
+    }
+  }
+
   /// Update the controller.
   void update({
     Bounds? bounds,
     AxisTicks? ticks,
   }) {
     if (bounds != null) {
-      this.bounds = bounds;
+      num min = bounds.min;
+      num max = bounds.max;
+      if (maxBounds != null) {
+        min = math.max(min, maxBounds!.min);
+        max = math.min(max, maxBounds!.max);
+      }
+      this.bounds = Bounds(min, max);
     }
     if (ticks != null) {
       this.ticks = ticks;

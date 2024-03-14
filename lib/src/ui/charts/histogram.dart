@@ -18,16 +18,18 @@ class HistogramBin {
   final Color? fillColor;
   final Color? edgeColor;
   final double edgeWidth;
-  int count;
+  final List<Object> dataIds;
 
   HistogramBin({
     required this.start,
     required this.end,
-    required this.count,
+    required this.dataIds,
     this.fillColor,
     this.edgeColor,
     this.edgeWidth = 1,
   });
+
+  int get count => dataIds.length;
 
   @override
   String toString() {
@@ -46,10 +48,10 @@ class HistogramBins {
   HistogramBins(this.bins);
 
   /// Insert a data point into the histogram.
-  bool insert(double data) {
+  bool insert(Object dataId, double data) {
     for (HistogramBin bin in bins) {
       if (bin.start <= data && data < bin.end) {
-        bin.count++;
+        bin.dataIds.add(dataId);
         return true;
       }
     }
@@ -60,9 +62,9 @@ class HistogramBins {
 
   /// Insert a list of data points into the histogram.
   /// The number of data points that did not fit into any bin is returned.
-  int insertAll(List<double> data) {
-    for (double d in data) {
-      insert(d);
+  int insertAll(Map<Object, double> data) {
+    for (MapEntry<Object, double> entry in data.entries) {
+      insert(entry.key, entry.value);
     }
     return missingData;
   }
@@ -99,6 +101,17 @@ class HistogramInfo<T extends Object> extends ChartInfo {
     this.edges,
   })  : assert(nBins != null || edges != null),
         super(builder: Histogram.builder);
+}
+
+class SelectedBin {
+  final BigInt seriesIndex;
+  final int binIndex;
+
+  SelectedBin(this.seriesIndex, this.binIndex);
+
+  HistogramBin getBin(Map<BigInt, HistogramBins> allBins) {
+    return allBins[seriesIndex]!.bins[binIndex];
+  }
 }
 
 class Histogram<T extends Object> extends StatefulWidget {
@@ -148,6 +161,8 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
   final Map<Object, ChartAxes> _axes = {};
 
   final Map<BigInt, HistogramBins> _allBins = {};
+
+  SelectedBin? selectedBin;
 
   @override
   void initState() {
@@ -202,7 +217,7 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
           return HistogramBin(
             start: edges[j],
             end: edges[j + 1],
-            count: 0,
+            dataIds: [],
             fillColor:
                 series.marker?.color ?? widget.info.theme.colorCycle[i % widget.info.theme.colorCycle.length],
             edgeColor: series.marker?.edgeColor,
@@ -210,10 +225,10 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
           );
         }),
       );
-      _allBins[series.id]!.insertAll(series.data.data[series.data.plotColumns.values.first]!.values
-          .toList()
-          .map((e) => xAxis.toDouble(e))
-          .toList());
+      Map<Object, dynamic> data = series.data.data[series.data.plotColumns.values.first]!;
+      for (MapEntry<Object, dynamic> entry in data.entries) {
+        _allBins[series.id]!.insert(entry.key, xAxis.toDouble(entry.value));
+      }
     }
 
     // Create the y-axis
@@ -291,6 +306,7 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
               allBins: _allBins,
+              selectedBin: selectedBin,
               tickLabelMargin: EdgeInsets.only(
                 left: axisPainter.margin.left + axisPainter.tickPadding,
                 right: axisPainter.margin.right + axisPainter.tickPadding,
@@ -331,10 +347,10 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          /*onTapUp: (TapUpDetails details) {
+          onTapUp: (TapUpDetails details) {
             _onTapUp(details, axisPainter);
           },
-          onPanStart: (DragStartDetails details) {
+          /*onPanStart: (DragStartDetails details) {
             _onDragStart(details, axisPainter);
           },
           onPanUpdate: (DragUpdateDetails details) {
@@ -358,6 +374,41 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
           ),
         ));
   }
+
+  void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
+    focusNode.requestFocus();
+    if (axisPainter.projections == null) {
+      return;
+    }
+
+    selectedBin = _getBinOnTap(details.localPosition, axisPainter);
+    selectedDataPoints = [];
+    if (selectedBin != null) {
+      selectedDataPoints = selectedBin!.getBin(_allBins).dataIds;
+    }
+    if (widget.selectionController != null) {
+      widget.selectionController!.updateSelection(selectedDataPoints);
+    }
+    setState(() {});
+  }
+
+  SelectedBin? _getBinOnTap(Offset location, AxisPainter axisPainter) {
+    Object axesId = _axes.keys.first;
+    for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
+      BigInt seriesIndex = entry.key;
+      HistogramBins bins = entry.value;
+      for (int i = 0; i < bins.bins.length; i++) {
+        HistogramBin bin = bins.bins[i];
+        double left = axisPainter.projections![axesId]!.xTransform.map(bin.start);
+        double right = axisPainter.projections![axesId]!.xTransform.map(bin.end);
+        double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.count.toDouble());
+        if (left <= location.dx && location.dx < right && 0 <= location.dy && location.dy < bottom) {
+          return SelectedBin(seriesIndex, i);
+        }
+      }
+    }
+    return null;
+  }
 }
 
 /// A painter for a collection of histograms.
@@ -374,10 +425,13 @@ class HistogramPainter extends CustomPainter {
   /// Offset from the lower left to make room for labels.
   final EdgeInsets tickLabelMargin;
 
+  final SelectedBin? selectedBin;
+
   HistogramPainter({
     required this.axes,
     required this.errorBars,
     required this.allBins,
+    required this.selectedBin,
     this.tickLabelMargin = EdgeInsets.zero,
   });
 
@@ -406,6 +460,9 @@ class HistogramPainter extends CustomPainter {
         Paint? paintFill;
         Paint? paintEdge;
         if (fillColor != null) {
+          if (selectedBin != null && selectedBin!.binIndex != i) {
+            fillColor = fillColor.withOpacity(0.5);
+          }
           paintFill = Paint()..color = fillColor;
         }
         if (edgeColor != null) {

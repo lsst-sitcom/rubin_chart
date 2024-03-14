@@ -383,7 +383,6 @@ class HistogramPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    print("painting histogram");
     // Calculate the projection used for all points in the series
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
@@ -423,11 +422,7 @@ class HistogramPainter extends CustomPainter {
         double bottom = projection.yTransform.map(bin.count) + offset.dy;
         Rect binRect = Rect.fromLTRB(left, y0, right, bottom);
 
-        print(plotWindow);
-        print(binRect);
-
         if (binRect.overlaps(plotWindow)) {
-          print("$bin has overlap");
           // Paint the bin
           if (paintFill != null) {
             canvas.drawRect(

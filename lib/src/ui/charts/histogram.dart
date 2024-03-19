@@ -5,10 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
-import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
-import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
@@ -545,7 +543,10 @@ class HistogramPainter extends CustomPainter {
     // we can calculate the [Paint] objects once and reuse them.
     double lastY = 0;
     double y0 = projection.yTransform.map(0) + offset.dy;
+    double clippedY0 = math.max(y0, plotWindow.top);
     for (HistogramBins bins in allBins.values) {
+      double min = double.infinity;
+      double max = double.negativeInfinity;
       for (int i = 0; i < bins.bins.length; i++) {
         HistogramBin bin = bins.bins[i];
         // Create the painters for the edge and fill of the bin
@@ -573,22 +574,44 @@ class HistogramPainter extends CustomPainter {
         double bottom = projection.yTransform.map(bin.count) + offset.dy;
         Rect binRect = Rect.fromLTRB(left, y0, right, bottom);
 
+        min = math.min(min, left);
+        max = math.max(max, right);
+
         if (binRect.overlaps(plotWindow)) {
           // Paint the bin
           if (paintFill != null) {
+            Rect overlap = binRect.intersect(plotWindow);
             canvas.drawRect(
-              Rect.fromLTRB(left, y0, right, bottom),
+              overlap,
               paintFill,
             );
           }
           // Draw the edge
           if (paintEdge != null) {
-            canvas.drawLine(Offset(left, last), Offset(left, y0), paintEdge);
-            canvas.drawLine(Offset(left, bottom), Offset(right, bottom), paintEdge);
-            if (i == bins.bins.length - 1) {
-              canvas.drawLine(Offset(right, bottom), Offset(right, y0), paintEdge);
+            double clippedLeft = math.max(left, plotWindow.left);
+            double clippedRight = math.min(right, plotWindow.right);
+            double clippedLast = math.max(last, plotWindow.top);
+            double clippedBottom = math.min(bottom, plotWindow.bottom);
+            if (left > plotWindow.left) {
+              canvas.drawLine(Offset(left, clippedLast), Offset(left, clippedBottom), paintEdge);
+            }
+            if (bottom < plotWindow.bottom) {
+              canvas.drawLine(Offset(clippedLeft, bottom), Offset(clippedRight, bottom), paintEdge);
+            }
+            if (i == bins.bins.length - 1 && right < plotWindow.right) {
+              canvas.drawLine(Offset(right, clippedBottom), Offset(right, clippedY0), paintEdge);
             }
           }
+        }
+        if (y0 > plotWindow.top && paintEdge != null) {
+          double clippedMin = math.max(min, plotWindow.left);
+          double clippedMax = math.min(max, plotWindow.right);
+          canvas.drawLine(
+            Offset(clippedMin, y0),
+            Offset(clippedMax, y0),
+            paintEdge ?? Paint()
+              ..color = Colors.black,
+          );
         }
         lastY = bin.count.toDouble();
       }

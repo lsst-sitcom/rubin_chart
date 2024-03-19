@@ -79,7 +79,7 @@ class SeriesPainter extends CustomPainter {
 
     paintEdge = Paint()
       ..color = Colors.black
-      ..strokeWidth = selectionMarker.size / 10
+      ..strokeWidth = selectionMarker.size / 3
       ..style = PaintingStyle.stroke;
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {

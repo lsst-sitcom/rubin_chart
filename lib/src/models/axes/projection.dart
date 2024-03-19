@@ -34,11 +34,11 @@ class PixelTransform {
     required double plotSize,
     double? invertSize,
   }) {
-    Bounds bounds = axis.bounds;
+    Bounds<num> bounds = axis.bounds;
     //bounds = axis.tickBounds!;
     return PixelTransform(
       origin: bounds.min.toDouble(),
-      scale: plotSize / bounds.range,
+      scale: plotSize / (bounds.max - bounds.min),
       invertSize: invertSize,
     );
   }

@@ -11,7 +11,6 @@ export 'src/models/series.dart';
 
 export 'src/theme/theme.dart';
 
-export 'src/ui/charts/bar.dart';
 export 'src/ui/charts/combined.dart';
 export 'src/ui/charts/histogram.dart';
 export 'src/ui/charts/scatter.dart';

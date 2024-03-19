@@ -118,7 +118,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
     // Subscribe to the axis controllers
     for (AxisController controller in axisControllers) {
-      controller.subscribe(({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
+      controller.subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
         for (AxisId axisId in widget.axisControllers.keys) {
           for (ChartAxes axes in _axes.values) {
             if (axes.axes.containsKey(axisId)) {
@@ -144,8 +144,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         children: [],
         left: axis0.bounds.min.toDouble(),
         top: axis1.bounds.min.toDouble(),
-        width: axis0.bounds.range.toDouble(),
-        height: axis1.bounds.range.toDouble(),
+        width: (axis0.bounds.max - axis0.bounds.min).toDouble(),
+        height: (axis1.bounds.max - axis1.bounds.min).toDouble(),
       );
     }
 

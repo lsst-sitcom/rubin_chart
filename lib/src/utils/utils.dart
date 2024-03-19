@@ -93,57 +93,76 @@ String trimStringLeft(String str, String char) {
   return str;
 }
 
-/// The bounds of a numerical array ([List]).
-class Bounds {
+/// The bounds of an array ([List]) for any comparable type.
+class Bounds<T extends Comparable> {
   /// Minimum bound.
-  final num min;
+  final T min;
 
   /// Maximum bound.
-  final num max;
+  final T max;
 
   const Bounds(this.min, this.max);
 
   /// Intersection of two bounds.
-  Bounds operator &(Bounds other) {
-    num min = this.min;
-    num max = this.max;
-    if (other.min > min) {
-      min = other.min;
-    }
-    if (other.max < max) {
-      max = other.max;
-    }
-    return Bounds(min, max);
+  Bounds<T> operator &(Bounds<T> other) {
+    T min = this.min.compareTo(other.min) > 0 ? this.min : other.min;
+    T max = this.max.compareTo(other.max) < 0 ? this.max : other.max;
+    return Bounds<T>(min, max);
   }
 
   /// Union of two bounds.
-  Bounds operator |(Bounds other) {
-    num min = this.min;
-    num max = this.max;
-    if (other.min < min) {
-      min = other.min;
-    }
-    if (other.max > max) {
-      max = other.max;
-    }
-    return Bounds(min, max);
+  Bounds<T> operator |(Bounds<T> other) {
+    T min = this.min.compareTo(other.min) < 0 ? this.min : other.min;
+    T max = this.max.compareTo(other.max) > 0 ? this.max : other.max;
+    return Bounds<T>(min, max);
   }
 
-  /// Range of the bounded data.
-  num get range => max - min;
-
-  static Bounds fromList(List<num> data) {
-    num min = data[0];
-    num max = data[0];
-    for (num x in data) {
-      min = math.min(min, x);
-      max = math.max(max, x);
+  /// Check if a value is within the bounds.
+  bool contains(T value, {bool inclusive = true}) {
+    if (inclusive) {
+      return value.compareTo(min) >= 0 && value.compareTo(max) <= 0;
+    } else {
+      return value.compareTo(min) > 0 && value.compareTo(max) < 0;
     }
-    return Bounds(min, max);
+  }
+
+  /// Check if another bounds is within the bounds.
+  bool containsBounds(Bounds<T> other, {bool inclusive = true}) {
+    return contains(other.min, inclusive: inclusive) && contains(other.max, inclusive: inclusive);
+  }
+
+  /// Check if these bounds are contained in another set of bounds.
+  bool containedInBounds(Bounds<T> other, {bool inclusive = true}) {
+    return other.containsBounds(this, inclusive: inclusive);
   }
 
   @override
   String toString() => "Bounds<$min-$max>";
+
+  @override
+  bool operator ==(Object other) {
+    if (other is Bounds<T>) {
+      return min == other.min && max == other.max;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => Object.hash(min, max);
+
+  /// Factory method to create Bounds from a list of Comparable elements.
+  static Bounds<T> fromList<T extends Comparable>(List<T> data) {
+    if (data.isEmpty) {
+      throw ArgumentError("data cannot be empty");
+    }
+    T min = data.first;
+    T max = data.first;
+    for (T x in data) {
+      if (x.compareTo(min) < 0) min = x;
+      if (x.compareTo(max) > 0) max = x;
+    }
+    return Bounds<T>(min, max);
+  }
 }
 
 enum ComparisonOperators {

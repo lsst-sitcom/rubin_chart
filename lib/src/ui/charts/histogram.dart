@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
+import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
+import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
@@ -72,7 +74,7 @@ class HistogramBins {
 
 /// Information for a histogram chart
 @immutable
-class HistogramInfo<T extends Object> extends ChartInfo {
+class HistogramInfo extends ChartInfo {
   /// The number of bins to use
   /// Either [nBins] or [edges] must be provided.
   final int? nBins;
@@ -82,7 +84,7 @@ class HistogramInfo<T extends Object> extends ChartInfo {
 
   /// The bins to use for the histogram.
   /// Either nBins or bins must be provided.
-  final List<T>? edges;
+  final List<double>? edges;
 
   HistogramInfo({
     required super.id,
@@ -114,8 +116,8 @@ class SelectedBin {
   }
 }
 
-class Histogram<T extends Object> extends StatefulWidget {
-  final HistogramInfo<T> info;
+class Histogram extends StatefulWidget {
+  final HistogramInfo info;
   final SelectionController? selectionController;
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
@@ -146,7 +148,7 @@ class Histogram<T extends Object> extends StatefulWidget {
   }
 }
 
-class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMixin, Scrollable2DChartMixin {
+class HistogramState<T extends Object> extends State<Histogram> with ChartMixin, Scrollable2DChartMixin {
   @override
   SeriesList get seriesList => SeriesList(
         widget.info.allSeries,
@@ -164,11 +166,34 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
 
   SelectedBin? selectedBin;
 
+  /// The location of the base of the histogram bins.
+  /// This is used to determine the orientation and layout of the histogram.
+  late AxisLocation baseLocation;
+
+  late AxisOrientation orientation;
+
+  @override
+  void didUpdateWidget(Histogram oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _initAxesAndBins();
+  }
+
   @override
   void initState() {
     super.initState();
+    _initAxesAndBins();
+  }
 
+  void _initAxesAndBins() {
+    // Clear the parameters
+    axisControllers.clear();
+    _allBins.clear();
+    _axes.clear();
+
+    // Add the axis controllers
     axisControllers.addAll(widget.axisControllers.values);
+
+    // Subscribe to the selection controller
     if (widget.selectionController != null) {
       widget.selectionController!.subscribe((List<Object> dataPoints) {
         selectedDataPoints = dataPoints;
@@ -176,27 +201,72 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
       });
     }
 
-    // Initialize the axes
-    _axes.addAll(initializeSimpleAxes(
-      seriesList: widget.info.allSeries,
-      axisInfo: widget.info.axisInfo,
-      theme: widget.info.theme,
-      projectionInitializer: widget.info.projectionInitializer,
-    ));
-
-    if (_axes.length != 1) {
-      throw Exception('Histograms must have exactly one axis');
+    // Get the actual bounds for the bins and main axis
+    List<Series> allSeries = widget.info.allSeries;
+    if (allSeries.isEmpty) {
+      throw UnimplementedError('Histograms must have at least one series for now');
+    }
+    double min = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).min;
+    double max = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).max;
+    List<List<String>> uniqueValues = [];
+    for (Series series in allSeries) {
+      if (series.data.plotColumns.length != 1) {
+        throw ChartInitializationException('Histograms must have exactly one data column');
+      }
+      Bounds<double> bounds = series.data.calculateBounds(series.data.plotColumns.values.first);
+      min = math.min(min, bounds.min);
+      max = math.max(max, bounds.max);
+      if (series.data.columnTypes[series.data.plotColumns.values.first] == ColumnDataType.string) {
+        uniqueValues
+            .add(series.data.data[series.data.plotColumns.values.first]!.values.cast<String>().toList());
+      }
     }
 
-    /// Histograms only have a single axis, so we can just use the first one.
-    ChartAxis xAxis = _axes.values.first.axes.values.first;
-    PixelTransform xTransform = PixelTransform.fromAxis(axis: xAxis, plotSize: 1);
+    // Initialize the mainaxis based on the [SeriesData].
+    ChartAxis mainAxis;
+    AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
+    ChartAxisInfo mainAxisInfo = widget.info.axisInfo[mainAxisId]!;
+    if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
+        ColumnDataType.datetime) {
+      mainAxis = DateTimeChartAxis.fromBounds(
+        boundsList: [Bounds(min, max)],
+        axisInfo: mainAxisInfo,
+        theme: widget.info.theme,
+      );
+    } else if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
+        ColumnDataType.number) {
+      mainAxis = NumericalChartAxis.fromBounds(
+        boundsList: [Bounds(min, max)],
+        axisInfo: mainAxisInfo,
+        theme: widget.info.theme,
+      );
+    } else if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
+        ColumnDataType.string) {
+      mainAxis = StringChartAxis.fromData(
+        data: uniqueValues,
+        axisInfo: mainAxisInfo,
+        theme: widget.info.theme,
+      );
+    } else {
+      throw ChartInitializationException(
+          'Unable to determine column type for ${allSeries.first.data.plotColumns.values.first}');
+    }
+    baseLocation = mainAxis.info.axisId.location;
+    if (baseLocation == AxisLocation.left || baseLocation == AxisLocation.right) {
+      orientation = AxisOrientation.vertical;
+    } else if (baseLocation == AxisLocation.top || baseLocation == AxisLocation.bottom) {
+      orientation = AxisOrientation.horizontal;
+    } else if (baseLocation == AxisLocation.angular || baseLocation == AxisLocation.radial) {
+      throw UnimplementedError('Polar histograms are not yet supported');
+    } else {
+      throw ChartInitializationException('Invalid histogram axis location');
+    }
 
+    // Calculate the edges for the bins
+    PixelTransform mainTransform = PixelTransform.fromAxis(axis: mainAxis, plotSize: 1);
     List<double> edges = [];
     if (widget.info.edges != null) {
-      for (T edge in widget.info.edges!) {
-        edges.add(xAxis.toDouble(edge));
-      }
+      edges.addAll(widget.info.edges!);
     } else {
       if (widget.info.nBins == null) {
         throw Exception('Either nBins or edges must be provided');
@@ -206,10 +276,11 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
       // for in the bin edges.
       double binWidth = 1 / widget.info.nBins!;
       for (int i = 0; i < widget.info.nBins!; i++) {
-        edges.add(xTransform.inverse(i * binWidth));
+        edges.add(mainTransform.inverse(i * binWidth));
       }
     }
 
+    // Create the bins
     for (int i = 0; i < widget.info.allSeries.length; i++) {
       Series series = widget.info.allSeries[i];
       _allBins[series.id] = HistogramBins(
@@ -227,48 +298,71 @@ class HistogramState<T extends Object> extends State<Histogram<T>> with ChartMix
       );
       Map<Object, dynamic> data = series.data.data[series.data.plotColumns.values.first]!;
       for (MapEntry<Object, dynamic> entry in data.entries) {
-        _allBins[series.id]!.insert(entry.key, xAxis.toDouble(entry.value));
+        _allBins[series.id]!.insert(entry.key, mainAxis.toDouble(entry.value));
       }
     }
 
-    // Create the y-axis
+    // Create the cross-axis
     final maxCount = _allBins.values
         .expand((histogramBins) => histogramBins.bins)
         .map((bin) => bin.count)
         .reduce((a, b) => a > b ? a : b);
-    ChartAxisInfo? yAxisInfo;
+    ChartAxisInfo? crossAxisInfo;
     for (AxisId id in widget.info.axisInfo.keys) {
-      if (id.location == AxisLocation.left || id.location == AxisLocation.right) {
-        yAxisInfo = widget.info.axisInfo[id];
-        break;
+      if (orientation == AxisOrientation.horizontal) {
+        if (id.location == AxisLocation.left || id.location == AxisLocation.right) {
+          crossAxisInfo = widget.info.axisInfo[id];
+          break;
+        }
+      } else if (orientation == AxisOrientation.vertical) {
+        if (id.location == AxisLocation.top || id.location == AxisLocation.bottom) {
+          crossAxisInfo = widget.info.axisInfo[id];
+          break;
+        }
       }
     }
-    if (yAxisInfo == null) {
-      AxisId yAxisId = AxisId(AxisLocation.left, xAxis.info.axisId.axesId);
-      yAxisInfo = ChartAxisInfo(
+    if (crossAxisInfo == null) {
+      AxisId crossAxisId;
+      if (orientation == AxisOrientation.vertical) {
+        crossAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
+      } else if (orientation == AxisOrientation.horizontal) {
+        crossAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
+      } else {
+        throw UnimplementedError('Polar histograms are not yet supported');
+      }
+      crossAxisInfo = ChartAxisInfo(
         label: "count",
-        axisId: yAxisId,
+        axisId: crossAxisId,
       );
     }
-
-    NumericalChartAxis yAxis = NumericalChartAxis.fromData(
-      data: [Bounds(0, maxCount.toDouble())],
-      axisInfo: yAxisInfo,
+    NumericalChartAxis crossAxis = NumericalChartAxis.fromBounds(
+      boundsList: [Bounds(0, maxCount.toDouble())],
+      axisInfo: crossAxisInfo,
       theme: widget.info.theme,
     );
-    _axes.values.first.axes[yAxis.info.axisId] = yAxis;
 
-    if (widget.axisControllers.containsKey(xAxis.info.axisId)) {
-      xAxis.controller = widget.axisControllers[xAxis.info.axisId];
-    }
-    if (widget.hiddenAxes.contains(xAxis.info.axisId)) {
-      xAxis.showLabels = false;
-    }
+    // Create the [ChartAxes].
+    _axes[crossAxis.info.axisId.axesId] = ChartAxes(
+      axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis},
+      projection: widget.info.projectionInitializer,
+    );
 
     // Subscribe to the axis controllers
+    if (widget.axisControllers.containsKey(mainAxis.info.axisId)) {
+      mainAxis.controller = widget.axisControllers[mainAxis.info.axisId];
+    }
+    if (widget.hiddenAxes.contains(mainAxis.info.axisId)) {
+      mainAxis.showLabels = false;
+    }
+    if (widget.axisControllers.containsKey(crossAxis.info.axisId)) {
+      crossAxis.controller = widget.axisControllers[crossAxis.info.axisId];
+    }
+    if (widget.hiddenAxes.contains(crossAxis.info.axisId)) {
+      crossAxis.showLabels = false;
+    }
     for (AxisController controller in axisControllers) {
-      controller.subscribe(({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
-        xAxis.update(bounds: bounds, ticks: ticks, info: info, state: this);
+      controller.subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
+        mainAxis.update(bounds: bounds, ticks: ticks, info: info, state: this);
         setState(() {});
       });
     }

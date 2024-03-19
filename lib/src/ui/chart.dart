@@ -10,6 +10,16 @@ import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
+/// An exception occured while converting data into dart types.
+class ChartInitializationException implements Exception {
+  ChartInitializationException(this.message);
+
+  String? message;
+
+  @override
+  String toString() => "$runtimeType:\n\t$message";
+}
+
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 

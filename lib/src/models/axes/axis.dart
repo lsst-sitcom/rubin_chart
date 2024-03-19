@@ -23,17 +23,16 @@ class AxisUpdateException implements Exception {
 typedef TapAxisCallback = void Function(int axisIndex);
 
 /// Function to update an axis and rebuild a [State].
-typedef AxisUpdate = void Function({Bounds? bounds, AxisTicks? ticks, ChartAxisInfo? info});
+typedef AxisUpdate = void Function({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info});
 
 /// Controller for a set of axes.
 /// This class is used to sync axes that may be linked
 /// in different charts.
 class AxisController {
-  Bounds bounds;
+  Bounds<double> bounds;
   AxisTicks ticks;
-  Bounds? maxBounds;
 
-  AxisController({required this.bounds, required this.ticks, this.maxBounds});
+  AxisController({required this.bounds, required this.ticks});
 
   /// Observers list
   final List<AxisUpdate> _observers = [];
@@ -57,46 +56,28 @@ class AxisController {
     }
   }
 
-  /// Update the maximum bounds of the axis with the intersection of the current bounds.
-  void updateMaxBoundsIntersection(Bounds bounds) {
-    if (maxBounds != null) {
-      num min = math.max(bounds.min, maxBounds!.min);
-      num max = math.min(bounds.max, maxBounds!.max);
-      this.bounds = Bounds(min, max);
-    } else {
-      maxBounds = bounds;
-    }
-  }
-
-  /// Update the maximum bounds of the axis with the union of the current bounds.
-  void updateMaxBoundsUnion(Bounds bounds) {
-    if (maxBounds != null) {
-      num min = math.min(bounds.min, maxBounds!.min);
-      num max = math.max(bounds.max, maxBounds!.max);
-      this.bounds = Bounds(min, max);
-    } else {
-      maxBounds = bounds;
-    }
-  }
-
   /// Update the controller.
   void update({
-    Bounds? bounds,
+    Bounds<double>? bounds,
     AxisTicks? ticks,
   }) {
+    bool updated = false;
+
     if (bounds != null) {
-      num min = bounds.min;
-      num max = bounds.max;
-      if (maxBounds != null) {
-        min = math.max(min, maxBounds!.min);
-        max = math.min(max, maxBounds!.max);
-      }
+      double min = bounds.min;
+      double max = bounds.max;
       this.bounds = Bounds(min, max);
+      if (this.bounds != bounds) {
+        updated = true;
+      }
     }
     if (ticks != null) {
       this.ticks = ticks;
+      updated = true;
     }
-    _notifyObservers();
+    if (updated) {
+      _notifyObservers();
+    }
   }
 }
 
@@ -138,6 +119,14 @@ enum AxisLocation {
   angular,
 }
 
+/// The orientation of a chart axis
+enum AxisOrientation {
+  horizontal,
+  vertical,
+  radial,
+  angular,
+}
+
 /// The different types of data than can be plotted.
 enum AxisDataType {
   number,
@@ -151,12 +140,14 @@ class ChartAxisInfo {
   final Mapping mapping;
   final bool isInverted;
   final AxisId axisId;
+  final bool isBounded;
 
   const ChartAxisInfo({
     required this.label,
     required this.axisId,
     this.isInverted = false,
     this.mapping = const LinearMapping(),
+    this.isBounded = true,
   });
 }
 
@@ -165,7 +156,12 @@ abstract class ChartAxis<T extends Object> {
   ChartAxisInfo _info;
 
   /// The max/min bounds of the axis displayed in a chart.
-  Bounds _bounds;
+  Bounds<double> _bounds;
+
+  /// The bounds of the data.
+  /// This might not be the same as the total [bounds],
+  /// since the axis may be zoomed in or translated.
+  Bounds<double> dataBounds;
 
   /// Tick marks for the axis.
   AxisTicks _ticks;
@@ -184,7 +180,8 @@ abstract class ChartAxis<T extends Object> {
 
   ChartAxis._({
     required ChartAxisInfo info,
-    required Bounds bounds,
+    required Bounds<double> bounds,
+    required this.dataBounds,
     required AxisTicks ticks,
     required this.dataType,
     required this.theme,
@@ -199,11 +196,34 @@ abstract class ChartAxis<T extends Object> {
   T fromDouble(double value);
 
   void translate(double delta) {
-    _translate(delta);
-    controller?.update(bounds: bounds, ticks: ticks);
+    // Perform the translation
+    double min = bounds.min + delta;
+    double max = bounds.max + delta;
+
+    if (delta < 0 && (dataBounds.min < min || dataBounds.max < max)) {
+      updateTicksAndBounds(Bounds(min, max));
+    } else if (delta > 0 && (dataBounds.min > min || dataBounds.max > max)) {
+      updateTicksAndBounds(Bounds(min, max));
+    }
   }
 
-  void _translate(double delta);
+  /// Update the tick marks and adjust the bounds if necessary
+  void updateTicksAndBounds(Bounds<double> bounds) {
+    _ticks = _updateTicks(bounds);
+
+    // Grow the bounds to fit the ticks, if necessary
+    double min = math.min(bounds.min, ticks.bounds.min.toDouble());
+    double max = math.max(bounds.max, ticks.bounds.max.toDouble());
+
+    bounds = Bounds(min, max);
+    if (bounds != this.bounds) {
+      _bounds = bounds;
+      controller?.update(bounds: bounds, ticks: _ticks);
+    }
+  }
+
+  /// Update the tick marks and adjust the bounds if necessary.
+  AxisTicks _updateTicks(Bounds<double> bounds);
 
   void scale(double scale) {
     _scale(scale);
@@ -214,13 +234,13 @@ abstract class ChartAxis<T extends Object> {
 
   ChartAxisInfo get info => _info;
 
-  Bounds get bounds => _bounds;
+  Bounds<double> get bounds => _bounds;
 
   AxisTicks get ticks => _ticks;
 
   void update({
     ChartAxisInfo? info,
-    Bounds? bounds,
+    Bounds<double>? bounds,
     AxisTicks? ticks,
     required State state,
   }) {
@@ -240,6 +260,7 @@ class NumericalChartAxis extends ChartAxis<double> {
   NumericalChartAxis._({
     required super.info,
     required super.bounds,
+    required super.dataBounds,
     required super.ticks,
     required super.theme,
     super.showLabels = true,
@@ -248,39 +269,42 @@ class NumericalChartAxis extends ChartAxis<double> {
           dataType: AxisDataType.number,
         );
 
-  static NumericalChartAxis fromData({
+  static NumericalChartAxis fromBounds({
     required ChartAxisInfo axisInfo,
-    required List<Bounds> data,
+    required List<Bounds<double>> boundsList,
     required ChartTheme theme,
     bool showTicks = true,
     bool showLabels = true,
   }) {
-    double min = data[0].min.toDouble();
-    double max = data[0].max.toDouble();
-    for (Bounds bounds in data) {
+    double min = boundsList[0].min.toDouble();
+    double max = boundsList[0].max.toDouble();
+    for (Bounds<double> bounds in boundsList) {
       min = math.min(min, bounds.min.toDouble());
       max = math.max(max, bounds.max.toDouble());
     }
-    AxisTicks ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, true);
+    Bounds<double> dataBounds = Bounds(min, max);
+    AxisTicks ticks = AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true);
     min = math.min(min, ticks.bounds.min.toDouble());
     max = math.max(max, ticks.bounds.max.toDouble());
 
     return NumericalChartAxis._(
-        bounds: Bounds(min, max),
-        ticks: ticks,
-        info: axisInfo,
-        theme: theme,
-        showTicks: showTicks,
-        showLabels: showLabels);
+      bounds: Bounds(min, max),
+      dataBounds: dataBounds,
+      ticks: ticks,
+      info: axisInfo,
+      theme: theme,
+      showTicks: showTicks,
+      showLabels: showLabels,
+    );
   }
 
   NumericalChartAxis addData(
-    List<Bounds> bounds,
+    List<Bounds<double>> bounds,
     ChartTheme theme,
   ) =>
-      fromData(
+      fromBounds(
         axisInfo: info,
-        data: [this.bounds, ...bounds],
+        boundsList: [this.bounds, ...bounds],
         theme: theme,
       );
 
@@ -291,11 +315,8 @@ class NumericalChartAxis extends ChartAxis<double> {
   double fromDouble(double value) => value;
 
   @override
-  void _translate(double delta) {
-    double min = bounds.min + delta;
-    double max = bounds.max + delta;
-    _bounds = Bounds(min, max);
-    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
+  AxisTicks _updateTicks(Bounds<double> bounds) {
+    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
   }
 
   @override
@@ -320,6 +341,7 @@ class StringChartAxis extends ChartAxis<String> {
   StringChartAxis._({
     required super.info,
     required super.bounds,
+    required super.dataBounds,
     required super.ticks,
     required this.uniqueValues,
     required super.theme,
@@ -332,13 +354,18 @@ class StringChartAxis extends ChartAxis<String> {
     required List<List<String>> data,
     required ChartTheme theme,
   }) {
-    Bounds bounds = Bounds(0, data.length.toDouble() - 1);
+    double min = 0;
+    double max = data.length.toDouble() - 1;
     List<String> uniqueValues = LinkedHashSet<String>.from(data.expand((e) => e)).toList();
     AxisTicks ticks = AxisTicks.fromStrings(uniqueValues);
+    Bounds<double> dataBounds = Bounds(min, max);
+    min = math.min(min, ticks.bounds.min.toDouble());
+    max = math.max(max, ticks.bounds.max.toDouble());
 
     return StringChartAxis._(
       info: axisInfo,
-      bounds: bounds,
+      bounds: Bounds(min, max),
+      dataBounds: dataBounds,
       ticks: ticks,
       uniqueValues: uniqueValues,
       theme: theme,
@@ -352,11 +379,8 @@ class StringChartAxis extends ChartAxis<String> {
   String fromDouble(double value) => uniqueValues[value.toInt()];
 
   @override
-  void _translate(double delta) {
-    double min = bounds.min + delta;
-    double max = bounds.max + delta;
-
-    _bounds = Bounds(min, max);
+  AxisTicks _updateTicks(Bounds<double> bounds) {
+    return _ticks;
   }
 
   @override
@@ -378,6 +402,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
   DateTimeChartAxis._({
     required super.info,
     required super.bounds,
+    required super.dataBounds,
     required super.ticks,
     required super.theme,
   }) : super._(
@@ -388,7 +413,6 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     required ChartAxisInfo axisInfo,
     required List<DateTime> data,
     required ChartTheme theme,
-    required AxisLocation location,
   }) {
     DateTime min = data[0];
     DateTime max = data[0];
@@ -396,12 +420,50 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       min = min.isBefore(date) ? min : date;
       max = max.isAfter(date) ? max : date;
     }
-    Bounds bounds = Bounds(min.microsecondsSinceEpoch.toDouble(), max.microsecondsSinceEpoch.toDouble());
+    Bounds<double> dataBounds = Bounds(
+      min.millisecondsSinceEpoch.toDouble(),
+      max.millisecondsSinceEpoch.toDouble(),
+    );
     AxisTicks ticks = AxisTicks.fromDateTime(min, max, theme.minTicks, theme.maxTicks, true);
+    double doubleMin = min.millisecondsSinceEpoch.toDouble();
+    double doubleMax = max.millisecondsSinceEpoch.toDouble();
+    doubleMin = math.min(doubleMin, ticks.bounds.min.toDouble());
+    doubleMax = math.max(doubleMax, ticks.bounds.max.toDouble());
+    Bounds<double> bounds = Bounds(doubleMin, doubleMax);
 
     return DateTimeChartAxis._(
       info: axisInfo,
       bounds: bounds,
+      dataBounds: dataBounds,
+      ticks: ticks,
+      theme: theme,
+    );
+  }
+
+  static DateTimeChartAxis fromBounds({
+    required ChartAxisInfo axisInfo,
+    required List<Bounds<double>> boundsList,
+    required ChartTheme theme,
+  }) {
+    double min = boundsList.first.min;
+    double max = boundsList.first.max;
+    for (Bounds<double> bounds in boundsList) {
+      min = math.min(min, bounds.min);
+      max = math.max(max, bounds.max);
+    }
+    Bounds<double> dataBounds = Bounds(min, max);
+    DateTime minDate = DateTime.fromMillisecondsSinceEpoch(min.toInt());
+    DateTime maxDate = DateTime.fromMillisecondsSinceEpoch(max.toInt());
+    AxisTicks ticks = AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);
+
+    min = math.min(min, ticks.bounds.min.toDouble());
+    max = math.max(max, ticks.bounds.max.toDouble());
+    Bounds<double> bounds = Bounds(min, max);
+
+    return DateTimeChartAxis._(
+      info: axisInfo,
+      bounds: bounds,
+      dataBounds: dataBounds,
       ticks: ticks,
       theme: theme,
     );
@@ -414,8 +476,10 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
   DateTime fromDouble(double value) => DateTime.fromMillisecondsSinceEpoch(value.toInt());
 
   @override
-  void _translate(double delta) {
-    throw UnimplementedError();
+  AxisTicks _updateTicks(Bounds<double> bounds) {
+    DateTime minDate = DateTime.fromMillisecondsSinceEpoch(bounds.min.toInt());
+    DateTime maxDate = DateTime.fromMillisecondsSinceEpoch(bounds.max.toInt());
+    return AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);
   }
 
   @override
@@ -505,9 +569,9 @@ ChartAxis initializeAxis({
   Series series = entry.key;
   dynamic data = series.data.data[series.data.plotColumns[entry.value]]!.values.toList().first;
   if (data is double) {
-    return NumericalChartAxis.fromData(
+    return NumericalChartAxis.fromBounds(
       axisInfo: axisInfo,
-      data:
+      boundsList:
           allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value]!)).toList(),
       theme: theme,
     );
@@ -541,7 +605,6 @@ Map<Object, ChartAxes> initializeSimpleAxes({
       if (series.data.plotColumns.containsKey(axisId)) {
         seriesForAxis[series] = axisId;
       }
-      print("${series.name}, ${series.data.plotColumns.keys}");
     }
     if (seriesForAxis.isEmpty) {
       throw AxisUpdateException("Axis $axisId has no series linked to it.");
@@ -574,4 +637,40 @@ Map<AxisId, ChartAxisInfo> axisInfoFromSeriesList(List<Series> seriesList) {
     }
   }
   return axisInfo;
+}
+
+/// Get the shared x-axis map from a list of series.
+Map<Series, AxisId> getSharedXaxisMap(List<Series> seriesList) {
+  Map<Series, AxisId> result = {};
+  for (Series series in seriesList) {
+    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.bottom))) {
+      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
+        throw AxisUpdateException("Shared Series cannot have both top and bottom axes.");
+      }
+      result[series] = AxisId(AxisLocation.bottom);
+    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
+      result[series] = AxisId(AxisLocation.top);
+    } else {
+      throw AxisUpdateException("Series sharing the x-axis must have either a top or bottom axis.");
+    }
+  }
+  return result;
+}
+
+/// Get the shared y-axis map from a list of series.
+Map<Series, AxisId> getSharedYaxisMap(List<Series> seriesList) {
+  Map<Series, AxisId> result = {};
+  for (Series series in seriesList) {
+    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.left))) {
+      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
+        throw AxisUpdateException("Shared Series cannot have both left and right axes.");
+      }
+      result[series] = AxisId(AxisLocation.left);
+    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
+      result[series] = AxisId(AxisLocation.right);
+    } else {
+      throw AxisUpdateException("Series sharing the y-axis must have either a left or right axis.");
+    }
+  }
+  return result;
 }

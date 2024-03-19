@@ -158,14 +158,14 @@ class AxisTicks {
   final List<double> ticks;
 
   /// The minimum value of the axis.
-  final Bounds bounds;
+  final Bounds<num> bounds;
 
   final List<String> tickLabels;
 
   AxisTicks._(this.stepSize, this.ticks, this.bounds, this.tickLabels);
 
   /// Generate tick marks for a range of numbers.
-  static AxisTicks fromBounds(Bounds bounds, int minTicks, int maxTicks, bool encloseBounds) {
+  static AxisTicks fromBounds(Bounds<num> bounds, int minTicks, int maxTicks, bool encloseBounds) {
     double min = bounds.min.toDouble();
     double max = bounds.max.toDouble();
 

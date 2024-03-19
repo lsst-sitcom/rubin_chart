@@ -89,8 +89,9 @@ class SeriesData {
   /// The columns that are plotted (in order of x, y, z, etc.)
   final Map<Object, Map<Object, dynamic>> data;
   final Map<AxisId, Object> plotColumns;
+  final Map<Object, ColumnDataType> columnTypes;
 
-  const SeriesData._(this.data, this.plotColumns);
+  const SeriesData._(this.data, this.plotColumns, this.columnTypes);
 
   /// The number of data points in the series.
   int get length => data.values.first.length;
@@ -124,6 +125,7 @@ class SeriesData {
     // If the user initialized a column as dynamic, check the first
     // value to see if it is a string.
     final Map<Object, Map<Object, dynamic>> dataColumns = {};
+    final Map<Object, ColumnDataType> columnTypes = {};
 
     for (Object plotColumn in data.keys) {
       Map<Object, Object> column = {};
@@ -134,8 +136,17 @@ class SeriesData {
         column[dataIds[i]] = data[plotColumn]![i];
       }
       dataColumns[plotColumn] = column;
+      if (data[plotColumn]!.first is num) {
+        columnTypes[plotColumn] = ColumnDataType.number;
+      } else if (data[plotColumn]!.first is String) {
+        columnTypes[plotColumn] = ColumnDataType.string;
+      } else if (data[plotColumn]!.first is DateTime) {
+        columnTypes[plotColumn] = ColumnDataType.datetime;
+      } else {
+        throw DataConversionException("Unable to determine column type for $plotColumn");
+      }
     }
-    return SeriesData._(dataColumns, plotColumns);
+    return SeriesData._(dataColumns, plotColumns, columnTypes);
   }
 
   /// Calculate the dimensionality of the data.
@@ -149,10 +160,10 @@ class SeriesData {
     return coordinates;
   }
 
-  Bounds calculateBounds(Object column) {
+  Bounds<double> calculateBounds(Object column) {
     List<dynamic> values = data[column]!.values.toList();
     if (values.first is num) {
-      return Bounds.fromList(values.map((e) => e as num).toList());
+      return Bounds.fromList(values.map((e) => (e as num).toDouble()).toList());
     } else {
       throw DataConversionException("Unable to calculate bounds for column $column");
     }

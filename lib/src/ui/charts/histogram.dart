@@ -331,6 +331,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       crossAxisInfo = ChartAxisInfo(
         label: "count",
         axisId: crossAxisId,
+        isInverted: mainAxisAlignment == AxisOrientation.horizontal,
       );
     }
     NumericalChartAxis crossAxis = NumericalChartAxis.fromBounds(

@@ -196,6 +196,9 @@ abstract class ChartAxis<T extends Object> {
   T fromDouble(double value);
 
   void translate(double delta) {
+    if (info.isInverted) {
+      delta = -delta;
+    }
     // Perform the translation
     double min = bounds.min + delta;
     double max = bounds.max + delta;
@@ -734,9 +737,44 @@ class AxisAlignedRect {
 
   // Convert to Flutter's Rect depending on orientation
   Rect toRect() {
-    return mainAxisAlignment == AxisOrientation.vertical
-        ? Rect.fromLTRB(crossStart, mainStart, crossEnd, mainEnd)
-        : Rect.fromLTRB(mainStart, crossStart, mainEnd, crossEnd);
+    double left;
+    double right;
+    double top;
+    double bottom;
+
+    if (mainAxisAlignment == AxisOrientation.vertical) {
+      if (crossStart < crossEnd) {
+        left = crossStart;
+        right = crossEnd;
+      } else {
+        left = crossEnd;
+        right = crossStart;
+      }
+      if (mainStart < mainEnd) {
+        top = mainStart;
+        bottom = mainEnd;
+      } else {
+        top = mainEnd;
+        bottom = mainStart;
+      }
+    } else {
+      if (crossStart < crossEnd) {
+        top = crossStart;
+        bottom = crossEnd;
+      } else {
+        top = crossEnd;
+        bottom = crossStart;
+      }
+      if (mainStart < mainEnd) {
+        left = mainStart;
+        right = mainEnd;
+      } else {
+        left = mainEnd;
+        right = mainStart;
+      }
+    }
+
+    return Rect.fromLTRB(left, top, right, bottom);
   }
 
   Offset getOffset(double main, double cross) {

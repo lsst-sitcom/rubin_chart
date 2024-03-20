@@ -144,6 +144,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Pan the chart.
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
+    focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
@@ -173,6 +174,16 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
     setState(() {});
   }
 
+  /// Check if a key is the shift key.
+  bool isShiftKey(LogicalKeyboardKey? key) {
+    return key == LogicalKeyboardKey.shiftLeft ||
+        key == LogicalKeyboardKey.shiftRight ||
+        key == LogicalKeyboardKey.shift;
+  }
+
+  /// Whether the shift key is currently pressed.
+  bool get isShifting => isShiftKey(scaleShiftKey);
+
   /// Remove the focus node listener when the widget is disposed.
   @override
   void dispose() {
@@ -194,9 +205,12 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
   KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent) {
       setState(() {
-        if (event.logicalKey == LogicalKeyboardKey.keyX || event.logicalKey == LogicalKeyboardKey.keyY) {
+        if (event.logicalKey == LogicalKeyboardKey.keyX ||
+            event.logicalKey == LogicalKeyboardKey.keyY ||
+            isShiftKey(event.logicalKey)) {
           scaleShiftKey = event.logicalKey;
         }
+        if (isShiftKey(scaleShiftKey)) {}
       });
     } else if (event is KeyUpEvent) {
       setState(() {

@@ -103,14 +103,42 @@ class HistogramInfo extends ChartInfo {
         super(builder: Histogram.builder);
 }
 
+/// Represents a selected bin in a histogram chart.
 class SelectedBin {
   final BigInt seriesIndex;
   final int binIndex;
 
   SelectedBin(this.seriesIndex, this.binIndex);
+}
 
-  HistogramBin getBin(Map<BigInt, HistogramBins> allBins) {
-    return allBins[seriesIndex]!.bins[binIndex];
+/// Represents a selected range of bins in a histogram chart.
+class SelectedBinRange {
+  final BigInt seriesIndex;
+  int startBinIndex;
+  int? endBinIndex;
+
+  SelectedBinRange(this.seriesIndex, this.startBinIndex, this.endBinIndex);
+
+  /// Returns a list of [HistogramBin] objects within the selected range of bins.
+  List<HistogramBin> getBins(Map<BigInt, HistogramBins> allBins) {
+    return allBins[seriesIndex]!.bins.sublist(startBinIndex, endBinIndex);
+  }
+
+  /// Returns a list of selected data IDs within the selected range of bins.
+  List<Object> getSelectedDataIds(Map<BigInt, HistogramBins> allBins) {
+    List<Object> dataIds = [];
+    for (HistogramBin bin in getBins(allBins)) {
+      dataIds.addAll(bin.dataIds);
+    }
+    return dataIds;
+  }
+
+  /// Returns true if the given bin index is within the selected range of bins.
+  bool containsBin(int binIndex) {
+    if (endBinIndex == null) {
+      return startBinIndex == binIndex;
+    }
+    return startBinIndex <= binIndex && binIndex <= endBinIndex!;
   }
 }
 
@@ -162,7 +190,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
   final Map<BigInt, HistogramBins> _allBins = {};
 
-  SelectedBin? selectedBin;
+  SelectedBinRange? selectedBins;
 
   /// The location of the base of the histogram bins.
   /// This is used to determine the orientation and layout of the histogram.
@@ -179,6 +207,9 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
   @override
   void initState() {
     super.initState();
+    // Add key detector
+    focusNode.addListener(focusNodeListener);
+    // Initialize the axes and bins
     _initAxesAndBins();
   }
 
@@ -405,7 +436,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
               allBins: _allBins,
-              selectedBin: selectedBin,
+              selectedBins: selectedBins,
               tickLabelMargin: EdgeInsets.only(
                 left: axisPainter.margin.left + axisPainter.tickPadding,
                 right: axisPainter.margin.right + axisPainter.tickPadding,
@@ -427,38 +458,22 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       ),
     );
 
-    // Add the selection box if the user is dragging
-    if (dragging) {
-      children.add(Positioned(
-        left: math.min(dragStart!.dx, dragEnd!.dx),
-        top: math.min(dragStart!.dy, dragEnd!.dy),
-        child: Container(
-          width: (dragEnd!.dx - dragStart!.dx).abs(),
-          height: (dragEnd!.dy - dragStart!.dy).abs(),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: Colors.blue,
-              width: 2,
-            ),
-          ),
-        ),
-      ));
-    }
-
-    return Listener(
-        onPointerSignal: (PointerSignalEvent event) {
-          if (event is PointerScrollEvent) {
-            onPan(event, axisPainter);
-          } else if (event is PointerScaleEvent) {
-            onScale(event, axisPainter);
-          }
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: (TapUpDetails details) {
-            _onTapUp(details, axisPainter);
-          },
-          /*onPanStart: (DragStartDetails details) {
+    return Focus(
+        focusNode: focusNode,
+        child: Listener(
+            onPointerSignal: (PointerSignalEvent event) {
+              if (event is PointerScrollEvent) {
+                onPan(event, axisPainter);
+              } else if (event is PointerScaleEvent) {
+                onScale(event, axisPainter);
+              }
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (TapUpDetails details) {
+                _onTapUp(details, axisPainter);
+              },
+              /*onPanStart: (DragStartDetails details) {
             _onDragStart(details, axisPainter);
           },
           onPanUpdate: (DragUpdateDetails details) {
@@ -470,36 +485,63 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
           onPanCancel: () {
             _onDragCancel();
           },*/
-          child: Container(
-            /*decoration: BoxDecoration(
+              child: Container(
+                /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,
                 width: 2,
               ),
               //borderRadius: BorderRadius.circular(10),
             ),*/
-            child: Stack(children: children),
-          ),
-        ));
+                child: Stack(children: children),
+              ),
+            )));
   }
 
+  /// Handles the tap up event on the histogram chart.
+  ///
+  /// This method is called when the user taps on the histogram chart.
+  /// It updates the selected bin based on the tap location,
+  /// retrieves the data points associated with the selected bin,
+  /// and updates the selection controller if available.
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
     if (axisPainter.projections == null) {
       return;
     }
 
-    selectedBin = _getBinOnTap(details.localPosition, axisPainter);
+    // Get the selected bin based on the tap location
+    SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
     selectedDataPoints = [];
     if (selectedBin != null) {
-      selectedDataPoints = selectedBin!.getBin(_allBins).dataIds;
+      if (selectedBins == null || selectedBins!.seriesIndex != selectedBin.seriesIndex || !isShifting) {
+        selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
+      } else {
+        if (selectedBins!.startBinIndex == selectedBin.binIndex) {
+          selectedBins = null;
+        } else if (selectedBins!.startBinIndex < selectedBin.binIndex) {
+          selectedBins!.endBinIndex = selectedBin.binIndex;
+        } else {
+          selectedBins!.endBinIndex = selectedBins!.startBinIndex;
+          selectedBins!.startBinIndex = selectedBin.binIndex;
+        }
+      }
+      if (selectedBins != null) {
+        selectedDataPoints = selectedBins!.getSelectedDataIds(_allBins);
+      }
+    } else {
+      selectedBins = null;
     }
+
+    // Update the selection controller if available
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(selectedDataPoints);
     }
+
     setState(() {});
   }
 
+  /// Returns the selected bin based on the tap location.
   SelectedBin? _getBinOnTap(Offset location, AxisPainter axisPainter) {
     Object axesId = _axes.keys.first;
     EdgeInsets tickLabelMargin = EdgeInsets.only(
@@ -558,7 +600,7 @@ class HistogramPainter extends CustomPainter {
   final EdgeInsets tickLabelMargin;
 
   /// (Optional) selected bin
-  final SelectedBin? selectedBin;
+  final SelectedBinRange? selectedBins;
 
   /// Orientation of the main axis
   final AxisOrientation mainAxisAlignment;
@@ -568,7 +610,7 @@ class HistogramPainter extends CustomPainter {
     required this.mainAxisAlignment,
     required this.errorBars,
     required this.allBins,
-    required this.selectedBin,
+    required this.selectedBins,
     this.tickLabelMargin = EdgeInsets.zero,
   });
 
@@ -585,11 +627,11 @@ class HistogramPainter extends CustomPainter {
       plotSize: plotSize,
     );
 
+    // Initialize the main and cross axes parameters.
     PixelTransform mainTransform;
     PixelTransform crossTransform;
     double mainOffset;
     double crossOffset;
-
     if (mainAxisAlignment == AxisOrientation.horizontal) {
       mainTransform = projection.xTransform;
       crossTransform = projection.yTransform;
@@ -622,7 +664,7 @@ class HistogramPainter extends CustomPainter {
         Paint? paintFill;
         Paint? paintEdge;
         if (fillColor != null) {
-          if (selectedBin != null && selectedBin!.binIndex != i) {
+          if (selectedBins != null && !selectedBins!.containsBin(i)) {
             fillColor = fillColor.withOpacity(0.5);
           }
           paintFill = Paint()..color = fillColor;
@@ -660,11 +702,14 @@ class HistogramPainter extends CustomPainter {
               paintFill,
             );
           }
+          // Paint the outline
           if (paintEdge != null) {
+            // Clip the outline to the plot window
             double clippedMainStart = math.max(mainStart, alignedPlotWindow.mainStart);
             double clippedMainEnd = math.min(mainEnd, alignedPlotWindow.mainEnd);
             double clippedLastCrossEnd = math.max(lastCrossEnd, alignedPlotWindow.crossStart);
             double clippedCrossEnd = math.min(crossEnd, alignedPlotWindow.crossEnd);
+            // Draw the minimum bin side
             if (alignedPlotWindow.inMain(mainStart)) {
               canvas.drawLine(
                 alignedPlotWindow.getOffset(mainStart, clippedLastCrossEnd),
@@ -672,7 +717,7 @@ class HistogramPainter extends CustomPainter {
                 paintEdge,
               );
             }
-
+            // Draw the top/bottom
             if (alignedPlotWindow.inCross(crossEnd)) {
               canvas.drawLine(
                 alignedPlotWindow.getOffset(clippedMainStart, crossEnd),
@@ -681,8 +726,8 @@ class HistogramPainter extends CustomPainter {
               );
             }
 
+            // Draw the maximum bin side
             double nextCount = i < bins.bins.length - 1 ? bins.bins[i + 1].count.toDouble() : 0;
-
             if (i == bins.bins.length - 1 && alignedPlotWindow.inMain(mainEnd) || nextCount == 0) {
               canvas.drawLine(
                 alignedPlotWindow.getOffset(mainEnd, clippedCrossEnd),
@@ -692,7 +737,8 @@ class HistogramPainter extends CustomPainter {
             }
           }
         }
-        if (alignedPlotWindow.inCross(bin0) && paintEdge != null) {
+        // Draw the bottom of the bins
+        /*if (alignedPlotWindow.inCross(bin0) && paintEdge != null) {
           double clippedMin = math.max(mainMin, alignedPlotWindow.mainStart);
           double clippedMax = math.min(mainMax, alignedPlotWindow.mainEnd);
           canvas.drawLine(
@@ -700,7 +746,7 @@ class HistogramPainter extends CustomPainter {
             alignedPlotWindow.getOffset(clippedMax, bin0),
             paintEdge,
           );
-        }
+        }*/
         lastCount = bin.count.toDouble();
       }
     }

@@ -30,11 +30,27 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
   final List<ChartLayoutId> hiddenLabels = [];
   final List<AxisId> hiddenAxes = [];
-  late final SelectionController selectionController;
+  late SelectionController selectionController;
 
   @override
   void initState() {
     super.initState();
+    _initAxesAndBins();
+  }
+
+  @override
+  void didUpdateWidget(CombinedChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _initAxesAndBins();
+  }
+
+  void _initAxesAndBins() {
+    // Clear the parameters
+    rows.clear();
+    columns.clear();
+    axesControllers.clear();
+    hiddenLabels.clear();
+
     selectionController = widget.selectionController ?? SelectionController();
     int nRows = widget.children.length;
     int nCols = widget.children[0].length;
@@ -88,6 +104,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
               hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
+            print("adding row axis $axisId for $rowLocation");
           }
         }
         ChartAxis axis = initializeAxis(
@@ -141,6 +158,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
               hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
+            print("adding column axis $axisId for $columnLocation");
           }
         }
         ChartAxis axis = initializeAxis(
@@ -160,6 +178,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         axesControllers[axisController] = axisCharts;
       }
     }
+    print("axesControllers: $axesControllers");
   }
 
   @override

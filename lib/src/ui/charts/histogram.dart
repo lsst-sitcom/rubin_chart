@@ -367,18 +367,16 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     }
 
     // Subscribe to the axis controllers
-    for (AxisController controller in axisControllers) {
-      controller.subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
-        for (AxisId axisId in widget.axisControllers.keys) {
-          for (ChartAxes axes in _axes.values) {
-            if (axes.axes.containsKey(axisId)) {
-              ChartAxis axis = axes[axisId];
-              axis.update(bounds: bounds, ticks: ticks, info: info, state: this);
-            }
-          }
+    for (ChartAxes axes in _axes.values) {
+      for (ChartAxis axis in axes.axes.values) {
+        if (widget.axisControllers.containsKey(axis.info.axisId)) {
+          widget.axisControllers[axis.info.axisId]!
+              .subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
+            axis.update(bounds: bounds, ticks: ticks, info: info, state: this);
+            setState(() {});
+          });
         }
-        setState(() {});
-      });
+      }
     }
   }
 

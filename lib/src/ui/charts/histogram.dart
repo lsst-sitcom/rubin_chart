@@ -340,10 +340,17 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     );
 
     // Create the [ChartAxes].
-    _axes[crossAxis.info.axisId.axesId] = ChartAxes(
-      axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis},
-      projection: widget.info.projectionInitializer,
-    );
+    if (orientation == AxisOrientation.horizontal) {
+      _axes[crossAxis.info.axisId.axesId] = ChartAxes(
+        axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis},
+        projection: widget.info.projectionInitializer,
+      );
+    } else {
+      _axes[crossAxis.info.axisId.axesId] = ChartAxes(
+        axes: {crossAxis.info.axisId: crossAxis, mainAxis.info.axisId: mainAxis},
+        projection: widget.info.projectionInitializer,
+      );
+    }
 
     // Subscribe to the axis controllers
     if (widget.axisControllers.containsKey(mainAxis.info.axisId)) {
@@ -358,9 +365,18 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     if (widget.hiddenAxes.contains(crossAxis.info.axisId)) {
       crossAxis.showLabels = false;
     }
+
+    // Subscribe to the axis controllers
     for (AxisController controller in axisControllers) {
       controller.subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
-        mainAxis.update(bounds: bounds, ticks: ticks, info: info, state: this);
+        for (AxisId axisId in widget.axisControllers.keys) {
+          for (ChartAxes axes in _axes.values) {
+            if (axes.axes.containsKey(axisId)) {
+              ChartAxis axis = axes[axisId];
+              axis.update(bounds: bounds, ticks: ticks, info: info, state: this);
+            }
+          }
+        }
         setState(() {});
       });
     }
@@ -375,15 +391,6 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       theme: widget.info.theme,
     );
 
-    // Draw the axes
-    children.add(
-      Positioned.fill(
-        child: CustomPaint(
-          painter: axisPainter,
-        ),
-      ),
-    );
-
     // Add a BarPainter widget for each [Series].
     int colorIndex = 0;
     for (int i = 0; i < seriesList.length; i++) {
@@ -395,6 +402,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
         Positioned.fill(
           child: CustomPaint(
             painter: HistogramPainter(
+              orientation: orientation,
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
               allBins: _allBins,
@@ -410,6 +418,15 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
         ),
       );
     }
+
+    // Draw the axes
+    children.add(
+      Positioned.fill(
+        child: CustomPaint(
+          painter: axisPainter,
+        ),
+      ),
+    );
 
     // Add the selection box if the user is dragging
     if (dragging) {
@@ -517,10 +534,15 @@ class HistogramPainter extends CustomPainter {
   /// Offset from the lower left to make room for labels.
   final EdgeInsets tickLabelMargin;
 
+  /// (Optional) selected bin
   final SelectedBin? selectedBin;
+
+  /// Orientation of the main axis
+  final AxisOrientation orientation;
 
   HistogramPainter({
     required this.axes,
+    required this.orientation,
     required this.errorBars,
     required this.allBins,
     required this.selectedBin,
@@ -533,20 +555,42 @@ class HistogramPainter extends CustomPainter {
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
+    AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, orientation);
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
     Projection projection = axes.projection(
       axes: axes.axes.values.toList(),
       plotSize: plotSize,
     );
 
+    PixelTransform mainTransform;
+    PixelTransform crossTransform;
+    double mainOffset;
+    double crossOffset;
+
+    if (orientation == AxisOrientation.horizontal) {
+      mainTransform = projection.xTransform;
+      crossTransform = projection.yTransform;
+      mainOffset = offset.dx;
+      crossOffset = offset.dy;
+    } else if (orientation == AxisOrientation.vertical) {
+      mainTransform = projection.yTransform;
+      crossTransform = projection.xTransform;
+      mainOffset = offset.dy;
+      crossOffset = offset.dx;
+    } else {
+      throw UnimplementedError('Polar histograms are not yet supported');
+    }
+
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
-    double lastY = 0;
-    double y0 = projection.yTransform.map(0) + offset.dy;
-    double clippedY0 = math.max(y0, plotWindow.top);
+    double lastCount = 0;
+    double bin0 = crossTransform.map(0) + crossOffset;
+    double clippedBin0 = math.max(bin0, plotWindow.top);
+
     for (HistogramBins bins in allBins.values) {
-      double min = double.infinity;
-      double max = double.negativeInfinity;
+      double mainMin = double.infinity;
+      double mainMax = double.negativeInfinity;
+
       for (int i = 0; i < bins.bins.length; i++) {
         HistogramBin bin = bins.bins[i];
         // Create the painters for the edge and fill of the bin
@@ -568,52 +612,73 @@ class HistogramPainter extends CustomPainter {
         }
 
         // Calculate the pixel coordinates of the bin
-        double left = projection.xTransform.map(bin.start) + offset.dx;
-        double right = projection.xTransform.map(bin.end) + offset.dx;
-        double last = projection.yTransform.map(lastY) + offset.dy;
-        double bottom = projection.yTransform.map(bin.count) + offset.dy;
-        Rect binRect = Rect.fromLTRB(left, y0, right, bottom);
+        double mainStart = mainTransform.map(bin.start) + mainOffset;
+        double mainEnd = mainTransform.map(bin.end) + mainOffset;
+        double lastCrossEnd = crossTransform.map(lastCount) + crossOffset;
+        double crossEnd = crossTransform.map(bin.count) + crossOffset;
+        AxisAlignedRect binRect = AxisAlignedRect.fromMainCross(
+          mainStart,
+          bin0,
+          mainEnd,
+          crossEnd,
+          orientation,
+        );
+        Rect rect = binRect.toRect();
 
-        min = math.min(min, left);
-        max = math.max(max, right);
+        mainMin = math.min(mainMin, mainStart);
+        mainMax = math.max(mainMax, mainEnd);
 
-        if (binRect.overlaps(plotWindow)) {
+        if (rect.overlaps(plotWindow)) {
           // Paint the bin
           if (paintFill != null) {
-            Rect overlap = binRect.intersect(plotWindow);
+            Rect overlap = rect.intersect(plotWindow);
             canvas.drawRect(
               overlap,
               paintFill,
             );
           }
-          // Draw the edge
           if (paintEdge != null) {
-            double clippedLeft = math.max(left, plotWindow.left);
-            double clippedRight = math.min(right, plotWindow.right);
-            double clippedLast = math.max(last, plotWindow.top);
-            double clippedBottom = math.min(bottom, plotWindow.bottom);
-            if (left > plotWindow.left) {
-              canvas.drawLine(Offset(left, clippedLast), Offset(left, clippedBottom), paintEdge);
+            double clippedMainStart = math.max(mainStart, alignedPlotWindow.mainStart);
+            double clippedMainEnd = math.min(mainEnd, alignedPlotWindow.mainEnd);
+            double clippedLastCrossEnd = math.max(lastCrossEnd, alignedPlotWindow.crossStart);
+            double clippedCrossEnd = math.min(crossEnd, alignedPlotWindow.crossEnd);
+            if (alignedPlotWindow.inMain(mainStart)) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(mainStart, clippedLastCrossEnd),
+                alignedPlotWindow.getOffset(mainStart, clippedCrossEnd),
+                paintEdge,
+              );
             }
-            if (bottom < plotWindow.bottom) {
-              canvas.drawLine(Offset(clippedLeft, bottom), Offset(clippedRight, bottom), paintEdge);
+
+            if (alignedPlotWindow.inCross(crossEnd)) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(clippedMainStart, crossEnd),
+                alignedPlotWindow.getOffset(clippedMainEnd, crossEnd),
+                paintEdge,
+              );
             }
-            if (i == bins.bins.length - 1 && right < plotWindow.right) {
-              canvas.drawLine(Offset(right, clippedBottom), Offset(right, clippedY0), paintEdge);
+
+            double nextCount = i < bins.bins.length - 1 ? bins.bins[i + 1].count.toDouble() : 0;
+
+            if (i == bins.bins.length - 1 && alignedPlotWindow.inMain(mainEnd) || nextCount == 0) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(mainEnd, clippedCrossEnd),
+                alignedPlotWindow.getOffset(mainEnd, clippedBin0),
+                paintEdge,
+              );
             }
           }
         }
-        if (y0 > plotWindow.top && paintEdge != null) {
-          double clippedMin = math.max(min, plotWindow.left);
-          double clippedMax = math.min(max, plotWindow.right);
+        if (alignedPlotWindow.inCross(bin0) && paintEdge != null) {
+          double clippedMin = math.max(mainMin, alignedPlotWindow.mainStart);
+          double clippedMax = math.min(mainMax, alignedPlotWindow.mainEnd);
           canvas.drawLine(
-            Offset(clippedMin, y0),
-            Offset(clippedMax, y0),
-            paintEdge ?? Paint()
-              ..color = Colors.black,
+            alignedPlotWindow.getOffset(clippedMin, bin0),
+            alignedPlotWindow.getOffset(clippedMax, bin0),
+            paintEdge,
           );
         }
-        lastY = bin.count.toDouble();
+        lastCount = bin.count.toDouble();
       }
     }
   }

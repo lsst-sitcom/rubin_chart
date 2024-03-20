@@ -674,3 +674,77 @@ Map<Series, AxisId> getSharedYaxisMap(List<Series> seriesList) {
   }
   return result;
 }
+
+/// A [Rect] replacement that uses the main and cross axis instead of left, top, right, and bottom.
+class AxisAlignedRect {
+  /// The minimum value of the main axis.
+  final double mainStart;
+
+  /// The minimum value of the cross axis.
+  final double crossStart;
+
+  /// The maximum value of the main axis.
+  final double mainEnd;
+
+  /// The maximum value of the cross axis.
+  final double crossEnd;
+
+  final AxisOrientation orientation;
+
+  AxisAlignedRect({
+    required this.mainStart,
+    required this.crossStart,
+    required this.mainEnd,
+    required this.crossEnd,
+    required this.orientation,
+  }) : assert(orientation == AxisOrientation.vertical || orientation == AxisOrientation.horizontal);
+
+  // Helper to create from main and cross coordinates directly
+  static AxisAlignedRect fromMainCross(
+      double mainStart, double crossStart, double mainEnd, double crossEnd, AxisOrientation orientation) {
+    return AxisAlignedRect(
+      mainStart: mainStart,
+      crossStart: crossStart,
+      mainEnd: mainEnd,
+      crossEnd: crossEnd,
+      orientation: orientation,
+    );
+  }
+
+  static AxisAlignedRect fromRect(Rect rect, AxisOrientation orientation) {
+    if (orientation == AxisOrientation.vertical) {
+      return AxisAlignedRect(
+        mainStart: rect.top,
+        crossStart: rect.left,
+        mainEnd: rect.bottom,
+        crossEnd: rect.right,
+        orientation: orientation,
+      );
+    } else {
+      return AxisAlignedRect(
+        mainStart: rect.left,
+        crossStart: rect.top,
+        mainEnd: rect.right,
+        crossEnd: rect.bottom,
+        orientation: orientation,
+      );
+    }
+  }
+
+  // Convert to Flutter's Rect depending on orientation
+  Rect toRect() {
+    return orientation == AxisOrientation.vertical
+        ? Rect.fromLTRB(crossStart, mainStart, crossEnd, mainEnd)
+        : Rect.fromLTRB(mainStart, crossStart, mainEnd, crossEnd);
+  }
+
+  Offset getOffset(double main, double cross) {
+    return orientation == AxisOrientation.vertical ? Offset(cross, main) : Offset(main, cross);
+  }
+
+  bool inMain(double main) =>
+      (mainStart <= main && main <= mainEnd) || (mainEnd <= main && main <= mainStart);
+
+  bool inCross(double cross) =>
+      (crossStart <= cross && cross <= crossEnd) || (crossEnd <= cross && cross <= crossStart);
+}

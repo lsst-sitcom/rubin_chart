@@ -46,6 +46,8 @@ class AxisPainter extends CustomPainter {
     }
   }
 
+  late Size plotSize;
+
   void _drawTick(
       Canvas canvas, Size size, double tick, AxisLocation location, Projection projection, Paint paint) {
     if (location == AxisLocation.left) {
@@ -113,7 +115,7 @@ class AxisPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     projections = {};
-    Size plotSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
+    plotSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
         size.height - margin.top - margin.bottom - 2 * tickPadding);
 
     // TODO: draw the grid

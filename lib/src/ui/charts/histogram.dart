@@ -121,6 +121,9 @@ class SelectedBinRange {
 
   /// Returns a list of [HistogramBin] objects within the selected range of bins.
   List<HistogramBin> getBins(Map<BigInt, HistogramBins> allBins) {
+    if (endBinIndex == null) {
+      return [allBins[seriesIndex]!.bins[startBinIndex]];
+    }
     return allBins[seriesIndex]!.bins.sublist(startBinIndex, endBinIndex);
   }
 
@@ -551,6 +554,9 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
     );
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
+    ChartAxis xAxis = _axes.values.first.axes.values.first;
+    ChartAxis yAxis = _axes.values.first.axes.values.toList()[1];
+    Projection projection = axisPainter.projections![axesId]!;
 
     if (mainAxisAlignment == AxisOrientation.vertical) {
       for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
@@ -558,10 +564,17 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
         HistogramBins bins = entry.value;
         for (int i = 0; i < bins.bins.length; i++) {
           HistogramBin bin = bins.bins[i];
-          double top = axisPainter.projections![axesId]!.yTransform.map(bin.start) + offset.dy;
-          double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.end) + offset.dy;
-          double right = axisPainter.projections![axesId]!.xTransform.map(bin.count.toDouble()) + offset.dx;
-          if (top <= location.dy && location.dy < bottom && 0 <= location.dx && location.dx < right) {
+          double top = projection.yTransform.map(bin.start) + offset.dy;
+          double bottom = projection.yTransform.map(bin.end) + offset.dy;
+          if (yAxis.info.isInverted) {
+            double temp = top;
+            top = bottom;
+            bottom = temp;
+          }
+          double right = projection.xTransform.map(bin.count.toDouble()) + offset.dx;
+          bool inRangeX = xAxis.info.isInverted ? location.dx > right : location.dx < right;
+          bool inRangeY = top <= location.dy && location.dy < bottom;
+          if (inRangeX && inRangeY) {
             return SelectedBin(seriesIndex, i);
           }
         }
@@ -575,7 +588,9 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
           double left = axisPainter.projections![axesId]!.xTransform.map(bin.start) + offset.dx;
           double right = axisPainter.projections![axesId]!.xTransform.map(bin.end) + offset.dx;
           double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.count.toDouble()) + offset.dy;
-          if (left <= location.dx && location.dx < right && 0 <= location.dy && location.dy < bottom) {
+          bool inRangeX = left <= location.dx && location.dx < right;
+          bool inRangeY = yAxis.info.isInverted ? location.dy > bottom : location.dy < bottom;
+          if (inRangeX && inRangeY) {
             return SelectedBin(seriesIndex, i);
           }
         }

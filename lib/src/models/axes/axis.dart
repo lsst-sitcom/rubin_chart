@@ -689,15 +689,16 @@ class AxisAlignedRect {
   /// The maximum value of the cross axis.
   final double crossEnd;
 
-  final AxisOrientation orientation;
+  final AxisOrientation mainAxisAlignment;
 
   AxisAlignedRect({
     required this.mainStart,
     required this.crossStart,
     required this.mainEnd,
     required this.crossEnd,
-    required this.orientation,
-  }) : assert(orientation == AxisOrientation.vertical || orientation == AxisOrientation.horizontal);
+    required this.mainAxisAlignment,
+  }) : assert(
+            mainAxisAlignment == AxisOrientation.vertical || mainAxisAlignment == AxisOrientation.horizontal);
 
   // Helper to create from main and cross coordinates directly
   static AxisAlignedRect fromMainCross(
@@ -707,7 +708,7 @@ class AxisAlignedRect {
       crossStart: crossStart,
       mainEnd: mainEnd,
       crossEnd: crossEnd,
-      orientation: orientation,
+      mainAxisAlignment: orientation,
     );
   }
 
@@ -718,7 +719,7 @@ class AxisAlignedRect {
         crossStart: rect.left,
         mainEnd: rect.bottom,
         crossEnd: rect.right,
-        orientation: orientation,
+        mainAxisAlignment: orientation,
       );
     } else {
       return AxisAlignedRect(
@@ -726,20 +727,20 @@ class AxisAlignedRect {
         crossStart: rect.top,
         mainEnd: rect.right,
         crossEnd: rect.bottom,
-        orientation: orientation,
+        mainAxisAlignment: orientation,
       );
     }
   }
 
   // Convert to Flutter's Rect depending on orientation
   Rect toRect() {
-    return orientation == AxisOrientation.vertical
+    return mainAxisAlignment == AxisOrientation.vertical
         ? Rect.fromLTRB(crossStart, mainStart, crossEnd, mainEnd)
         : Rect.fromLTRB(mainStart, crossStart, mainEnd, crossEnd);
   }
 
   Offset getOffset(double main, double cross) {
-    return orientation == AxisOrientation.vertical ? Offset(cross, main) : Offset(main, cross);
+    return mainAxisAlignment == AxisOrientation.vertical ? Offset(cross, main) : Offset(main, cross);
   }
 
   bool inMain(double main) =>

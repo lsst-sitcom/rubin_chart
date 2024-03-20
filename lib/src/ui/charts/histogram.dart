@@ -168,7 +168,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
   /// This is used to determine the orientation and layout of the histogram.
   late AxisLocation baseLocation;
 
-  late AxisOrientation orientation;
+  late AxisOrientation mainAxisAlignment;
 
   @override
   void didUpdateWidget(Histogram oldWidget) {
@@ -251,9 +251,9 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     }
     baseLocation = mainAxis.info.axisId.location;
     if (baseLocation == AxisLocation.left || baseLocation == AxisLocation.right) {
-      orientation = AxisOrientation.vertical;
+      mainAxisAlignment = AxisOrientation.vertical;
     } else if (baseLocation == AxisLocation.top || baseLocation == AxisLocation.bottom) {
-      orientation = AxisOrientation.horizontal;
+      mainAxisAlignment = AxisOrientation.horizontal;
     } else if (baseLocation == AxisLocation.angular || baseLocation == AxisLocation.radial) {
       throw UnimplementedError('Polar histograms are not yet supported');
     } else {
@@ -307,12 +307,12 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
         .reduce((a, b) => a > b ? a : b);
     ChartAxisInfo? crossAxisInfo;
     for (AxisId id in widget.info.axisInfo.keys) {
-      if (orientation == AxisOrientation.horizontal) {
+      if (mainAxisAlignment == AxisOrientation.horizontal) {
         if (id.location == AxisLocation.left || id.location == AxisLocation.right) {
           crossAxisInfo = widget.info.axisInfo[id];
           break;
         }
-      } else if (orientation == AxisOrientation.vertical) {
+      } else if (mainAxisAlignment == AxisOrientation.vertical) {
         if (id.location == AxisLocation.top || id.location == AxisLocation.bottom) {
           crossAxisInfo = widget.info.axisInfo[id];
           break;
@@ -321,9 +321,9 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     }
     if (crossAxisInfo == null) {
       AxisId crossAxisId;
-      if (orientation == AxisOrientation.vertical) {
+      if (mainAxisAlignment == AxisOrientation.vertical) {
         crossAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
-      } else if (orientation == AxisOrientation.horizontal) {
+      } else if (mainAxisAlignment == AxisOrientation.horizontal) {
         crossAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
       } else {
         throw UnimplementedError('Polar histograms are not yet supported');
@@ -340,7 +340,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     );
 
     // Create the [ChartAxes].
-    if (orientation == AxisOrientation.horizontal) {
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
       _axes[crossAxis.info.axisId.axesId] = ChartAxes(
         axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis},
         projection: widget.info.projectionInitializer,
@@ -402,7 +402,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
         Positioned.fill(
           child: CustomPaint(
             painter: HistogramPainter(
-              orientation: orientation,
+              mainAxisAlignment: mainAxisAlignment,
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
               allBins: _allBins,
@@ -503,16 +503,40 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
   SelectedBin? _getBinOnTap(Offset location, AxisPainter axisPainter) {
     Object axesId = _axes.keys.first;
-    for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
-      BigInt seriesIndex = entry.key;
-      HistogramBins bins = entry.value;
-      for (int i = 0; i < bins.bins.length; i++) {
-        HistogramBin bin = bins.bins[i];
-        double left = axisPainter.projections![axesId]!.xTransform.map(bin.start);
-        double right = axisPainter.projections![axesId]!.xTransform.map(bin.end);
-        double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.count.toDouble());
-        if (left <= location.dx && location.dx < right && 0 <= location.dy && location.dy < bottom) {
-          return SelectedBin(seriesIndex, i);
+    EdgeInsets tickLabelMargin = EdgeInsets.only(
+      left: axisPainter.margin.left + axisPainter.tickPadding,
+      right: axisPainter.margin.right + axisPainter.tickPadding,
+      top: axisPainter.margin.top + axisPainter.tickPadding,
+      bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
+    );
+    Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
+
+    if (mainAxisAlignment == AxisOrientation.vertical) {
+      for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
+        BigInt seriesIndex = entry.key;
+        HistogramBins bins = entry.value;
+        for (int i = 0; i < bins.bins.length; i++) {
+          HistogramBin bin = bins.bins[i];
+          double top = axisPainter.projections![axesId]!.yTransform.map(bin.start) + offset.dy;
+          double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.end) + offset.dy;
+          double right = axisPainter.projections![axesId]!.xTransform.map(bin.count.toDouble()) + offset.dx;
+          if (top <= location.dy && location.dy < bottom && 0 <= location.dx && location.dx < right) {
+            return SelectedBin(seriesIndex, i);
+          }
+        }
+      }
+    } else {
+      for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
+        BigInt seriesIndex = entry.key;
+        HistogramBins bins = entry.value;
+        for (int i = 0; i < bins.bins.length; i++) {
+          HistogramBin bin = bins.bins[i];
+          double left = axisPainter.projections![axesId]!.xTransform.map(bin.start) + offset.dx;
+          double right = axisPainter.projections![axesId]!.xTransform.map(bin.end) + offset.dx;
+          double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.count.toDouble()) + offset.dy;
+          if (left <= location.dx && location.dx < right && 0 <= location.dy && location.dy < bottom) {
+            return SelectedBin(seriesIndex, i);
+          }
         }
       }
     }
@@ -538,11 +562,11 @@ class HistogramPainter extends CustomPainter {
   final SelectedBin? selectedBin;
 
   /// Orientation of the main axis
-  final AxisOrientation orientation;
+  final AxisOrientation mainAxisAlignment;
 
   HistogramPainter({
     required this.axes,
-    required this.orientation,
+    required this.mainAxisAlignment,
     required this.errorBars,
     required this.allBins,
     required this.selectedBin,
@@ -555,7 +579,7 @@ class HistogramPainter extends CustomPainter {
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
-    AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, orientation);
+    AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
     Projection projection = axes.projection(
       axes: axes.axes.values.toList(),
@@ -567,12 +591,12 @@ class HistogramPainter extends CustomPainter {
     double mainOffset;
     double crossOffset;
 
-    if (orientation == AxisOrientation.horizontal) {
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
       mainTransform = projection.xTransform;
       crossTransform = projection.yTransform;
       mainOffset = offset.dx;
       crossOffset = offset.dy;
-    } else if (orientation == AxisOrientation.vertical) {
+    } else if (mainAxisAlignment == AxisOrientation.vertical) {
       mainTransform = projection.yTransform;
       crossTransform = projection.xTransform;
       mainOffset = offset.dy;
@@ -621,7 +645,7 @@ class HistogramPainter extends CustomPainter {
           bin0,
           mainEnd,
           crossEnd,
-          orientation,
+          mainAxisAlignment,
         );
         Rect rect = binRect.toRect();
 

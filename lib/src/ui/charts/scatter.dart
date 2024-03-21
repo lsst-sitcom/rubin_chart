@@ -316,7 +316,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
 
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+      widget.selectionController!.updateSelection(null, selectedDataPoints);
     }
 
     setState(() {});
@@ -376,7 +376,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       selectedDataPoints = {nearest.element};
     }
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+      widget.selectionController!.updateSelection(null, selectedDataPoints);
     }
     setState(() {});
   }

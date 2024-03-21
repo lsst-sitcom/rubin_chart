@@ -1,6 +1,57 @@
 import "dart:math";
 import "package:rubin_chart/src/utils/utils.dart";
 
+/// Convert a [DateTime] to a modified julian date (MJD).
+double dateTimeToMjd(DateTime time) {
+  int unixTime = time.microsecondsSinceEpoch;
+  return (unixTime / 86400000000) + 40587;
+}
+
+/// Convert a modified julian date (MJD) to a [DateTime].
+DateTime mjdToDateTime(num mjd) {
+  int unixTime = ((mjd - 40587) * 86400000000).toInt();
+  return DateTime.fromMicrosecondsSinceEpoch(unixTime);
+}
+
+/// Convert a [String] of the form 'year-month-day hours:minutes:seconds' into a [DateTime].
+/// Note: seconds can be a double, which will extract the appropriate number of
+/// milliseconds and microseconds.
+DateTime dateFromString(String string) {
+  String date;
+  String time;
+  if (string.contains(" ")) {
+    List<String> split = string.split(" ");
+    date = split[0];
+    time = split[1];
+  } else {
+    date = string;
+    time = "00:00:00";
+  }
+
+  List<String> dateSplit = date.split("-");
+  List<String> timeSplit = time.split(":");
+
+  int hours = timeSplit.length > 0 ? int.parse(timeSplit[0]) : 0;
+  int minutes = timeSplit.length > 1 ? int.parse(timeSplit[1]) : 0;
+  double secondsDouble = timeSplit.length > 2 ? double.parse(timeSplit[2]) : 0;
+  int seconds = secondsDouble.floor();
+  double milliDouble = (secondsDouble - seconds) * 1000;
+  int milliSeconds = milliDouble.floor();
+  double microDouble = (milliDouble - milliSeconds) * 1000;
+  int microSeconds = microDouble.floor();
+
+  return DateTime(
+    int.parse(dateSplit[0]),
+    int.parse(dateSplit[1]),
+    int.parse(dateSplit[2]),
+    hours,
+    minutes,
+    seconds,
+    milliSeconds,
+    microSeconds,
+  );
+}
+
 /// A class for calculating nice numbers for ticks
 class NiceNumber {
   // The power of 10 (ie. 10^power gives the [nearest10] value)

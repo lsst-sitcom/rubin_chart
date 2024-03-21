@@ -272,6 +272,32 @@ class NumericalChartAxis extends ChartAxis<double> {
           dataType: AxisDataType.number,
         );
 
+  static NumericalChartAxis fromData({
+    required ChartAxisInfo axisInfo,
+    required List<List<double>> data,
+    required ChartTheme theme,
+    bool showTicks = true,
+    bool showLabels = true,
+  }) {
+    List<Bounds<double>> bounds = [];
+    for (List<num> row in data) {
+      double min = row.first.toDouble();
+      double max = row.first.toDouble();
+      for (num value in row) {
+        min = math.min(min, value.toDouble());
+        max = math.max(max, value.toDouble());
+      }
+      bounds.add(Bounds(min, max));
+    }
+    return fromBounds(
+      axisInfo: axisInfo,
+      boundsList: bounds,
+      theme: theme,
+      showTicks: showTicks,
+      showLabels: showLabels,
+    );
+  }
+
   static NumericalChartAxis fromBounds({
     required ChartAxisInfo axisInfo,
     required List<Bounds<double>> boundsList,
@@ -324,8 +350,8 @@ class NumericalChartAxis extends ChartAxis<double> {
 
   @override
   void _scale(double scale) {
-    double min = bounds.min.toDouble();
-    double max = bounds.max.toDouble();
+    double min = bounds.min;
+    double max = bounds.max;
     double midpoint = (min + max) / 2;
     double range = max - min;
     double delta = range / scale / 2;
@@ -401,6 +427,10 @@ class StringChartAxis extends ChartAxis<String> {
   }
 }
 
+/// A chart axis for plotting dates and times.
+/// Currently this is shows up as a Modified Julian Date (MJD),
+/// since making "pretty" tick marks for a date-time is non-trivial
+/// and it has been a low priority for us.
 class DateTimeChartAxis extends ChartAxis<DateTime> {
   DateTimeChartAxis._({
     required super.info,
@@ -412,16 +442,57 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
           dataType: AxisDataType.datetTime,
         );
 
+  static DateTimeChartAxis fromDataMjd({
+    required ChartAxisInfo axisInfo,
+    required List<List<DateTime>> data,
+    required ChartTheme theme,
+    bool showLabels = true,
+    bool showTicks = true,
+  }) {
+    DateTime min = data.first.first;
+    DateTime max = data.first.first;
+    for (List<DateTime> dateList in data) {
+      for (DateTime date in dateList) {
+        min = min.isBefore(date) ? min : date;
+        max = max.isAfter(date) ? max : date;
+      }
+    }
+    double doubleMin = dateTimeToMjd(min);
+    double doubleMax = dateTimeToMjd(max);
+    Bounds<double> dataBounds = Bounds(doubleMin, doubleMax);
+    AxisTicks ticks = AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true);
+    doubleMin = math.min(doubleMin, ticks.bounds.min.toDouble());
+    doubleMax = math.max(doubleMax, ticks.bounds.max.toDouble());
+    Bounds<double> bounds = Bounds(doubleMin, doubleMax);
+
+    print("min: $min (${min.microsecondsSinceEpoch}), max: $max (${max.microsecondsSinceEpoch})");
+    print("dataBounds: $dataBounds");
+
+    return DateTimeChartAxis._(
+      info: axisInfo,
+      bounds: bounds,
+      dataBounds: dataBounds,
+      ticks: ticks,
+      theme: theme,
+    );
+  }
+
   static DateTimeChartAxis fromData({
     required ChartAxisInfo axisInfo,
-    required List<DateTime> data,
+    required List<List<DateTime>> data,
     required ChartTheme theme,
+    bool showLabels = true,
+    bool showTicks = true,
   }) {
-    DateTime min = data[0];
-    DateTime max = data[0];
-    for (DateTime date in data) {
-      min = min.isBefore(date) ? min : date;
-      max = max.isAfter(date) ? max : date;
+    // TODO: implement AxisTicks.fromDateTime and uncomment
+    /*
+    DateTime min = data.first.first;
+    DateTime max = data.first.first;
+    for (List<DateTime> dateList in data) {
+      for (DateTime date in dateList) {
+        min = min.isBefore(date) ? min : date;
+        max = max.isAfter(date) ? max : date;
+      }
     }
     Bounds<double> dataBounds = Bounds(
       min.millisecondsSinceEpoch.toDouble(),
@@ -440,6 +511,13 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       dataBounds: dataBounds,
       ticks: ticks,
       theme: theme,
+    );*/
+    return fromDataMjd(
+      axisInfo: axisInfo,
+      data: data,
+      theme: theme,
+      showLabels: showLabels,
+      showTicks: showTicks,
     );
   }
 
@@ -448,7 +526,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     required List<Bounds<double>> boundsList,
     required ChartTheme theme,
   }) {
-    double min = boundsList.first.min;
+    // TODO: implement AxisTicks.fromDateTime and uncomment
+    /*double min = boundsList.first.min;
     double max = boundsList.first.max;
     for (Bounds<double> bounds in boundsList) {
       min = math.min(min, bounds.min);
@@ -469,25 +548,38 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       dataBounds: dataBounds,
       ticks: ticks,
       theme: theme,
-    );
+    );*/
+    throw UnimplementedError();
   }
 
   @override
-  double toDouble(DateTime value) => value.millisecondsSinceEpoch.toDouble();
+  double toDouble(DateTime value) => dateTimeToMjd(value);
 
   @override
-  DateTime fromDouble(double value) => DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  DateTime fromDouble(double value) => mjdToDateTime(value);
 
   @override
   AxisTicks _updateTicks(Bounds<double> bounds) {
-    DateTime minDate = DateTime.fromMillisecondsSinceEpoch(bounds.min.toInt());
-    DateTime maxDate = DateTime.fromMillisecondsSinceEpoch(bounds.max.toInt());
-    return AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);
+    // TODO: implement AxisTicks.fromDateTime and uncomment
+    /*DateTime minDate = mjdToDateTime(bounds.min);
+    DateTime maxDate = mjdToDateTime(bounds.max);
+    return AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);*/
+    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
   }
 
   @override
   void _scale(double scale) {
-    throw UnimplementedError();
+    double min = bounds.min;
+    double max = bounds.max;
+    double midpoint = (min + max) / 2;
+    double range = max - min;
+    double delta = range / scale / 2;
+
+    min = midpoint - delta;
+    max = midpoint + delta;
+
+    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
+    _bounds = Bounds(min, max);
   }
 }
 
@@ -588,7 +680,14 @@ ChartAxis initializeAxis({
       theme: theme,
     );
   } else if (data is DateTime) {
-    throw UnimplementedError("DataTime data is not yet supported.");
+    return DateTimeChartAxis.fromData(
+      axisInfo: axisInfo,
+      data: allSeries.entries
+          .map((e) =>
+              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e as DateTime).toList())
+          .toList(),
+      theme: theme,
+    );
   }
 
   throw AxisUpdateException("Data type not supported.");

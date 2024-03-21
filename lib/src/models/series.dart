@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
+import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
@@ -164,6 +165,10 @@ class SeriesData {
     List<dynamic> values = data[column]!.values.toList();
     if (values.first is num) {
       return Bounds.fromList(values.map((e) => (e as num).toDouble()).toList());
+    } else if (values.first is DateTime) {
+      // TODO: replace the code below with a simple conversion to unix time,
+      // but for now axis does not support [DateTime] tick labels.
+      return Bounds.fromList(values.map((e) => dateTimeToMjd(e as DateTime)).toList());
     } else {
       throw DataConversionException("Unable to calculate bounds for column $column");
     }

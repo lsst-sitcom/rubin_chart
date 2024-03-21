@@ -23,17 +23,18 @@ class ChartInitializationException implements Exception {
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
-typedef SelectionUpdate = void Function(List<Object> dataPoints);
+typedef SelectionUpdate = void Function(Set<Object> dataPoints);
 
 /// A controller to manage the selection of data points across multiple series.
 class SelectionController {
   /// The selected data points.
-  final List<Object> _selectedDataPoints = [];
+  final Map<Object?, Set<Object>> _selectionByChartId = {};
 
   SelectionController();
 
   /// Get the selected data points.
-  List<Object> get selectedDataPoints => [..._selectedDataPoints];
+  Set<Object> get selectedDataPoints =>
+      _selectionByChartId.isEmpty ? {} : _selectionByChartId.values.reduce((a, b) => a.intersection(b));
 
   /// List of observers that are notified when the selection changes.
   final List<SelectionUpdate> _observers = [];
@@ -56,9 +57,14 @@ class SelectionController {
   }
 
   /// Update the selected datapoints.
-  void updateSelection(List<Object> dataPoints) {
-    _selectedDataPoints.clear();
-    _selectedDataPoints.addAll(dataPoints);
+  void updateSelection(Object? chartId, Set<Object> dataPoints) {
+    if (dataPoints.isEmpty) {
+      if (_selectionByChartId.containsKey(chartId)) {
+        _selectionByChartId.remove(chartId);
+      }
+    } else {
+      _selectionByChartId[chartId] = dataPoints;
+    }
     _notifyObservers();
   }
 }
@@ -74,7 +80,7 @@ mixin ChartMixin<T extends StatefulWidget> on State<T> {
   Map<Object, ChartAxes> get axes;
 
   /// The selected (and highlighted) data points.
-  List<Object> selectedDataPoints = [];
+  Set<Object> selectedDataPoints = {};
 
   /// Controllers to synch aligned axes.
   Set<AxisController> axisControllers = {};

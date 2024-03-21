@@ -21,7 +21,7 @@ class SeriesPainter extends CustomPainter {
   /// Offset from the lower left to make room for labels.
   final EdgeInsets tickLabelMargin;
 
-  final List<dynamic> selectedDataPoints;
+  final Set<Object> selectedDataPoints;
 
   SeriesPainter({
     required this.axes,
@@ -29,7 +29,7 @@ class SeriesPainter extends CustomPainter {
     required this.errorBars,
     required this.data,
     this.tickLabelMargin = EdgeInsets.zero,
-    this.selectedDataPoints = const [],
+    this.selectedDataPoints = const {},
   });
 
   /// Paint the series on the [Canvas].

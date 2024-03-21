@@ -128,8 +128,8 @@ class SelectedBinRange {
   }
 
   /// Returns a list of selected data IDs within the selected range of bins.
-  List<Object> getSelectedDataIds(Map<BigInt, HistogramBins> allBins) {
-    List<Object> dataIds = [];
+  Set<Object> getSelectedDataIds(Map<BigInt, HistogramBins> allBins) {
+    Set<Object> dataIds = {};
     for (HistogramBin bin in getBins(allBins)) {
       dataIds.addAll(bin.dataIds);
     }
@@ -227,7 +227,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
     // Subscribe to the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe((List<Object> dataPoints) {
+      widget.selectionController!.subscribe((Set<Object> dataPoints) {
         selectedDataPoints = dataPoints;
         setState(() {});
       });
@@ -515,7 +515,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
     // Get the selected bin based on the tap location
     SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
-    selectedDataPoints = [];
+    selectedDataPoints = {};
     if (selectedBin != null) {
       if (selectedBins == null || selectedBins!.seriesIndex != selectedBin.seriesIndex || !isShifting) {
         selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
@@ -538,7 +538,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
     // Update the selection controller if available
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(selectedDataPoints);
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 
     setState(() {});

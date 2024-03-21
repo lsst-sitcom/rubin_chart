@@ -90,7 +90,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
     axisControllers.addAll(widget.axisControllers.values);
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe((List<Object> dataPoints) {
+      widget.selectionController!.subscribe((Set<Object> dataPoints) {
         selectedDataPoints = dataPoints;
         setState(() {});
       });
@@ -295,7 +295,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
     dragEnd = details.localPosition;
 
-    selectedDataPoints = [];
+    selectedDataPoints = {};
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
       QuadTree<Object> quadTree = entry.value;
@@ -316,7 +316,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
 
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(selectedDataPoints);
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 
     setState(() {});
@@ -369,15 +369,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         }
       }
     }
-    print("nearest is $nearest");
 
     if (nearest == null) {
-      selectedDataPoints = [];
+      selectedDataPoints = {};
     } else {
-      selectedDataPoints = [nearest.element];
+      selectedDataPoints = {nearest.element};
     }
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(selectedDataPoints);
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
     setState(() {});
   }

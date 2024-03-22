@@ -11,8 +11,10 @@ export 'src/models/series.dart';
 
 export 'src/theme/theme.dart';
 
+export 'src/ui/charts/cartesian.dart';
 export 'src/ui/charts/combined.dart';
 export 'src/ui/charts/histogram.dart';
+export 'src/ui/charts/polar.dart';
 export 'src/ui/charts/scatter.dart';
 
 export 'src/ui/axis_painter.dart';

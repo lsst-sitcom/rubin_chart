@@ -40,10 +40,7 @@ class SeriesPainter extends CustomPainter {
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    Projection projection = axes.projection(
-      axes: axes.axes.values.toList(),
-      plotSize: plotSize,
-    );
+    Projection projection = axes.projection;
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.

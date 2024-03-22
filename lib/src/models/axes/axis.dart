@@ -260,7 +260,7 @@ abstract class ChartAxis<T extends Object> {
 }
 
 class NumericalChartAxis extends ChartAxis<double> {
-  NumericalChartAxis._({
+  NumericalChartAxis({
     required super.info,
     required super.bounds,
     required super.dataBounds,
@@ -316,7 +316,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     min = math.min(min, ticks.bounds.min.toDouble());
     max = math.max(max, ticks.bounds.max.toDouble());
 
-    return NumericalChartAxis._(
+    return NumericalChartAxis(
       bounds: Bounds(min, max),
       dataBounds: dataBounds,
       ticks: ticks,
@@ -465,9 +465,6 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     doubleMax = math.max(doubleMax, ticks.bounds.max.toDouble());
     Bounds<double> bounds = Bounds(doubleMin, doubleMax);
 
-    print("min: $min (${min.microsecondsSinceEpoch}), max: $max (${max.microsecondsSinceEpoch})");
-    print("dataBounds: $dataBounds");
-
     return DateTimeChartAxis._(
       info: axisInfo,
       bounds: bounds,
@@ -592,15 +589,16 @@ class MissingAxisException implements Exception {
   String toString() => message;
 }
 
+typedef AxesInitializer = ChartAxes Function({required Map<AxisId, ChartAxis> axes});
+
 /// A collection of axes for a chart.
-class ChartAxes {
+abstract class ChartAxes {
   /// The axes of the chart.
   final Map<AxisId, ChartAxis> axes;
 
-  /// The projection used to map the axes to pixel coordinates.
-  final ProjectionInitializer projection;
+  late Projection projection;
 
-  ChartAxes({required this.axes, required this.projection});
+  ChartAxes({required this.axes});
 
   /// The number of dimensions of the chart.
   int get dimension => axes.length;
@@ -623,12 +621,18 @@ class ChartAxes {
       return margin.copyWith(top: math.max(margin.top, painter.height));
     } else if (axisId.location == AxisLocation.bottom) {
       return margin.copyWith(bottom: math.max(margin.bottom, painter.height));
+    } else if (axisId.location == AxisLocation.radial || axisId.location == AxisLocation.angular) {
+      return margin;
     }
     throw AxisUpdateException("Axis location ${axisId.location} has not been implemented.");
   }
 
   @override
   String toString() => "ChartAxes($axes)";
+
+  Bounds<double> get xBounds;
+  Bounds<double> get yBounds;
+  void updateProjection(Size plotSize);
 }
 
 /// Initialize a set of plot axes from a list of [Series],
@@ -695,7 +699,7 @@ ChartAxis initializeAxis({
 
 Map<Object, ChartAxes> initializeSimpleAxes({
   required List<Series> seriesList,
-  required ProjectionInitializer projectionInitializer,
+  required AxesInitializer axesInitializer,
   required ChartTheme theme,
   required Map<AxisId, ChartAxisInfo> axisInfo,
 }) {
@@ -716,9 +720,8 @@ Map<Object, ChartAxes> initializeSimpleAxes({
   final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();
   final Map<Object, ChartAxes> result = {};
   for (Object axesId in axesIds) {
-    result[axesId] = ChartAxes(
+    result[axesId] = axesInitializer(
       axes: Map.fromEntries(axes.entries.where((entry) => entry.key.axesId == axesId)),
-      projection: projectionInitializer,
     );
   }
   return result;

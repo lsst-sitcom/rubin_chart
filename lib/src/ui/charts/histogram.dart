@@ -9,6 +9,7 @@ import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
+import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
 /// A single bin in a histogram.
@@ -92,10 +93,10 @@ class HistogramInfo extends ChartInfo {
     super.legend,
     super.axisInfo,
     super.colorCycle,
-    super.projectionInitializer = CartesianProjection.fromAxes,
     super.interiorAxisLabelLocation,
     super.flexX,
     super.flexY,
+    super.xToYRatio,
     this.nBins,
     this.doFill = true,
     this.edges,
@@ -376,15 +377,11 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
     // Create the [ChartAxes].
     if (mainAxisAlignment == AxisOrientation.horizontal) {
-      _axes[crossAxis.info.axisId.axesId] = ChartAxes(
-        axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis},
-        projection: widget.info.projectionInitializer,
-      );
+      _axes[crossAxis.info.axisId.axesId] =
+          CartesianChartAxes(axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis});
     } else {
-      _axes[crossAxis.info.axisId.axesId] = ChartAxes(
-        axes: {crossAxis.info.axisId: crossAxis, mainAxis.info.axisId: mainAxis},
-        projection: widget.info.projectionInitializer,
-      );
+      _axes[crossAxis.info.axisId.axesId] =
+          CartesianChartAxes(axes: {crossAxis.info.axisId: crossAxis, mainAxis.info.axisId: mainAxis});
     }
 
     // Subscribe to the axis controllers
@@ -419,7 +416,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
   Widget build(BuildContext context) {
     List<Widget> children = [];
 
-    AxisPainter axisPainter = AxisPainter(
+    AxisPainter axisPainter = CartesianAxisPainter(
       allAxes: _axes,
       theme: widget.info.theme,
     );
@@ -637,7 +634,7 @@ class HistogramPainter extends CustomPainter {
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    Projection projection = axes.projection(
+    Projection projection = CartesianProjection.fromAxes(
       axes: axes.axes.values.toList(),
       plotSize: plotSize,
     );

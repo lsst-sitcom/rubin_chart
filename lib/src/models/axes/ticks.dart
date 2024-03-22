@@ -213,7 +213,12 @@ class AxisTicks {
 
   final List<String> tickLabels;
 
-  AxisTicks._(this.stepSize, this.ticks, this.bounds, this.tickLabels);
+  AxisTicks({
+    required this.stepSize,
+    required this.ticks,
+    required this.bounds,
+    required this.tickLabels,
+  });
 
   /// Generate tick marks for a range of numbers.
   static AxisTicks fromBounds(Bounds<num> bounds, int minTicks, int maxTicks, bool encloseBounds) {
@@ -241,12 +246,22 @@ class AxisTicks {
 
     List<String> tickLabels = ticks.map((e) => e.toStringAsFixed(stepSize.power.abs())).toList();
 
-    return AxisTicks._(stepSize, ticks, Bounds(ticks.first, ticks.last), tickLabels);
+    return AxisTicks(
+      stepSize: stepSize,
+      ticks: ticks,
+      bounds: Bounds(ticks.first, ticks.last),
+      tickLabels: tickLabels,
+    );
   }
 
   static AxisTicks fromStrings(List<String> tickLabels) {
     List<double> ticks = List.generate(tickLabels.length, (index) => index.toDouble());
-    return AxisTicks._(NiceNumber(0, 1, 1), ticks, Bounds(ticks.first, ticks.last), tickLabels);
+    return AxisTicks(
+      stepSize: NiceNumber(0, 1, 1),
+      ticks: ticks,
+      bounds: Bounds(ticks.first, ticks.last),
+      tickLabels: tickLabels,
+    );
   }
 
   static AxisTicks fromDateTime(DateTime min, DateTime max, int minTicks, int maxTicks, bool encloseBounds) {

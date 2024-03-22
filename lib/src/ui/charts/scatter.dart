@@ -8,13 +8,14 @@ import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
+import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
-class ScatterPlotInfo extends ChartInfo {
+abstract class ScatterPlotInfo extends ChartInfo {
   ScatterPlotInfo({
     required super.id,
     required super.allSeries,
@@ -23,11 +24,14 @@ class ScatterPlotInfo extends ChartInfo {
     super.legend,
     super.axisInfo,
     super.colorCycle,
-    super.projectionInitializer = CartesianProjection.fromAxes,
     super.interiorAxisLabelLocation,
     super.flexX,
     super.flexY,
+    super.xToYRatio,
   }) : super(builder: ScatterPlot.builder);
+
+  Map<Object, ChartAxes> initializeAxes();
+  AxisPainter initializeAxesPainter({required Map<Object, ChartAxes> allAxes, required ChartTheme theme});
 }
 
 class ScatterPlot extends StatefulWidget {
@@ -97,12 +101,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
 
     // Initialize the axes
-    _axes.addAll(initializeSimpleAxes(
-      seriesList: widget.info.allSeries,
-      axisInfo: widget.info.axisInfo,
-      theme: widget.info.theme,
-      projectionInitializer: widget.info.projectionInitializer,
-    ));
+    _axes.addAll(widget.info.initializeAxes());
 
     // Initialize the axis controllers
     for (ChartAxes axes in _axes.values) {
@@ -176,7 +175,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   Widget build(BuildContext context) {
     List<Widget> children = [];
 
-    AxisPainter axisPainter = AxisPainter(
+    AxisPainter axisPainter = widget.info.initializeAxesPainter(
       allAxes: _axes,
       theme: widget.info.theme,
     );

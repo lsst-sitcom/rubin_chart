@@ -145,9 +145,12 @@ class CartesianProjection extends Projection with Projection2D {
 }
 
 class Polar2DProjection extends Projection with Projection2D {
+  final List<ChartAxis> axes;
+
   const Polar2DProjection({
     required super.xTransform,
     required super.yTransform,
+    required this.axes,
   });
 
   static Polar2DProjection fromAxes({
@@ -157,27 +160,34 @@ class Polar2DProjection extends Projection with Projection2D {
     assert(axes.length == 2, "PolarProjection requires two axes, got ${axes.length}");
     ChartAxis rAxis = axes[0];
     //PlotAxis thetaAxis = axes[1];
+    double rMin = rAxis.bounds.min.toDouble();
     double rMax = rAxis.bounds.max.toDouble();
-    double x0 = -rMax;
-    double y0 = -rMax;
-    double xScale = plotSize.width / (2 * rMax);
-    double yScale = plotSize.height / (2 * rMax);
+    double rEff = rMax - rMin;
+    double x0 = -rEff;
+    double y0 = -rEff;
+    double xScale = plotSize.width / (2 * rEff);
+    double yScale = plotSize.height / (2 * rEff);
 
     return Polar2DProjection(
       xTransform: PixelTransform(origin: x0, scale: xScale),
       yTransform: PixelTransform(origin: y0, scale: yScale),
+      axes: axes,
     );
   }
 
   @override
   Offset map(List<num> coordinates) {
+    // Note the astronomy convention that theta = 0 is at the top of the plot
+    // and increases clockwise.
     assert(coordinates.length == 2, "Polar2DProjection requires two coordinates, got ${coordinates.length}");
+    double rMin = axes[0].bounds.min.toDouble();
+    double radius = coordinates[0] - rMin;
+    double theta = coordinates[1].toDouble();
     return Offset(
-      // TODO: fix this, I think that the trig functions are backwards
-      //coord1 * cos(coord2*degToRadians),
-      //coord1 * sin(coord2*degToRadians),
-      coordinates[0] * math.sin(coordinates[1] * degToRadians),
-      coordinates[0] * math.cos(coordinates[1] * degToRadians),
+      //radius * math.sin(theta * degToRadians),
+      //radius * math.cos(theta * degToRadians),
+      radius * math.sin(theta * degToRadians),
+      -radius * math.cos(theta * degToRadians),
     );
   }
 }

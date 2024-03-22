@@ -10,6 +10,34 @@ import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
+/// The quadrant of a plot in cartesian coordinates.
+enum CartesianQuadrant {
+  /// Top right quadrant.
+  first,
+
+  /// Top left quadrant.
+  second,
+
+  /// Bottom left quadrant.
+  third,
+
+  /// Bottom right quadrant.
+  fourth,
+}
+
+/// Get the quadrant of a point in the Cartesian plane.
+CartesianQuadrant getQuadrant(double x, double y) {
+  if (x >= 0 && y >= 0) {
+    return CartesianQuadrant.first;
+  } else if (x < 0 && y >= 0) {
+    return CartesianQuadrant.second;
+  } else if (x < 0 && y < 0) {
+    return CartesianQuadrant.third;
+  } else {
+    return CartesianQuadrant.fourth;
+  }
+}
+
 /// An exception occured while converting data into dart types.
 class ChartInitializationException implements Exception {
   ChartInitializationException(this.message);
@@ -131,6 +159,9 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
         AxisLocation location = axis.info.axisId.location;
+        if (location == AxisLocation.radial || location == AxisLocation.angular) {
+          continue;
+        }
 
         if (scaleShiftKey == null) {
           axis.scale(event.scale);
@@ -237,18 +268,17 @@ class ChartInfo {
   final Legend? legend;
   final Map<AxisId, ChartAxisInfo> axisInfo;
   final List<Color>? colorCycle;
-  final ProjectionInitializer projectionInitializer;
   final ChartBuilder builder;
   final AxisLocation? interiorAxisLabelLocation;
   final double flexX;
   final double flexY;
+  final double? xToYRatio;
 
   ChartInfo({
     required this.id,
     required this.allSeries,
     this.title,
     this.theme = ChartTheme.defaultTheme,
-    required this.projectionInitializer,
     required this.builder,
     this.legend,
     List<ChartAxisInfo>? axisInfo,
@@ -256,6 +286,7 @@ class ChartInfo {
     this.interiorAxisLabelLocation,
     this.flexX = 1,
     this.flexY = 1,
+    this.xToYRatio,
   }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
   SeriesList get seriesList => SeriesList(allSeries, colorCycle ?? theme.colorCycle);
@@ -420,6 +451,10 @@ mixin RubinChartMixin {
         component = ChartComponent.bottomAxis;
       } else if (location == AxisLocation.top) {
         component = ChartComponent.topAxis;
+      } else if (location == AxisLocation.radial || location == AxisLocation.angular) {
+        // TODO: implement axis labels for radial and angular axes
+        //component = ChartComponent.bottomAxis;
+        continue;
       } else {
         throw AxisUpdateException("Unknown axis location: $location for a cartesian chart");
       }
@@ -455,7 +490,7 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   @override
   Widget build(BuildContext context) {
     return CustomMultiChildLayout(
-      delegate: ChartLayoutDelegate(chartId: widget.chartId),
+      delegate: ChartLayoutDelegate(chartId: widget.chartId, xToYRatio: widget.info.xToYRatio),
       children: buildSingleChartChildren(
         chartId: widget.chartId,
         info: widget.info,
@@ -607,22 +642,52 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
 
 /// A delegate that lays out the components of a chart.
 class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
-  Object chartId;
+  final Object chartId;
+  final double? xToYRatio;
 
-  ChartLayoutDelegate({required this.chartId});
+  ChartLayoutDelegate({required this.chartId, required this.xToYRatio});
 
   @override
   void performLayout(Size size) {
+    // Calculate the size of each component (other than the chart)
     Map<ChartLayoutId, Size> componentSizes = calcComponentSizes(chartId, size);
+    // Calculate the margin required to fit the chart and its labels
     EdgeInsets margin = calcSingleChartMargin(componentSizes);
 
-    Size chartSize = Size(
-      size.width - margin.left - margin.right,
-      size.height - margin.top - margin.bottom,
-    );
+    // If the user specified a ratio, use it to determine the width and height
+    double width = size.width - margin.left - margin.right;
+    double height = size.height - margin.top - margin.bottom;
+    double fullWidth = width;
+    double fullHeight = height;
+    if (xToYRatio != null) {
+      // Make the height and width proportional
+      double proportionalWidth = width;
+      double proportionalHeight = height;
+      if (width / height > xToYRatio!) {
+        proportionalWidth = height * xToYRatio!;
+      } else {
+        proportionalHeight = width / xToYRatio!;
+      }
+
+      // Make sure that the chart fits within the available space
+      if (proportionalWidth > width) {
+        proportionalWidth = width;
+        proportionalHeight = width / xToYRatio!;
+      } else if (proportionalHeight > height) {
+        proportionalHeight = height;
+        proportionalWidth = height * xToYRatio!;
+      }
+      width = proportionalWidth;
+      height = proportionalHeight;
+    }
+    // Calculate the extra margin required to center the chart
+    EdgeInsets extraMargin = EdgeInsets.only(left: (fullWidth - width) / 2, top: (fullHeight - height) / 2);
+
+    Size chartSize = Size(width, height);
 
     // Position the chart and its labels
-    layoutSingleChart(chartId, chartSize, Offset(margin.left, margin.top), componentSizes);
+    layoutSingleChart(chartId, chartSize,
+        Offset(margin.left + extraMargin.left, margin.top + extraMargin.top), componentSizes);
   }
 
   @override

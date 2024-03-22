@@ -104,7 +104,6 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
               hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
-            print("adding row axis $axisId for $rowLocation");
           }
         }
         ChartAxis axis = initializeAxis(
@@ -158,7 +157,6 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
               hiddenAxes.add(axisId);
             }
             axisCharts[axisId] = info;
-            print("adding column axis $axisId for $columnLocation");
           }
         }
         ChartAxis axis = initializeAxis(
@@ -178,7 +176,6 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         axesControllers[axisController] = axisCharts;
       }
     }
-    print("axesControllers: $axesControllers");
   }
 
   @override

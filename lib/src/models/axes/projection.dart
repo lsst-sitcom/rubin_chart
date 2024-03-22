@@ -146,11 +146,15 @@ class CartesianProjection extends Projection with Projection2D {
 
 class Polar2DProjection extends Projection with Projection2D {
   final List<ChartAxis> axes;
+  final bool invertedR;
+  final bool invertedTheta;
 
   const Polar2DProjection({
     required super.xTransform,
     required super.yTransform,
     required this.axes,
+    this.invertedR = false,
+    this.invertedTheta = false,
   });
 
   static Polar2DProjection fromAxes({
@@ -159,7 +163,7 @@ class Polar2DProjection extends Projection with Projection2D {
   }) {
     assert(axes.length == 2, "PolarProjection requires two axes, got ${axes.length}");
     ChartAxis rAxis = axes[0];
-    //PlotAxis thetaAxis = axes[1];
+    ChartAxis thetaAxis = axes[1];
     double rMin = rAxis.bounds.min.toDouble();
     double rMax = rAxis.bounds.max.toDouble();
     double rEff = rMax - rMin;
@@ -172,6 +176,8 @@ class Polar2DProjection extends Projection with Projection2D {
       xTransform: PixelTransform(origin: x0, scale: xScale),
       yTransform: PixelTransform(origin: y0, scale: yScale),
       axes: axes,
+      invertedR: rAxis.info.isInverted,
+      invertedTheta: thetaAxis.info.isInverted,
     );
   }
 
@@ -181,8 +187,10 @@ class Polar2DProjection extends Projection with Projection2D {
     // and increases clockwise.
     assert(coordinates.length == 2, "Polar2DProjection requires two coordinates, got ${coordinates.length}");
     double rMin = axes[0].bounds.min.toDouble();
-    double radius = coordinates[0] - rMin;
+    double radius =
+        invertedR ? axes[0].bounds.max + axes[0].bounds.min - coordinates[0] : coordinates[0] - rMin;
     double theta = coordinates[1].toDouble();
+
     return Offset(
       //radius * math.sin(theta * degToRadians),
       //radius * math.cos(theta * degToRadians),

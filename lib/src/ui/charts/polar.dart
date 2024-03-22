@@ -149,15 +149,17 @@ class PolarAxisPainter extends AxisPainter {
     Paint paint,
   ) {
     ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
-    double rMin = rAxis.bounds.min;
-    Offset center = projection.project(data: [rMin, 0], axes: allAxes.values.first.axes.values.toList());
+    double rCenter = rAxis.info.isInverted ? rAxis.bounds.max + rAxis.bounds.min : rAxis.bounds.min;
+    Offset center = projection.project(data: [rCenter, 0], axes: allAxes.values.first.axes.values.toList());
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
     center += offset;
-    double radius = projection.xTransform.scale * (tick - rMin);
+    double radius = rAxis.info.isInverted ? rCenter - tick : tick - rCenter;
+    radius = projection.xTransform.scale * radius;
     if (location == AxisLocation.radial) {
       canvas.drawCircle(center, radius, paint);
     } else if (location == AxisLocation.angular) {
-      double maxTick = rAxis.ticks.ticks.last.toDouble();
+      double maxTick =
+          rAxis.info.isInverted ? rAxis.ticks.ticks.first.toDouble() : rAxis.ticks.ticks.last.toDouble();
       Offset edgePoint =
           projection.project(data: [maxTick, tick], axes: allAxes.values.first.axes.values.toList());
       canvas.drawLine(center, edgePoint + offset, paint);
@@ -171,7 +173,7 @@ class PolarAxisPainter extends AxisPainter {
     AxisId axisId = axis.info.axisId;
     AxisTicks ticks = axis.ticks;
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
-    for (int i = 0; i < ticks.ticks.length - 1; i++) {
+    for (int i = 0; i < ticks.ticks.length; i++) {
       TextPainter painter = tickLabelPainters[axisId]![i];
       Offset fullOffset = offset;
       double tick = ticks.ticks[i];
@@ -181,9 +183,10 @@ class PolarAxisPainter extends AxisPainter {
         fullOffset += topLeft - Offset(0, painter.height);
       } else if (axisId.location == AxisLocation.angular) {
         ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
-        Offset topLeft = projection
-            .project(data: [rAxis.ticks.ticks.last, tick], axes: allAxes.values.first.axes.values.toList());
-        Offset preProjected = projection.map([rAxis.bounds.max, tick]);
+        double radius = rAxis.info.isInverted ? rAxis.ticks.ticks.first : rAxis.ticks.ticks.last;
+        Offset topLeft =
+            projection.project(data: [radius, tick], axes: allAxes.values.first.axes.values.toList());
+        Offset preProjected = projection.map([radius, tick]);
         CartesianQuadrant quadrant = getQuadrant(preProjected.dx, -preProjected.dy);
         fullOffset += topLeft;
         if (tick == 0) {
@@ -192,17 +195,14 @@ class PolarAxisPainter extends AxisPainter {
           fullOffset += Offset(0, -painter.height / 2);
         } else if (tick == 270) {
           fullOffset += Offset(-painter.width, -painter.height / 2);
+        } else if (tick == 360) {
+          continue;
         } else if (quadrant == CartesianQuadrant.first) {
-          print("quadrant I");
           fullOffset += Offset(0, -painter.height);
         } else if (quadrant == CartesianQuadrant.second) {
-          print("quadrant II");
           fullOffset += Offset(-painter.width, -painter.height);
         } else if (quadrant == CartesianQuadrant.third) {
-          print("quadrant III");
           fullOffset += Offset(-painter.width, 0);
-        } else {
-          print("quadrant IV");
         }
       } else {
         throw UnimplementedError("Unknown axis location: ${axisId.location}");

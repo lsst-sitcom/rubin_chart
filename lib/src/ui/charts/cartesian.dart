@@ -40,9 +40,8 @@ class CartesianChartAxes extends ChartAxes {
   Bounds<double> get yBounds => yAxis.bounds;
 
   @override
-  void updateProjection(Size plotSize) {
-    projection = CartesianProjection.fromAxes(axes: axes.values.toList(), plotSize: plotSize);
-  }
+  Projection buildProjection(Size plotSize) =>
+      CartesianProjection.fromAxes(axes: axes.values.toList(), plotSize: plotSize);
 }
 
 class CartesianScatterPlotInfo extends ScatterPlotInfo {

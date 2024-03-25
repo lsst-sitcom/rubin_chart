@@ -86,6 +86,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
+  late Projection selectionProjection;
+
   @override
   void initState() {
     super.initState();
@@ -131,20 +133,20 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     // Initialize the quadtrees
     List<Object> axesIndices = _axes.keys.toList();
     for (Object axesIndex in axesIndices) {
-      ChartAxis axis0 = _axes[axesIndex]!.axes.values.first;
-      ChartAxis axis1 = _axes[axesIndex]!.axes.values.last;
-
       _quadTrees[axesIndex] = QuadTree(
         maxDepth: widget.info.theme.quadTreeDepth,
         capacity: widget.info.theme.quadTreeCapacity,
         contents: [],
         children: [],
-        left: axis0.bounds.min.toDouble(),
-        top: axis1.bounds.min.toDouble(),
-        width: (axis0.bounds.max - axis0.bounds.min).toDouble(),
-        height: (axis1.bounds.max - axis1.bounds.min).toDouble(),
+        left: 0,
+        top: 0,
+        width: 1,
+        height: 1,
       );
     }
+
+    // Define the projection used to search for points in the selection box
+    selectionProjection = _axes.values.first.buildProjection(const Size(1, 1));
 
     // Populate the quadtrees
     for (Series series in widget.info.allSeries) {
@@ -152,20 +154,17 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       AxisId axisId0 = axes.axes.keys.first;
       AxisId axisId1 = axes.axes.keys.last;
 
-      ChartAxis axis0 = axes[axisId0];
-      ChartAxis axis1 = axes[axisId1];
       dynamic columnX = series.data.data[series.data.plotColumns[axisId0]]!.values.toList();
       dynamic columnY = series.data.data[series.data.plotColumns[axisId1]]!.values.toList();
 
       for (int i = 0; i < series.data.length; i++) {
         dynamic seriesX = columnX[i];
         dynamic seriesY = columnY[i];
-        double x = axis0.toDouble(seriesX);
-        double y = axis1.toDouble(seriesY);
+        Offset point = selectionProjection.project(data: [seriesX, seriesY]);
 
         _quadTrees[series.axesId]!.insert(
           series.data.data[series.data.plotColumns.values.first]!.keys.toList()[i],
-          Offset(x, y),
+          point,
         );
       }
     }
@@ -298,16 +297,16 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
       QuadTree<Object> quadTree = entry.value;
-      // Select points that fit inside the selection box
+      // Get the projection based on the plotSize
       Projection projection = axisPainter.projections![axesId]!;
-      Offset projectedStart = Offset(
-        projection.xTransform.inverse(dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding),
-        projection.yTransform.inverse(dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding),
-      );
-      Offset projectedEnd = Offset(
-        projection.xTransform.inverse(dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding),
-        projection.yTransform.inverse(dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding),
-      );
+      // Convert the cursor position to the range 0, 1
+      double xStart = dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding;
+      double yStart = dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding;
+      double xEnd = dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding;
+      double yEnd = dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding;
+      Offset projectedStart = Offset(xStart / projection.plotSize.width, yStart / projection.plotSize.height);
+      Offset projectedEnd = Offset(xEnd / projection.plotSize.width, yEnd / projection.plotSize.height);
+      //print("${projectedEnd.dx}, ${projectedEnd.dy}");
 
       selectedDataPoints.addAll(quadTree.queryRect(
         Rect.fromPoints(projectedStart, projectedEnd),
@@ -343,13 +342,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       QuadTree<Object> quadTree = entry.value;
       // Select nearest point in the quadtree.
       Projection projection = axisPainter.projections![axesId]!;
-      double x = projection.xTransform
-          .inverse(details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding);
-      double y = projection.yTransform
-          .inverse(details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding);
+      // Convert the cursor position to the range 0, 1
+      double x = (details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding) /
+          projection.plotSize.width;
+      double y = (details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding) /
+          projection.plotSize.height;
 
       QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y),
-          distance: Offset(10 / projection.xTransform.scale, 10 / projection.yTransform.scale));
+          distance: Offset(10 / projection.plotSize.width, 10 / projection.plotSize.height));
       if (localNearest != null) {
         Offset diff = (localNearest.center - Offset(x, y));
         double dx = projection.xTransform.scale * diff.dx;

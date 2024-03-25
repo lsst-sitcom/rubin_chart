@@ -86,15 +86,20 @@ abstract class Projection {
   /// Transform from cartesian y to plot y.
   final PixelTransform yTransform;
 
+  /// The size of the plot that the axes are being projected onto.
+  final Size plotSize;
+
+  /// The axes that are being projected.
+  final List<ChartAxis> axes;
+
   const Projection({
     required this.xTransform,
     required this.yTransform,
+    required this.plotSize,
+    required this.axes,
   });
 
-  Offset project({
-    required List<dynamic> data,
-    required List<ChartAxis> axes,
-  });
+  Offset project({required List<dynamic> data});
 
   Offset map(List<double> coordinates);
 }
@@ -102,10 +107,7 @@ abstract class Projection {
 /// A 2D projection
 mixin Projection2D implements Projection {
   @override
-  Offset project({
-    required List<dynamic> data,
-    required List<ChartAxis> axes,
-  }) {
+  Offset project({required List<dynamic> data}) {
     assert(data.length == 2, "Projection2D requires two coordinates, got ${data.length}");
     assert(axes.length == 2, "Projection2D requires two axes, got ${axes.length}");
     List<double> coordinates = [axes[0].toDouble(data[0]), axes[1].toDouble(data[1])];
@@ -126,6 +128,8 @@ class CartesianProjection extends Projection with Projection2D {
   const CartesianProjection({
     required super.xTransform,
     required super.yTransform,
+    required super.plotSize,
+    required super.axes,
   });
 
   static CartesianProjection fromAxes({
@@ -140,19 +144,21 @@ class CartesianProjection extends Projection with Projection2D {
     return CartesianProjection(
       xTransform: PixelTransform.fromAxis(axis: xAxis, plotSize: plotSize.width, invertSize: xInvertSize),
       yTransform: PixelTransform.fromAxis(axis: yAxis, plotSize: plotSize.height, invertSize: yInvertSize),
+      plotSize: plotSize,
+      axes: axes,
     );
   }
 }
 
 class Polar2DProjection extends Projection with Projection2D {
-  final List<ChartAxis> axes;
   final bool invertedR;
   final bool invertedTheta;
 
   const Polar2DProjection({
     required super.xTransform,
     required super.yTransform,
-    required this.axes,
+    required super.plotSize,
+    required super.axes,
     this.invertedR = false,
     this.invertedTheta = false,
   });
@@ -175,6 +181,7 @@ class Polar2DProjection extends Projection with Projection2D {
     return Polar2DProjection(
       xTransform: PixelTransform(origin: x0, scale: xScale),
       yTransform: PixelTransform(origin: y0, scale: yScale),
+      plotSize: plotSize,
       axes: axes,
       invertedR: rAxis.info.isInverted,
       invertedTheta: thetaAxis.info.isInverted,

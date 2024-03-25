@@ -632,7 +632,11 @@ abstract class ChartAxes {
 
   Bounds<double> get xBounds;
   Bounds<double> get yBounds;
-  void updateProjection(Size plotSize);
+  Projection buildProjection(Size plotSize);
+
+  void updateProjection(Size plotSize) {
+    projection = buildProjection(plotSize);
+  }
 }
 
 /// Initialize a set of plot axes from a list of [Series],

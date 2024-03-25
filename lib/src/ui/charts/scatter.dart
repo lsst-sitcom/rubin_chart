@@ -160,7 +160,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       for (int i = 0; i < series.data.length; i++) {
         dynamic seriesX = columnX[i];
         dynamic seriesY = columnY[i];
-        Offset point = selectionProjection.project(data: [seriesX, seriesY]);
+        Offset point = selectionProjection.project([seriesX, seriesY]);
 
         _quadTrees[series.axesId]!.insert(
           series.data.data[series.data.plotColumns.values.first]!.keys.toList()[i],

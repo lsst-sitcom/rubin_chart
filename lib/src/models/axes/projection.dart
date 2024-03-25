@@ -99,7 +99,7 @@ abstract class Projection {
     required this.axes,
   });
 
-  Offset project({required List<dynamic> data});
+  Offset project(List<dynamic> data);
 
   Offset map(List<double> coordinates);
 }
@@ -107,7 +107,7 @@ abstract class Projection {
 /// A 2D projection
 mixin Projection2D implements Projection {
   @override
-  Offset project({required List<dynamic> data}) {
+  Offset project(List<dynamic> data) {
     assert(data.length == 2, "Projection2D requires two coordinates, got ${data.length}");
     assert(axes.length == 2, "Projection2D requires two axes, got ${axes.length}");
     List<double> coordinates = [axes[0].toDouble(data[0]), axes[1].toDouble(data[1])];

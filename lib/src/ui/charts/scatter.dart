@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
@@ -86,8 +86,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
-  late Projection selectionProjection;
-
   @override
   void initState() {
     super.initState();
@@ -133,20 +131,19 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     // Initialize the quadtrees
     List<Object> axesIndices = _axes.keys.toList();
     for (Object axesIndex in axesIndices) {
+      ChartAxes axes = _axes[axesIndex]!;
+      Rect linearRect = axes.linearRect;
       _quadTrees[axesIndex] = QuadTree(
         maxDepth: widget.info.theme.quadTreeDepth,
         capacity: widget.info.theme.quadTreeCapacity,
         contents: [],
         children: [],
-        left: 0,
-        top: 0,
-        width: 1,
-        height: 1,
+        left: linearRect.left,
+        top: linearRect.top,
+        width: linearRect.width,
+        height: linearRect.height,
       );
     }
-
-    // Define the projection used to search for points in the selection box
-    selectionProjection = _axes.values.first.buildProjection(const Size(1, 1));
 
     // Populate the quadtrees
     for (Series series in widget.info.allSeries) {
@@ -160,7 +157,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       for (int i = 0; i < series.data.length; i++) {
         dynamic seriesX = columnX[i];
         dynamic seriesY = columnY[i];
-        Offset point = selectionProjection.project([seriesX, seriesY]);
+        Offset point = axes.dataToLinear([seriesX, seriesY]);
 
         _quadTrees[series.axesId]!.insert(
           series.data.data[series.data.plotColumns.values.first]!.keys.toList()[i],
@@ -277,9 +274,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
-    if (axisPainter.projections == null) {
-      return;
-    }
     dragStart = details.localPosition;
     dragEnd = details.localPosition;
     selectedDataPoints.clear();
@@ -288,26 +282,22 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
-    if (axisPainter.projections == null) {
-      return;
-    }
     dragEnd = details.localPosition;
+    Size chartSize = axisPainter.chartSize;
 
     selectedDataPoints = {};
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
+      ChartAxes axes = _axes[axesId]!;
       QuadTree<Object> quadTree = entry.value;
-      // Get the projection based on the plotSize
-      Projection projection = axisPainter.projections![axesId]!;
-      // Convert the cursor position to the range 0, 1
+      // Convert the selection area to cartesian coordinates
       double xStart = dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding;
       double yStart = dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding;
       double xEnd = dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding;
       double yEnd = dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding;
-      Offset projectedStart = Offset(xStart / projection.plotSize.width, yStart / projection.plotSize.height);
-      Offset projectedEnd = Offset(xEnd / projection.plotSize.width, yEnd / projection.plotSize.height);
-      //print("${projectedEnd.dx}, ${projectedEnd.dy}");
-
+      Offset projectedStart = axes.linearFromPixel(pixel: Offset(xStart, yStart), chartSize: chartSize);
+      Offset projectedEnd = axes.linearFromPixel(pixel: Offset(xEnd, yEnd), chartSize: chartSize);
+      // Select all points in the quadtree that are within the selection area
       selectedDataPoints.addAll(quadTree.queryRect(
         Rect.fromPoints(projectedStart, projectedEnd),
       ));
@@ -330,34 +320,48 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {});
   }
 
+  /// Get the nearest point to the cursor.
+  /// This accounts for possible scaling differences, for example log scaling,
+  /// to search within a region.
+  QuadTreeElement? _getSelectedPoint(
+      Offset location, AxisPainter axisPainter, ChartAxes axes, Size chartSize, QuadTree<Object> quadTree,
+      [Offset markerSize = const Offset(10, 10)]) {
+    Offset projectedStart = axes.linearFromPixel(pixel: location - markerSize, chartSize: chartSize);
+    Offset projectedEnd = axes.linearFromPixel(pixel: location + markerSize, chartSize: chartSize);
+
+    List<QuadTreeElement<Object>> pointsInRegion = quadTree.queryRectElements(
+      Rect.fromPoints(projectedStart, projectedEnd),
+    );
+    Offset linearLocation = axes.linearFromPixel(pixel: location, chartSize: chartSize);
+    if (pointsInRegion.isNotEmpty) {
+      QuadTreeElement<Object> selectedElement = pointsInRegion.first;
+      double dist2 = (selectedElement.center - linearLocation).distanceSquared;
+      for (QuadTreeElement<Object> element in pointsInRegion) {
+        double elementDist = (element.center - linearLocation).distanceSquared;
+        if (elementDist < dist2) {
+          selectedElement = element;
+          dist2 = elementDist;
+        }
+      }
+      return selectedElement;
+    }
+    return null;
+  }
+
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
-    if (axisPainter.projections == null) {
-      return;
-    }
+    Size chartSize = axisPainter.chartSize;
 
     QuadTreeElement? nearest;
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
+      ChartAxes axes = _axes[axesId]!;
       QuadTree<Object> quadTree = entry.value;
       // Select nearest point in the quadtree.
-      Projection projection = axisPainter.projections![axesId]!;
-      // Convert the cursor position to the range 0, 1
-      double x = (details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding) /
-          projection.plotSize.width;
-      double y = (details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding) /
-          projection.plotSize.height;
-
-      QuadTreeElement? localNearest = quadTree.queryPoint(Offset(x, y),
-          distance: Offset(10 / projection.plotSize.width, 10 / projection.plotSize.height));
+      double x = details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding;
+      double y = details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding;
+      QuadTreeElement? localNearest = _getSelectedPoint(Offset(x, y), axisPainter, axes, chartSize, quadTree);
       if (localNearest != null) {
-        Offset diff = (localNearest.center - Offset(x, y));
-        double dx = projection.xTransform.scale * diff.dx;
-        double dy = projection.yTransform.scale * diff.dy;
-        // Check that the nearest point is inside the selection radius.
-        if (dx * dx + dy * dy > 100) {
-          continue;
-        }
         if (nearest != null) {
           if ((localNearest.center - Offset(x, y)).distanceSquared <
               (nearest.center - Offset(x, y)).distanceSquared) {

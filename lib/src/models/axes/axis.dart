@@ -3,7 +3,6 @@ import "dart:collection";
 
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/mapping.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
@@ -589,201 +588,6 @@ class MissingAxisException implements Exception {
   String toString() => message;
 }
 
-typedef AxesInitializer = ChartAxes Function({required Map<AxisId, ChartAxis> axes});
-
-/// A collection of axes for a chart.
-abstract class ChartAxes {
-  /// The axes of the chart.
-  final Map<AxisId, ChartAxis> axes;
-
-  late Projection projection;
-
-  ChartAxes({required this.axes});
-
-  /// The number of dimensions of the chart.
-  int get dimension => axes.length;
-
-  /// Select an axis by its [AxisId].
-  ChartAxis operator [](AxisId axisId) {
-    if (!axes.containsKey(axisId)) {
-      throw MissingAxisException("$axisId not contained in the axes.");
-    }
-    return axes[axisId]!;
-  }
-
-  /// Update the margin in an [AxisPainter] based on the size of the tick labels.
-  EdgeInsets updateMargin(AxisId axisId, EdgeInsets margin, TextPainter painter) {
-    if (axisId.location == AxisLocation.left) {
-      return margin.copyWith(left: math.max(margin.left, painter.width));
-    } else if (axisId.location == AxisLocation.right) {
-      return margin.copyWith(right: math.max(margin.right, painter.width));
-    } else if (axisId.location == AxisLocation.top) {
-      return margin.copyWith(top: math.max(margin.top, painter.height));
-    } else if (axisId.location == AxisLocation.bottom) {
-      return margin.copyWith(bottom: math.max(margin.bottom, painter.height));
-    } else if (axisId.location == AxisLocation.radial || axisId.location == AxisLocation.angular) {
-      return margin;
-    }
-    throw AxisUpdateException("Axis location ${axisId.location} has not been implemented.");
-  }
-
-  @override
-  String toString() => "ChartAxes($axes)";
-
-  Bounds<double> get xBounds;
-  Bounds<double> get yBounds;
-  Projection buildProjection(Size plotSize);
-
-  void updateProjection(Size plotSize) {
-    projection = buildProjection(plotSize);
-  }
-}
-
-/// Initialize a set of plot axes from a list of [Series],
-/// assuming a linear mapping and naming the axes from the series columns.
-Map<AxisId, ChartAxisInfo> getAxisInfoFromSeries(SeriesList seriesList) {
-  Map<AxisId, ChartAxisInfo> axesInfo = {};
-  for (Series series in seriesList.values) {
-    for (AxisId axisId in series.data.plotColumns.keys) {
-      String label = series.data.plotColumns[axisId].toString();
-      if (!axesInfo.containsKey(axisId)) {
-        axesInfo[axisId] = ChartAxisInfo(
-          label: label,
-          axisId: axisId,
-        );
-      }
-    }
-  }
-  return axesInfo;
-}
-
-ChartAxis initializeAxis({
-  required Map<Series, AxisId> allSeries,
-  required ChartTheme theme,
-  required ChartAxisInfo axisInfo,
-}) {
-  // Check that the map of allSeries is value
-  if (!allSeries.entries.every((entry) => entry.key.data.plotColumns.containsKey(entry.value))) {
-    throw AxisUpdateException("Not all series had a matching `AxisId` in the `allSeries` map.");
-  }
-
-  MapEntry<Series, AxisId> entry = allSeries.entries.first;
-
-  Series series = entry.key;
-  dynamic data = series.data.data[series.data.plotColumns[entry.value]]!.values.toList().first;
-  if (data is double) {
-    return NumericalChartAxis.fromBounds(
-      axisInfo: axisInfo,
-      boundsList:
-          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value]!)).toList(),
-      theme: theme,
-    );
-  } else if (data is String) {
-    return StringChartAxis.fromData(
-      axisInfo: axisInfo,
-      data: allSeries.entries
-          .map((e) =>
-              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e.toString()).toList())
-          .toList(),
-      theme: theme,
-    );
-  } else if (data is DateTime) {
-    return DateTimeChartAxis.fromData(
-      axisInfo: axisInfo,
-      data: allSeries.entries
-          .map((e) =>
-              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e as DateTime).toList())
-          .toList(),
-      theme: theme,
-    );
-  }
-
-  throw AxisUpdateException("Data type not supported.");
-}
-
-Map<Object, ChartAxes> initializeSimpleAxes({
-  required List<Series> seriesList,
-  required AxesInitializer axesInitializer,
-  required ChartTheme theme,
-  required Map<AxisId, ChartAxisInfo> axisInfo,
-}) {
-  final Map<AxisId, ChartAxis> axes = {};
-  for (MapEntry<AxisId, ChartAxisInfo> entry in axisInfo.entries) {
-    AxisId axisId = entry.key;
-    Map<Series, AxisId> seriesForAxis = {};
-    for (Series series in seriesList) {
-      if (series.data.plotColumns.containsKey(axisId)) {
-        seriesForAxis[series] = axisId;
-      }
-    }
-    if (seriesForAxis.isEmpty) {
-      throw AxisUpdateException("Axis $axisId has no series linked to it.");
-    }
-    axes[axisId] = initializeAxis(allSeries: seriesForAxis, theme: theme, axisInfo: entry.value);
-  }
-  final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();
-  final Map<Object, ChartAxes> result = {};
-  for (Object axesId in axesIds) {
-    result[axesId] = axesInitializer(
-      axes: Map.fromEntries(axes.entries.where((entry) => entry.key.axesId == axesId)),
-    );
-  }
-  return result;
-}
-
-/// Initialize the basic information about all of the [ChartAxis] instances from a list of [Series].
-Map<AxisId, ChartAxisInfo> axisInfoFromSeriesList(List<Series> seriesList) {
-  Map<AxisId, ChartAxisInfo> axisInfo = {};
-  for (Series series in seriesList) {
-    if (!axisInfo.containsKey(series.axesId)) {
-      List<ChartAxisInfo> axisInfos = [];
-      for (MapEntry<AxisId, Object> entry in series.data.plotColumns.entries) {
-        axisInfos.add(ChartAxisInfo(
-          label: entry.value.toString(),
-          axisId: entry.key,
-        ));
-      }
-    }
-  }
-  return axisInfo;
-}
-
-/// Get the shared x-axis map from a list of series.
-Map<Series, AxisId> getSharedXaxisMap(List<Series> seriesList) {
-  Map<Series, AxisId> result = {};
-  for (Series series in seriesList) {
-    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.bottom))) {
-      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
-        throw AxisUpdateException("Shared Series cannot have both top and bottom axes.");
-      }
-      result[series] = AxisId(AxisLocation.bottom);
-    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
-      result[series] = AxisId(AxisLocation.top);
-    } else {
-      throw AxisUpdateException("Series sharing the x-axis must have either a top or bottom axis.");
-    }
-  }
-  return result;
-}
-
-/// Get the shared y-axis map from a list of series.
-Map<Series, AxisId> getSharedYaxisMap(List<Series> seriesList) {
-  Map<Series, AxisId> result = {};
-  for (Series series in seriesList) {
-    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.left))) {
-      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
-        throw AxisUpdateException("Shared Series cannot have both left and right axes.");
-      }
-      result[series] = AxisId(AxisLocation.left);
-    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
-      result[series] = AxisId(AxisLocation.right);
-    } else {
-      throw AxisUpdateException("Series sharing the y-axis must have either a left or right axis.");
-    }
-  }
-  return result;
-}
-
 /// A [Rect] replacement that uses the main and cross axis instead of left, top, right, and bottom.
 class AxisAlignedRect {
   /// The minimum value of the main axis.
@@ -892,4 +696,101 @@ class AxisAlignedRect {
 
   bool inCross(double cross) =>
       (crossStart <= cross && cross <= crossEnd) || (crossEnd <= cross && cross <= crossStart);
+}
+
+ChartAxis initializeAxis({
+  required Map<Series, AxisId> allSeries,
+  required ChartTheme theme,
+  required ChartAxisInfo axisInfo,
+}) {
+  // Check that the map of allSeries is value
+  if (!allSeries.entries.every((entry) => entry.key.data.plotColumns.containsKey(entry.value))) {
+    throw AxisUpdateException("Not all series had a matching `AxisId` in the `allSeries` map.");
+  }
+
+  MapEntry<Series, AxisId> entry = allSeries.entries.first;
+
+  Series series = entry.key;
+  dynamic data = series.data.data[series.data.plotColumns[entry.value]]!.values.toList().first;
+  if (data is double) {
+    return NumericalChartAxis.fromBounds(
+      axisInfo: axisInfo,
+      boundsList:
+          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value]!)).toList(),
+      theme: theme,
+    );
+  } else if (data is String) {
+    return StringChartAxis.fromData(
+      axisInfo: axisInfo,
+      data: allSeries.entries
+          .map((e) =>
+              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e.toString()).toList())
+          .toList(),
+      theme: theme,
+    );
+  } else if (data is DateTime) {
+    return DateTimeChartAxis.fromData(
+      axisInfo: axisInfo,
+      data: allSeries.entries
+          .map((e) =>
+              e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e as DateTime).toList())
+          .toList(),
+      theme: theme,
+    );
+  }
+
+  throw AxisUpdateException("Data type not supported.");
+}
+
+/// Initialize the basic information about all of the [ChartAxis] instances from a list of [Series].
+Map<AxisId, ChartAxisInfo> axisInfoFromSeriesList(List<Series> seriesList) {
+  Map<AxisId, ChartAxisInfo> axisInfo = {};
+  for (Series series in seriesList) {
+    if (!axisInfo.containsKey(series.axesId)) {
+      List<ChartAxisInfo> axisInfos = [];
+      for (MapEntry<AxisId, Object> entry in series.data.plotColumns.entries) {
+        axisInfos.add(ChartAxisInfo(
+          label: entry.value.toString(),
+          axisId: entry.key,
+        ));
+      }
+    }
+  }
+  return axisInfo;
+}
+
+/// Get the shared x-axis map from a list of series.
+Map<Series, AxisId> getSharedXaxisMap(List<Series> seriesList) {
+  Map<Series, AxisId> result = {};
+  for (Series series in seriesList) {
+    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.bottom))) {
+      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
+        throw AxisUpdateException("Shared Series cannot have both top and bottom axes.");
+      }
+      result[series] = AxisId(AxisLocation.bottom);
+    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.top))) {
+      result[series] = AxisId(AxisLocation.top);
+    } else {
+      throw AxisUpdateException("Series sharing the x-axis must have either a top or bottom axis.");
+    }
+  }
+  return result;
+}
+
+/// Get the shared y-axis map from a list of series.
+Map<Series, AxisId> getSharedYaxisMap(List<Series> seriesList) {
+  Map<Series, AxisId> result = {};
+  for (Series series in seriesList) {
+    if (series.data.plotColumns.containsKey(AxisId(AxisLocation.left))) {
+      if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
+        throw AxisUpdateException("Shared Series cannot have both left and right axes.");
+      }
+      result[series] = AxisId(AxisLocation.left);
+    } else if (series.data.plotColumns.containsKey(AxisId(AxisLocation.right))) {
+      result[series] = AxisId(AxisLocation.right);
+    } else {
+      throw AxisUpdateException("Series sharing the y-axis must have either a left or right axis.");
+    }
+  }
+  return result;
 }

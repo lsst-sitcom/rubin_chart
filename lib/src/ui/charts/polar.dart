@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
@@ -11,40 +11,129 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/scatter.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
+/// Conversion factor from degrees to radians.
+const degToRadians = math.pi / 180;
+
+/// Conversion factor from radians to degrees.
+const radiansToDeg = 1 / degToRadians;
+
 class PolarChartAxes extends ChartAxes {
-  PolarChartAxes({required super.axes});
+  late final AxisId radialAxisId;
+  late final AxisId angularAxisId;
+  Offset center = Offset.zero;
+  double scaleX = 1.0;
+  double scaleY = 1.0;
 
-  static PolarChartAxes fromAxes({required Map<AxisId, ChartAxis> axes}) => PolarChartAxes(axes: axes);
-
-  ChartAxis get radialAxis {
+  PolarChartAxes({required super.axes}) {
+    AxisId? radialAxisId;
+    AxisId? angularAxisId;
     for (AxisId axisId in axes.keys) {
       AxisLocation location = axes[axisId]!.info.axisId.location;
       if (location == AxisLocation.radial) {
-        return axes[axisId]!;
+        radialAxisId = axisId;
+      } else if (location == AxisLocation.angular) {
+        angularAxisId = axisId;
+      } else {
+        throw AxesInitializationException("Unknown axis location: $location");
       }
     }
-    throw Exception("No radial-axis found");
+    this.radialAxisId = radialAxisId!;
+    this.angularAxisId = angularAxisId!;
   }
 
-  ChartAxis get angularAxis {
-    for (AxisId axisId in axes.keys) {
-      AxisLocation location = axes[axisId]!.info.axisId.location;
-      if (location == AxisLocation.angular) {
-        return axes[axisId]!;
-      }
+  static PolarChartAxes fromAxes({required Map<AxisId, ChartAxis> axes}) => PolarChartAxes(axes: axes);
+
+  ChartAxis get radialAxis => axes[radialAxisId]!;
+  ChartAxis get angularAxis => axes[angularAxisId]!;
+
+  Bounds<double> get _axisSize {
+    double size = radialAxis.bounds.max - radialAxis.bounds.min;
+    return Bounds<double>(-size, size);
+  }
+
+  @override
+  Bounds<double> get xBounds => _axisSize;
+
+  @override
+  Bounds<double> get yBounds => _axisSize;
+
+  /// Convert a pair of polar (r, theta) coordinates to Cartesian (x, y) coordinates.
+  @override
+  Offset doubleToLinear(List<double> data) {
+    // Note the astronomy convention that theta = 0 is at the top of the plot
+    // and increases clockwise.
+    if (data.length != 2) {
+      throw ChartInitializationException("Polar projection requires two coordinates, got ${data.length}");
     }
-    throw Exception("No y-axis found");
+    double rMin = radialAxis.bounds.min.toDouble();
+    double radius = radialAxis.info.isInverted ? radialAxis.bounds.max - (data[0] - rMin) : data[0] - rMin;
+    double theta = data[1].toDouble();
+
+    return Offset(
+      radius * math.sin(theta * degToRadians),
+      -radius * math.cos(theta * degToRadians),
+    );
+  }
+
+  /// Convert a pair of Cartesian (x, y) coordinates to polar (r, theta) coordinates.
+  @override
+  List<double> doubleFromLinear(Offset cartesian) {
+    double radius = math.sqrt(cartesian.dx * cartesian.dx + cartesian.dy * cartesian.dy);
+    radius = radialAxis.info.isInverted
+        ? radialAxis.bounds.max - radialAxis.bounds.min + radius
+        : radius + radialAxis.bounds.min;
+    double theta = math.atan2(cartesian.dx, -cartesian.dy) * radiansToDeg;
+    return [radius, theta];
+  }
+
+  /// Convert x values into pixel values.
+  @override
+  double xToPixel({required double x, required double chartWidth}) {
+    double xMin = xBounds.min;
+    double xMax = xBounds.max;
+    return (x - xMin) / (xMax - xMin) * chartWidth * scaleX + center.dx;
+  }
+
+  /// Convert pixel x values into native x values.
+  @override
+  double xFromPixel({required double px, required double chartWidth}) {
+    double xMin = xBounds.min;
+    double xMax = xBounds.max;
+    return (px - center.dx) / (chartWidth * scaleX) * (xMax - xMin) + xMin;
+  }
+
+  /// Convert y values into pixel values.
+  @override
+  double yToPixel({required double y, required double chartHeight}) {
+    double yMin = yBounds.min;
+    double yMax = yBounds.max;
+    return (y - yMin) / (yMax - yMin) * chartHeight * scaleY + center.dy;
+  }
+
+  /// Convert pixel y values into native y values.
+  @override
+  double yFromPixel({required double py, required double chartHeight}) {
+    double yMin = yBounds.min;
+    double yMax = yBounds.max;
+    return (py - center.dy) / (chartHeight * scaleY) * (yMax - yMin) + yMin;
   }
 
   @override
-  Bounds<double> get xBounds => Bounds<double>(-radialAxis.bounds.max, radialAxis.bounds.max);
+  Rect get linearRect => Rect.fromPoints(
+        Offset(xBounds.min, yBounds.min),
+        Offset(xBounds.max, yBounds.max),
+      );
 
+  /// Translate the displayed axes by a given amount.
   @override
-  Bounds<double> get yBounds => Bounds<double>(-radialAxis.bounds.max, radialAxis.bounds.max);
+  void translate(double dx, double dy) => center += Offset(dx, dy);
 
+  /// Scale the displayed axes by a given amount.
   @override
-  Polar2DProjection buildProjection(Size plotSize) =>
-      Polar2DProjection.fromAxes(axes: axes.values.toList(), plotSize: plotSize);
+  void scale(double scaleX, double scaleY) {
+    this.scaleX *= scaleX;
+    this.scaleY *= scaleY;
+  }
 }
 
 enum PolarUnits {
@@ -144,22 +233,22 @@ class PolarAxisPainter extends AxisPainter {
     Size size,
     double tick,
     AxisLocation location,
-    Projection projection,
     Paint paint,
+    ChartAxes chartAxes,
   ) {
     ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
     double rCenter = rAxis.info.isInverted ? rAxis.bounds.max + rAxis.bounds.min : rAxis.bounds.min;
-    Offset center = projection.project([rCenter, 0]);
+    Offset center = chartAxes.project(data: [rCenter, 0], chartSize: size);
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
     center += offset;
     double radius = rAxis.info.isInverted ? rCenter - tick : tick - rCenter;
-    radius = projection.xTransform.scale * radius;
+    radius = size.width / 2 / (rAxis.bounds.max - rAxis.bounds.min) * radius;
     if (location == AxisLocation.radial) {
       canvas.drawCircle(center, radius, paint);
     } else if (location == AxisLocation.angular) {
       double maxTick =
           rAxis.info.isInverted ? rAxis.ticks.ticks.first.toDouble() : rAxis.ticks.ticks.last.toDouble();
-      Offset edgePoint = projection.project([maxTick, tick]);
+      Offset edgePoint = chartAxes.project(data: [maxTick, tick], chartSize: size);
       canvas.drawLine(center, edgePoint + offset, paint);
     } else {
       throw UnimplementedError("Unknown axis location: $location");
@@ -167,7 +256,7 @@ class PolarAxisPainter extends AxisPainter {
   }
 
   @override
-  void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, Projection projection) {
+  void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, ChartAxes chartAxes) {
     AxisId axisId = axis.info.axisId;
     AxisTicks ticks = axis.ticks;
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
@@ -177,13 +266,13 @@ class PolarAxisPainter extends AxisPainter {
       double tick = ticks.ticks[i];
 
       if (axisId.location == AxisLocation.radial) {
-        Offset topLeft = projection.project([tick, 0]);
+        Offset topLeft = chartAxes.project(data: [tick, 0], chartSize: size);
         fullOffset += topLeft - Offset(0, painter.height);
       } else if (axisId.location == AxisLocation.angular) {
         ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
         double radius = rAxis.info.isInverted ? rAxis.ticks.ticks.first : rAxis.ticks.ticks.last;
-        Offset topLeft = projection.project([radius, tick]);
-        Offset preProjected = projection.map([radius, tick]);
+        Offset topLeft = chartAxes.project(data: [radius, tick], chartSize: size);
+        Offset preProjected = chartAxes.doubleToLinear([radius, tick]);
         CartesianQuadrant quadrant = getQuadrant(preProjected.dx, -preProjected.dy);
         fullOffset += topLeft;
         if (tick == 0) {

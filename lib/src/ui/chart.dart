@@ -1,9 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
@@ -151,10 +151,6 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Scale an axis, or both axes.
   void onScale(PointerScaleEvent event, AxisPainter axisPainter) {
-    if (axisPainter.projections == null) {
-      return;
-    }
-
     for (ChartAxes axes in this.axes.values) {
       for (AxisId axisId in axes.axes.keys) {
         ChartAxis axis = axes[axisId];
@@ -181,12 +177,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Pan the chart.
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
-    focusNode.requestFocus();
-    if (axisPainter.projections == null) {
-      return;
-    }
-
-    for (MapEntry<Object, ChartAxes> entry in axes.entries) {
+    /*for (MapEntry<Object, ChartAxes> entry in axes.entries) {
       Object axesId = entry.key;
       ChartAxes axes = entry.value;
       double dx = event.scrollDelta.dx;
@@ -206,7 +197,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
           axis.translate(dy);
         }
       }
-    }
+    }*/
 
     setState(() {});
   }

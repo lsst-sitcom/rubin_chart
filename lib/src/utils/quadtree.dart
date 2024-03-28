@@ -152,7 +152,7 @@ class QuadTree<T extends Object> extends Rect {
     return _insert(item, location);
   }
 
-  List<QuadTreeElement<T>> _queryRect(Rect rect) {
+  List<QuadTreeElement<T>> queryRectElements(Rect rect) {
     List<QuadTreeElement<T>> result = [];
     if (!overlaps(rect)) {
       return result;
@@ -166,7 +166,7 @@ class QuadTree<T extends Object> extends Rect {
       }
     } else {
       for (QuadTree<T> child in children) {
-        result.addAll(child._queryRect(rect));
+        result.addAll(child.queryRectElements(rect));
       }
     }
 
@@ -175,7 +175,7 @@ class QuadTree<T extends Object> extends Rect {
 
   /// Search for all items in the [QuadTree] that overlap with [rect].
   List<T> queryRect(Rect rect) {
-    List<QuadTreeElement<T>> elements = _queryRect(rect);
+    List<QuadTreeElement<T>> elements = queryRectElements(rect);
     return elements.map((e) => e.element).toList();
   }
 
@@ -258,7 +258,8 @@ class QuadTree<T extends Object> extends Rect {
     if (distance != null) {
       Rect searchRect = Rect.fromLTWH(
           location.dx - distance.dx, location.dy - distance.dy, distance.dx * 2, distance.dy * 2);
-      List<QuadTreeElement<T>> elements = _queryRect(searchRect);
+
+      List<QuadTreeElement<T>> elements = queryRectElements(searchRect);
       if (elements.isNotEmpty) {
         return elements.reduce(
             (a, b) => (a.center - location).distanceSquared < (b.center - location).distanceSquared ? a : b);

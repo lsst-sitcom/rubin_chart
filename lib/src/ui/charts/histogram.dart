@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
@@ -35,6 +35,33 @@ class HistogramBin {
   @override
   String toString() {
     return "HistogramBin(start: $start, end: $end, count: $count)";
+  }
+
+  /// Convert the bounds of a bin to a [Rect] in pixel coordinates.
+  Rect toRect({
+    required ChartAxes axes,
+    required Size chartSize,
+    required AxisOrientation mainAxisAlignment,
+    Offset offset = Offset.zero,
+  }) {
+    double x0;
+    double xf;
+    double y0;
+    double yf;
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      x0 = start;
+      xf = end;
+      y0 = 0;
+      yf = count.toDouble();
+    } else {
+      x0 = 0;
+      xf = count.toDouble();
+      y0 = start;
+      yf = end;
+    }
+    Offset topLeft = axes.doubleToPixel([x0, y0], chartSize) + offset;
+    Offset bottomRight = axes.doubleToPixel([xf, yf], chartSize) + offset;
+    return Rect.fromPoints(topLeft, bottomRight);
   }
 }
 
@@ -255,7 +282,7 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       }
     }
 
-    // Initialize the mainaxis based on the [SeriesData].
+    // Initialize the main axis based on the [SeriesData].
     ChartAxis mainAxis;
     AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
     ChartAxisInfo mainAxisInfo = widget.info.axisInfo[mainAxisId]!;
@@ -296,7 +323,6 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     }
 
     // Calculate the edges for the bins
-    PixelTransform mainTransform = PixelTransform.fromAxis(axis: mainAxis, plotSize: 1);
     List<double> edges = [];
     if (widget.info.edges != null) {
       edges.addAll(widget.info.edges!);
@@ -307,9 +333,30 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       // Create bins using the correct mapping to give the bins equal width in the image.
       // If a non-linear scaling is used, such as log scaling, that will be accounted
       // for in the bin edges.
+
+      // We need x and y axes to create [ChartAxes], so we create a dummy Y axis.
+      AxisId dummyAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
+      int coordIdx = 0;
+      if (mainAxisAlignment == AxisOrientation.vertical) {
+        dummyAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
+        coordIdx = 1;
+      }
+      ChartAxis dummyAxis = NumericalChartAxis.fromBounds(
+        boundsList: [const Bounds(0, 1)],
+        axisInfo: ChartAxisInfo(label: "dummy", axisId: dummyAxisId),
+        theme: widget.info.theme,
+      );
+      ChartAxes axes =
+          CartesianChartAxes.fromAxes(axes: {mainAxis.info.axisId: mainAxis, dummyAxisId: dummyAxis});
       double binWidth = 1 / widget.info.nBins!;
       for (int i = 0; i < widget.info.nBins!; i++) {
-        edges.add(mainTransform.inverse(i * binWidth));
+        List<double> coords =
+            axes.doubleFromPixel(Offset(i * binWidth, (i + 1) * binWidth), const Size(1, 1));
+        edges.add(coords[coordIdx]);
+      }
+
+      if (mainAxisInfo.isInverted) {
+        edges = edges.reversed.toList();
       }
     }
 
@@ -506,10 +553,6 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
   /// and updates the selection controller if available.
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
-    if (axisPainter.projections == null) {
-      return;
-    }
-
     // Get the selected bin based on the tap location
     SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
     selectedDataPoints = {};
@@ -543,7 +586,6 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
 
   /// Returns the selected bin based on the tap location.
   SelectedBin? _getBinOnTap(Offset location, AxisPainter axisPainter) {
-    Object axesId = _axes.keys.first;
     EdgeInsets tickLabelMargin = EdgeInsets.only(
       left: axisPainter.margin.left + axisPainter.tickPadding,
       right: axisPainter.margin.right + axisPainter.tickPadding,
@@ -551,45 +593,21 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
       bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
     );
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    ChartAxis xAxis = _axes.values.first.axes.values.first;
-    ChartAxis yAxis = _axes.values.first.axes.values.toList()[1];
-    Projection projection = axisPainter.projections![axesId]!;
+    ChartAxes axes = _axes.values.first;
 
-    if (mainAxisAlignment == AxisOrientation.vertical) {
-      for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
-        BigInt seriesIndex = entry.key;
-        HistogramBins bins = entry.value;
-        for (int i = 0; i < bins.bins.length; i++) {
-          HistogramBin bin = bins.bins[i];
-          double top = projection.yTransform.map(bin.start) + offset.dy;
-          double bottom = projection.yTransform.map(bin.end) + offset.dy;
-          if (yAxis.info.isInverted) {
-            double temp = top;
-            top = bottom;
-            bottom = temp;
-          }
-          double right = projection.xTransform.map(bin.count.toDouble()) + offset.dx;
-          bool inRangeX = xAxis.info.isInverted ? location.dx > right : location.dx < right;
-          bool inRangeY = top <= location.dy && location.dy < bottom;
-          if (inRangeX && inRangeY) {
-            return SelectedBin(seriesIndex, i);
-          }
-        }
-      }
-    } else {
-      for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
-        BigInt seriesIndex = entry.key;
-        HistogramBins bins = entry.value;
-        for (int i = 0; i < bins.bins.length; i++) {
-          HistogramBin bin = bins.bins[i];
-          double left = axisPainter.projections![axesId]!.xTransform.map(bin.start) + offset.dx;
-          double right = axisPainter.projections![axesId]!.xTransform.map(bin.end) + offset.dx;
-          double bottom = axisPainter.projections![axesId]!.yTransform.map(bin.count.toDouble()) + offset.dy;
-          bool inRangeX = left <= location.dx && location.dx < right;
-          bool inRangeY = yAxis.info.isInverted ? location.dy > bottom : location.dy < bottom;
-          if (inRangeX && inRangeY) {
-            return SelectedBin(seriesIndex, i);
-          }
+    for (MapEntry<BigInt, HistogramBins> entry in _allBins.entries) {
+      BigInt seriesIndex = entry.key;
+      HistogramBins bins = entry.value;
+      for (int i = 0; i < bins.bins.length; i++) {
+        HistogramBin bin = bins.bins[i];
+        Rect binRect = bin.toRect(
+          axes: axes,
+          chartSize: axisPainter.chartSize,
+          mainAxisAlignment: mainAxisAlignment,
+        );
+
+        if (binRect.contains(location - offset)) {
+          return SelectedBin(seriesIndex, i);
         }
       }
     }
@@ -632,44 +650,22 @@ class HistogramPainter extends CustomPainter {
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
-    AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    Projection projection = CartesianProjection.fromAxes(
-      axes: axes.axes.values.toList(),
-      plotSize: plotSize,
-    );
-
-    // Initialize the main and cross axes parameters.
-    PixelTransform mainTransform;
-    PixelTransform crossTransform;
-    double mainOffset;
-    double crossOffset;
-    if (mainAxisAlignment == AxisOrientation.horizontal) {
-      mainTransform = projection.xTransform;
-      crossTransform = projection.yTransform;
-      mainOffset = offset.dx;
-      crossOffset = offset.dy;
-    } else if (mainAxisAlignment == AxisOrientation.vertical) {
-      mainTransform = projection.yTransform;
-      crossTransform = projection.xTransform;
-      mainOffset = offset.dy;
-      crossOffset = offset.dx;
-    } else {
-      throw UnimplementedError('Polar histograms are not yet supported');
-    }
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
     double lastCount = 0;
-    double bin0 = crossTransform.map(0) + crossOffset;
-    double clippedBin0 = math.max(bin0, plotWindow.top);
 
     for (HistogramBins bins in allBins.values) {
-      double mainMin = double.infinity;
-      double mainMax = double.negativeInfinity;
-
       for (int i = 0; i < bins.bins.length; i++) {
         HistogramBin bin = bins.bins[i];
+        Rect binRect = bin.toRect(
+          axes: axes,
+          chartSize: plotSize,
+          offset: offset,
+          mainAxisAlignment: mainAxisAlignment,
+        );
+
         // Create the painters for the edge and fill of the bin
         Color? fillColor = bin.fillColor;
         Color? edgeColor = bin.edgeColor;
@@ -688,27 +684,10 @@ class HistogramPainter extends CustomPainter {
             ..style = PaintingStyle.stroke;
         }
 
-        // Calculate the pixel coordinates of the bin
-        double mainStart = mainTransform.map(bin.start) + mainOffset;
-        double mainEnd = mainTransform.map(bin.end) + mainOffset;
-        double lastCrossEnd = crossTransform.map(lastCount) + crossOffset;
-        double crossEnd = crossTransform.map(bin.count) + crossOffset;
-        AxisAlignedRect binRect = AxisAlignedRect.fromMainCross(
-          mainStart,
-          bin0,
-          mainEnd,
-          crossEnd,
-          mainAxisAlignment,
-        );
-        Rect rect = binRect.toRect();
-
-        mainMin = math.min(mainMin, mainStart);
-        mainMax = math.max(mainMax, mainEnd);
-
-        if (rect.overlaps(plotWindow)) {
+        if (binRect.overlaps(plotWindow)) {
           // Paint the bin
           if (paintFill != null) {
-            Rect overlap = rect.intersect(plotWindow);
+            Rect overlap = binRect.intersect(plotWindow);
             canvas.drawRect(
               overlap,
               paintFill,
@@ -716,6 +695,16 @@ class HistogramPainter extends CustomPainter {
           }
           // Paint the outline
           if (paintEdge != null) {
+            /*AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
+            double bin0 = crossTransform.map(0) + crossOffset;
+            double clippedBin0 = math.max(bin0, plotWindow.top);
+
+            // Calculate the pixel coordinates of the bin
+            double mainStart = mainTransform.map(bin.start) + mainOffset;
+            double mainEnd = mainTransform.map(bin.end) + mainOffset;
+            double lastCrossEnd = crossTransform.map(lastCount) + crossOffset;
+            double crossEnd = crossTransform.map(bin.count) + crossOffset;
+
             // Clip the outline to the plot window
             double clippedMainStart = math.max(mainStart, alignedPlotWindow.mainStart);
             double clippedMainEnd = math.min(mainEnd, alignedPlotWindow.mainEnd);
@@ -746,7 +735,7 @@ class HistogramPainter extends CustomPainter {
                 alignedPlotWindow.getOffset(mainEnd, clippedBin0),
                 paintEdge,
               );
-            }
+            }*/
           }
         }
         // Draw the bottom of the bins

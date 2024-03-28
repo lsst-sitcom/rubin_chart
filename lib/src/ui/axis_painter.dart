@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 
@@ -53,19 +53,16 @@ abstract class AxisPainter extends CustomPainter {
     }
   }
 
-  late Size plotSize;
+  late Size chartSize;
 
   void drawTick(
-      Canvas canvas, Size size, double tick, AxisLocation location, Projection projection, Paint paint);
+      Canvas canvas, Size size, double tick, AxisLocation location, Paint paint, ChartAxes chartAxes);
 
-  void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, Projection projection);
-
-  Map<Object, Projection>? projections;
+  void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, ChartAxes chartAxes);
 
   @override
   void paint(Canvas canvas, Size size) {
-    projections = {};
-    plotSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
+    chartSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
         size.height - margin.top - margin.bottom - 2 * tickPadding);
 
     // TODO: draw the grid
@@ -79,19 +76,17 @@ abstract class AxisPainter extends CustomPainter {
       for (MapEntry entry in allAxes.entries) {
         Object axesId = entry.key;
         ChartAxes axes = entry.value;
-        axes.updateProjection(plotSize);
-        projections![axesId] = axes.projection;
         for (AxisId axisId in axes.axes.keys) {
           ChartAxis axis = axes[axisId];
           if (axis.showTicks) {
             AxisTicks ticks = axis.ticks;
             for (double tick in ticks.ticks) {
-              drawTick(canvas, plotSize, tick, axisId.location, projections![axesId]!, tickPaint);
+              drawTick(canvas, chartSize, tick, axisId.location, tickPaint, axes);
             }
           }
 
           if (axis.showLabels) {
-            drawTickLabels(canvas, plotSize, allAxes[axesId]![axisId], projections![axesId]!);
+            drawTickLabels(canvas, chartSize, allAxes[axesId]![axisId], axes);
           }
         }
       }
@@ -105,7 +100,7 @@ abstract class AxisPainter extends CustomPainter {
         ..color = theme.frameColor!
         ..style = PaintingStyle.stroke
         ..strokeWidth = theme.frameLineThickness;
-      canvas.drawRect(Offset(margin.left + tickPadding, margin.top + tickPadding) & plotSize, framePaint);
+      canvas.drawRect(Offset(margin.left + tickPadding, margin.top + tickPadding) & chartSize, framePaint);
     }
   }
 

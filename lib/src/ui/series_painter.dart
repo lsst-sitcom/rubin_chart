@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/axes/projection.dart';
+import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 
@@ -40,7 +39,6 @@ class SeriesPainter extends CustomPainter {
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    Projection projection = axes.projection;
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
@@ -66,7 +64,7 @@ class SeriesPainter extends CustomPainter {
     Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
 
     for (int i = 0; i < data.length; i++) {
-      Offset point = projection.project(data.getRow(i)) + offset;
+      Offset point = axes.project(data: data.getRow(i), chartSize: plotSize) + offset;
       if (plotWindow.contains(point)) {
         marker.paint(canvas, paintFill, paintEdge, point);
         //nDisplayed++;
@@ -81,7 +79,7 @@ class SeriesPainter extends CustomPainter {
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         int index = data.data.values.first.keys.toList().indexOf(dataId);
-        Offset point = projection.project(data.getRow(index)) + offset;
+        Offset point = axes.project(data: data.getRow(index), chartSize: plotSize) + offset;
         if (plotWindow.contains(point)) {
           selectionMarker.paint(canvas, paintFill, paintEdge, point);
           //nDisplayed++;

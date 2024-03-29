@@ -141,13 +141,19 @@ class ChartAxisInfo {
   final AxisId axisId;
   final bool isBounded;
 
+  /// If [fixedBounds] is not null, the bounds of the axis will be fixed to these values.
+  final Bounds<double>? fixedBounds;
+
   const ChartAxisInfo({
     required this.label,
     required this.axisId,
     this.isInverted = false,
     this.mapping = const LinearMapping(),
     this.isBounded = true,
+    this.fixedBounds,
   });
+
+  bool get isFixed => fixedBounds != null;
 }
 
 /// Parameters needed to define an axis.
@@ -196,6 +202,9 @@ abstract class ChartAxis<T extends Object> {
 
   /// Update the tick marks and adjust the bounds if necessary
   void updateTicksAndBounds(Bounds<double> bounds) {
+    if (info.isFixed) {
+      return;
+    }
     _ticks = _updateTicks(bounds);
 
     // Grow the bounds to fit the ticks, if necessary
@@ -224,6 +233,9 @@ abstract class ChartAxis<T extends Object> {
     AxisTicks? ticks,
     required State state,
   }) {
+    if (this.info.isFixed) {
+      return;
+    }
     if (info != null) {
       _info = info;
     }
@@ -249,6 +261,25 @@ class NumericalChartAxis extends ChartAxis<double> {
           dataType: AxisDataType.number,
         );
 
+  static fromFixedBounds({
+    required ChartAxisInfo axisInfo,
+    required Bounds<double> bounds,
+    required ChartTheme theme,
+    bool showTicks = true,
+    bool showLabels = true,
+  }) {
+    AxisTicks ticks = AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
+    return NumericalChartAxis(
+      bounds: bounds,
+      dataBounds: bounds,
+      ticks: ticks,
+      info: axisInfo,
+      theme: theme,
+      showTicks: showTicks,
+      showLabels: showLabels,
+    );
+  }
+
   static NumericalChartAxis fromData({
     required ChartAxisInfo axisInfo,
     required List<List<double>> data,
@@ -256,6 +287,15 @@ class NumericalChartAxis extends ChartAxis<double> {
     bool showTicks = true,
     bool showLabels = true,
   }) {
+    if (axisInfo.isFixed) {
+      return fromFixedBounds(
+        axisInfo: axisInfo,
+        bounds: axisInfo.fixedBounds!,
+        theme: theme,
+        showTicks: showTicks,
+        showLabels: showLabels,
+      );
+    }
     List<Bounds<double>> bounds = [];
     for (List<num> row in data) {
       double min = row.first.toDouble();
@@ -282,6 +322,15 @@ class NumericalChartAxis extends ChartAxis<double> {
     bool showTicks = true,
     bool showLabels = true,
   }) {
+    if (axisInfo.isFixed) {
+      return fromFixedBounds(
+        axisInfo: axisInfo,
+        bounds: axisInfo.fixedBounds!,
+        theme: theme,
+        showTicks: showTicks,
+        showLabels: showLabels,
+      );
+    }
     double min = boundsList[0].min.toDouble();
     double max = boundsList[0].max.toDouble();
     for (Bounds<double> bounds in boundsList) {
@@ -389,6 +438,24 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
   }) : super._(
           dataType: AxisDataType.datetTime,
         );
+
+  static fromFixedBounds({
+    required ChartAxisInfo axisInfo,
+    required Bounds<DateTime> bounds,
+    required ChartTheme theme,
+    bool showLabels = true,
+    bool showTicks = true,
+  }) {
+    Bounds<double> doubleBounds = Bounds(dateTimeToMjd(bounds.min), dateTimeToMjd(bounds.max));
+    AxisTicks ticks = AxisTicks.fromBounds(doubleBounds, theme.minTicks, theme.maxTicks, false);
+    return DateTimeChartAxis._(
+      info: axisInfo,
+      bounds: doubleBounds,
+      dataBounds: doubleBounds,
+      ticks: ticks,
+      theme: theme,
+    );
+  }
 
   static DateTimeChartAxis fromDataMjd({
     required ChartAxisInfo axisInfo,

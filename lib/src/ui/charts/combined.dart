@@ -228,7 +228,7 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
       ...columns.expand((e) => e).map((chartInfo) => chartInfo.id)
     };
     // Layout each chart internally, calculting the size of each non-chart component.
-    Map<ChartLayoutId, Size> componentSizes = {};
+    Map<ChartComponent, Size> componentSizes = {};
     for (Object chartId in chartIds) {
       componentSizes.addAll(calcComponentSizes(chartId, size));
     }
@@ -242,25 +242,25 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
     for (ChartInfo childInfo in columns[0]) {
       ChartLayoutId id = ChartLayoutId(ChartComponent.leftAxis, childInfo.id);
       if (hasChild(id)) {
-        left = math.max(left, componentSizes[id]!.width);
+        left = math.max(left, componentSizes[id.component]!.width);
       }
     }
     for (ChartInfo childInfo in columns[columns.length - 1]) {
       ChartLayoutId id = ChartLayoutId(ChartComponent.rightAxis, childInfo.id);
       if (hasChild(id)) {
-        right = math.max(right, componentSizes[id]!.width);
+        right = math.max(right, componentSizes[id.component]!.width);
       }
     }
     for (ChartInfo childInfo in rows[0]) {
       ChartLayoutId id = ChartLayoutId(ChartComponent.topAxis, childInfo.id);
       if (hasChild(id)) {
-        top = math.max(top, componentSizes[id]!.height);
+        top = math.max(top, componentSizes[id.component]!.height);
       }
     }
     for (ChartInfo childInfo in rows[rows.length - 1]) {
       ChartLayoutId id = ChartLayoutId(ChartComponent.bottomAxis, childInfo.id);
       if (hasChild(id)) {
-        bottom = math.max(bottom, componentSizes[id]!.height);
+        bottom = math.max(bottom, componentSizes[id.component]!.height);
       }
     }
 

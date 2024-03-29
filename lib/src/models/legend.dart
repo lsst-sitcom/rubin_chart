@@ -29,7 +29,7 @@ class Legend {
   /// on the side of the chart specified by this value.
   final LegendLocation location;
 
-  /// The offset of the legend from the bottom-left corner of the chart
+  /// The offset of the legend from the top-left corner of the chart
   /// if [LegendLocation.floating] is used.
   final Offset? offset;
 

@@ -1,41 +1,131 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
+import 'package:rubin_chart/src/ui/chart.dart';
 
 class LegendEntry extends StatelessWidget {
   final Marker marker;
-  final String label;
+  final TextSpan textSpan;
+  final Size rowSize;
+  final ChartTheme theme;
 
-  const LegendEntry({super.key, required this.marker, required this.label});
+  const LegendEntry({
+    super.key,
+    required this.marker,
+    required this.textSpan,
+    required this.rowSize,
+    required this.theme,
+  });
+
+  static LegendEntry init({
+    Key? key,
+    required Marker marker,
+    required String label,
+    required ChartTheme theme,
+  }) {
+    TextSpan textSpan = TextSpan(
+      text: label,
+      style: theme.legendStyle,
+    );
+    TextPainter textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    Size rowSize = Size(marker.size + textPainter.width + 20, math.max(textPainter.height, marker.size) + 10);
+
+    return LegendEntry(
+      marker: marker,
+      textSpan: textSpan,
+      rowSize: rowSize,
+      theme: theme,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: marker.color,
-            shape: BoxShape.circle,
+    return SizedBox(
+      width: rowSize.width,
+      height: rowSize.height,
+      child: Row(
+        children: [
+          const SizedBox(width: 5),
+          Container(
+            width: marker.size,
+            height: marker.size,
+            decoration: BoxDecoration(
+              color: marker.color,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        const SizedBox(width: 5),
-        Text(label),
-      ],
+          const SizedBox(width: 5),
+          RichText(text: textSpan),
+          const SizedBox(width: 5),
+        ],
+      ),
     );
   }
 }
 
-class VerticalLegendViewer extends StatelessWidget {
+abstract class LegendViewer extends StatelessWidget {
   final Legend legend;
   final ChartTheme theme;
-  final SeriesList seriesList;
+  final List<LegendEntry> rows;
+  final Size legendSize;
+  final ChartLayoutId layoutId;
 
-  const VerticalLegendViewer(
-      {super.key, required this.legend, required this.theme, required this.seriesList});
+  const LegendViewer({
+    super.key,
+    required this.legend,
+    required this.theme,
+    required this.rows,
+    required this.legendSize,
+    required this.layoutId,
+  });
+}
+
+class VerticalLegendViewer extends LegendViewer {
+  const VerticalLegendViewer({
+    super.key,
+    required super.legend,
+    required super.theme,
+    required super.rows,
+    required super.legendSize,
+    required super.layoutId,
+  });
+
+  static VerticalLegendViewer fromSeriesList({
+    Key? key,
+    required Legend legend,
+    required ChartTheme theme,
+    required SeriesList seriesList,
+    required ChartLayoutId layoutId,
+  }) {
+    List<LegendEntry> rows = [];
+    double width = 0;
+    double height = 0;
+    for (int i = 0; i < seriesList.length; i++) {
+      LegendEntry entry = LegendEntry.init(
+        marker: seriesList.getMarker(i),
+        label: seriesList.values[i].name ?? "Series $i",
+        theme: theme,
+      );
+      rows.add(entry);
+      width = math.max(width, entry.rowSize.width);
+      height += entry.rowSize.height;
+    }
+    return VerticalLegendViewer(
+      key: key,
+      legend: legend,
+      theme: theme,
+      rows: rows,
+      legendSize: Size(width, height),
+      layoutId: layoutId,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,12 +138,9 @@ class VerticalLegendViewer extends StatelessWidget {
         borderRadius: BorderRadius.circular(theme.legendBorderRadius),
       ),
       child: ListView.builder(
-        itemCount: seriesList.length,
+        itemCount: rows.length,
         itemBuilder: (BuildContext context, int index) {
-          return LegendEntry(
-            marker: seriesList.getMarker(index),
-            label: seriesList.values[index].name ?? "Series $index",
-          );
+          return rows[index];
         },
       ),
     );

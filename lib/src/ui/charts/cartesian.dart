@@ -107,18 +107,48 @@ class CartesianChartAxes extends ChartAxes {
         doubleToLinear([xBounds.max, yBounds.max]),
       );
 
+  void _translateAxis(ChartAxis axis, double min, double max, double delta) {
+    if (max < min) {
+      double temp = min;
+      min = max;
+      max = temp;
+      delta = -delta;
+    }
+    if ((delta < 0 && (min > axis.dataBounds.min || max > axis.dataBounds.max)) ||
+        (delta > 0 && (min < axis.dataBounds.min || max < axis.dataBounds.max))) {
+      axis.updateTicksAndBounds(Bounds(min, max));
+    }
+  }
+
   /// Translate the displayed axes by a given amount.
   @override
-  void translate(double dx, double dy) {
-    xAxis.translate(dx);
-    yAxis.translate(dy);
+  void translate(Offset delta, Size chartSize) {
+    Offset newMin = delta;
+    Offset newMax = Offset(chartSize.width, chartSize.height) + delta;
+    List<double> translatedMin = doubleFromPixel(newMin, chartSize);
+    List<double> translatedMax = doubleFromPixel(newMax, chartSize);
+    _translateAxis(xAxis, translatedMin[0], translatedMax[0], delta.dx);
+    _translateAxis(yAxis, translatedMin[1], translatedMax[1], delta.dy);
+  }
+
+  void _scaleAxis(ChartAxis axis, double scale) {
+    double min = axis.bounds.min;
+    double max = axis.bounds.max;
+    double midpoint = (min + max) / 2;
+    double range = max - min;
+    double delta = range / scale / 2;
+
+    min = midpoint - delta;
+    max = midpoint + delta;
+
+    axis.updateTicksAndBounds(Bounds(min, max));
   }
 
   /// Scale the displayed axes by a given amount.
   @override
-  void scale(double scaleX, double scaleY) {
-    xAxis.scale(scaleX);
-    yAxis.scale(scaleY);
+  void scale(double scaleX, double scaleY, Size chartSize) {
+    _scaleAxis(xAxis, scaleX);
+    _scaleAxis(yAxis, scaleY);
   }
 }
 
@@ -236,4 +266,7 @@ class CartesianAxisPainter extends AxisPainter {
       painter.paint(canvas, offset);
     }
   }
+
+  @override
+  bool get clip => false;
 }

@@ -152,23 +152,12 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
   /// Scale an axis, or both axes.
   void onScale(PointerScaleEvent event, AxisPainter axisPainter) {
     for (ChartAxes axes in this.axes.values) {
-      for (AxisId axisId in axes.axes.keys) {
-        ChartAxis axis = axes[axisId];
-        AxisLocation location = axis.info.axisId.location;
-        if (location == AxisLocation.radial || location == AxisLocation.angular) {
-          continue;
-        }
-
-        if (scaleShiftKey == null) {
-          axis.scale(event.scale);
-        } else if (scaleShiftKey == LogicalKeyboardKey.keyX &&
-            [AxisLocation.bottom, AxisLocation.top].contains(location)) {
-          axis.scale(event.scale);
-        } else if (scaleShiftKey == LogicalKeyboardKey.keyY &&
-            [AxisLocation.left, AxisLocation.right].contains(location)) {
-          ChartAxis axis = axes[axisId];
-          axis.scale(event.scale);
-        }
+      if (scaleShiftKey == null) {
+        axes.scale(event.scale, event.scale, axisPainter.chartSize);
+      } else if (scaleShiftKey == LogicalKeyboardKey.keyX) {
+        axes.scale(event.scale, 1, axisPainter.chartSize);
+      } else if (scaleShiftKey == LogicalKeyboardKey.keyY) {
+        axes.scale(1, event.scale, axisPainter.chartSize);
       }
     }
 
@@ -177,27 +166,10 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Pan the chart.
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
-    /*for (MapEntry<Object, ChartAxes> entry in axes.entries) {
-      Object axesId = entry.key;
-      ChartAxes axes = entry.value;
-      double dx = event.scrollDelta.dx;
-      double dy = event.scrollDelta.dy;
-
-      Projection projection = axisPainter.projections![axesId]!;
-      dx /= projection.xTransform.scale;
-      dy /= projection.yTransform.scale;
-
-      for (AxisId axisId in axes.axes.keys) {
-        ChartAxis axis = axes[axisId];
-
-        if (axis.info.axisId.location == AxisLocation.bottom ||
-            axis.info.axisId.location == AxisLocation.top) {
-          axis.translate(dx);
-        } else {
-          axis.translate(dy);
-        }
-      }
-    }*/
+    Size chartSize = axisPainter.chartSize;
+    for (ChartAxes axes in axes.values) {
+      axes.translate(event.scrollDelta, chartSize);
+    }
 
     setState(() {});
   }

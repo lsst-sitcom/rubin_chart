@@ -20,7 +20,8 @@ const radiansToDeg = 1 / degToRadians;
 class PolarChartAxes extends ChartAxes {
   late final AxisId radialAxisId;
   late final AxisId angularAxisId;
-  Offset center = Offset.zero;
+  //Offset center = Offset.zero;
+  Offset center = const Offset(10, 10);
   double scaleX = 1.0;
   double scaleY = 1.0;
 
@@ -126,13 +127,27 @@ class PolarChartAxes extends ChartAxes {
 
   /// Translate the displayed axes by a given amount.
   @override
-  void translate(double dx, double dy) => center += Offset(dx, dy);
+  void translate(Offset delta, Size chartSize) {
+    center -= delta;
+  }
 
   /// Scale the displayed axes by a given amount.
   @override
-  void scale(double scaleX, double scaleY) {
-    this.scaleX *= scaleX;
-    this.scaleY *= scaleY;
+  void scale(double scaleX, double scaleY, Size chartSize) {
+    Offset linearCenter = linearFromPixel(
+      pixel: Offset(chartSize.width / 2, chartSize.height / 2),
+      chartSize: chartSize,
+    );
+    double scale = math.max(scaleX, scaleY);
+    this.scaleX *= scale;
+    this.scaleY = this.scaleX;
+    Offset newCenter = linearToPixel(linearCoords: linearCenter, chartSize: chartSize);
+    center = center - newCenter + Offset(chartSize.width / 2, chartSize.height / 2);
+
+    linearCenter = linearFromPixel(
+      pixel: Offset(chartSize.width / 2, chartSize.height / 2),
+      chartSize: chartSize,
+    );
   }
 }
 
@@ -236,13 +251,14 @@ class PolarAxisPainter extends AxisPainter {
     Paint paint,
     ChartAxes chartAxes,
   ) {
-    ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
+    PolarChartAxes polarAxes = chartAxes as PolarChartAxes;
+    ChartAxis rAxis = chartAxes.radialAxis;
     double rCenter = rAxis.info.isInverted ? rAxis.bounds.max + rAxis.bounds.min : rAxis.bounds.min;
     Offset center = chartAxes.project(data: [rCenter, 0], chartSize: size);
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
     center += offset;
     double radius = rAxis.info.isInverted ? rCenter - tick : tick - rCenter;
-    radius = size.width / 2 / (rAxis.bounds.max - rAxis.bounds.min) * radius;
+    radius = size.width / 2 / (rAxis.bounds.max - rAxis.bounds.min) * radius * polarAxes.scaleX;
     if (location == AxisLocation.radial) {
       canvas.drawCircle(center, radius, paint);
     } else if (location == AxisLocation.angular) {
@@ -297,4 +313,7 @@ class PolarAxisPainter extends AxisPainter {
       painter.paint(canvas, fullOffset);
     }
   }
+
+  @override
+  bool get clip => true;
 }

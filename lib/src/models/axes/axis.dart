@@ -194,21 +194,6 @@ abstract class ChartAxis<T extends Object> {
   double toDouble(T value);
   T fromDouble(double value);
 
-  void translate(double delta) {
-    if (info.isInverted) {
-      delta = -delta;
-    }
-    // Perform the translation
-    double min = bounds.min + delta;
-    double max = bounds.max + delta;
-
-    if (delta < 0 && (dataBounds.min < min || dataBounds.max < max)) {
-      updateTicksAndBounds(Bounds(min, max));
-    } else if (delta > 0 && (dataBounds.min > min || dataBounds.max > max)) {
-      updateTicksAndBounds(Bounds(min, max));
-    }
-  }
-
   /// Update the tick marks and adjust the bounds if necessary
   void updateTicksAndBounds(Bounds<double> bounds) {
     _ticks = _updateTicks(bounds);
@@ -226,13 +211,6 @@ abstract class ChartAxis<T extends Object> {
 
   /// Update the tick marks and adjust the bounds if necessary.
   AxisTicks _updateTicks(Bounds<double> bounds);
-
-  void scale(double scale) {
-    _scale(scale);
-    controller?.update(bounds: bounds, ticks: ticks);
-  }
-
-  void _scale(double scale);
 
   ChartAxisInfo get info => _info;
 
@@ -346,21 +324,6 @@ class NumericalChartAxis extends ChartAxis<double> {
   AxisTicks _updateTicks(Bounds<double> bounds) {
     return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
   }
-
-  @override
-  void _scale(double scale) {
-    double min = bounds.min;
-    double max = bounds.max;
-    double midpoint = (min + max) / 2;
-    double range = max - min;
-    double delta = range / scale / 2;
-
-    min = midpoint - delta;
-    max = midpoint + delta;
-
-    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
-    _bounds = Bounds(min, max);
-  }
 }
 
 class StringChartAxis extends ChartAxis<String> {
@@ -409,20 +372,6 @@ class StringChartAxis extends ChartAxis<String> {
   @override
   AxisTicks _updateTicks(Bounds<double> bounds) {
     return _ticks;
-  }
-
-  @override
-  void _scale(double scale) {
-    double min = bounds.min.toDouble();
-    double max = bounds.max.toDouble();
-    double midpoint = (min + max) / 2;
-    double range = max - min;
-    double delta = range / scale / 2;
-
-    min = midpoint - delta;
-    max = midpoint + delta;
-
-    _bounds = Bounds(min, max);
   }
 }
 
@@ -561,21 +510,6 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     DateTime maxDate = mjdToDateTime(bounds.max);
     return AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);*/
     return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
-  }
-
-  @override
-  void _scale(double scale) {
-    double min = bounds.min;
-    double max = bounds.max;
-    double midpoint = (min + max) / 2;
-    double range = max - min;
-    double delta = range / scale / 2;
-
-    min = midpoint - delta;
-    max = midpoint + delta;
-
-    _ticks = AxisTicks.fromBounds(Bounds(min, max), theme.minTicks, theme.maxTicks, false);
-    _bounds = Bounds(min, max);
   }
 }
 

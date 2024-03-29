@@ -54,6 +54,7 @@ abstract class AxisPainter extends CustomPainter {
   }
 
   late Size chartSize;
+  bool get clip;
 
   void drawTick(
       Canvas canvas, Size size, double tick, AxisLocation location, Paint paint, ChartAxes chartAxes);
@@ -64,6 +65,11 @@ abstract class AxisPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     chartSize = Size(size.width - margin.left - margin.right - 2 * tickPadding,
         size.height - margin.top - margin.bottom - 2 * tickPadding);
+
+    // Make sure not to draw outside of the chart area.
+    if (clip) {
+      canvas.clipRect(Offset(margin.left + tickPadding, margin.top + tickPadding) & chartSize);
+    }
 
     // TODO: draw the grid
 

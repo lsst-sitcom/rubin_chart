@@ -135,11 +135,11 @@ abstract class ChartAxes {
   List<double> doubleFromPixel(Offset pixel, Size chartSize) =>
       doubleFromLinear(linearFromPixel(pixel: pixel, chartSize: chartSize));
 
-  /// Translate the displayed axes by a given amount.
-  void translate(double dx, double dy);
+  /// Translate the displayed axes by a given pixel amounts.
+  void translate(Offset delta, Size chartSize);
 
   /// Scale the displayed axes by a given amount.
-  void scale(double scaleX, double scaleY);
+  void scale(double scaleX, double scaleY, Size chartSize);
 }
 
 /// Initialize a set of plot axes from a list of [Series],

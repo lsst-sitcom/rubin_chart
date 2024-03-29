@@ -168,11 +168,10 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
     Size chartSize = axisPainter.chartSize;
     if (isShiftKey(scaleShiftKey)) {
-      print("is shifting");
       for (ChartAxes axes in axes.values) {
         axes.scale(
-          1 + event.scrollDelta.dx / chartSize.width,
-          1 - event.scrollDelta.dy / chartSize.height,
+          1 - event.scrollDelta.dx / chartSize.width,
+          1 + event.scrollDelta.dy / chartSize.height,
           chartSize,
         );
       }

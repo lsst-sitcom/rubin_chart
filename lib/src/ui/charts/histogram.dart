@@ -112,6 +112,9 @@ class HistogramInfo extends ChartInfo {
   /// Either nBins or bins must be provided.
   final List<double>? edges;
 
+  /// Callback for when a bin is selected.
+  HistogramSelectionCallback? onSelection;
+
   HistogramInfo({
     required super.id,
     required super.allSeries,
@@ -127,6 +130,7 @@ class HistogramInfo extends ChartInfo {
     this.nBins,
     this.doFill = true,
     this.edges,
+    this.onSelection,
   })  : assert(nBins != null || edges != null),
         super(builder: Histogram.builder);
 }
@@ -173,6 +177,15 @@ class SelectedBinRange {
   }
 }
 
+class HistogramSelectionDetails {
+  final List<HistogramBin> selectedBins;
+  final Set<Object> selectedDataPoints;
+
+  HistogramSelectionDetails(this.selectedBins, this.selectedDataPoints);
+}
+
+typedef HistogramSelectionCallback = void Function({required HistogramSelectionDetails details});
+
 class Histogram extends StatefulWidget {
   final HistogramInfo info;
   final SelectionController? selectionController;
@@ -195,6 +208,7 @@ class Histogram extends StatefulWidget {
     Map<AxisId, AxisController>? axisControllers,
     SelectionController? selectionController,
     List<AxisId>? hiddenAxes,
+    HistogramSelectionCallback? onSelection,
   }) {
     return Histogram(
       info: info as HistogramInfo,
@@ -579,6 +593,12 @@ class HistogramState<T extends Object> extends State<Histogram> with ChartMixin,
     // Update the selection controller if available
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
+
+    // Call the selection callback if available
+    if (widget.info.onSelection != null) {
+      widget.info.onSelection!(
+          details: HistogramSelectionDetails(selectedBins?.getBins(_allBins) ?? [], selectedDataPoints));
     }
 
     setState(() {});

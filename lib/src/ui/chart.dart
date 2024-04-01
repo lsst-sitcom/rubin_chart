@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:rubin_chart/rubin_chart.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -355,6 +356,7 @@ class RubinChart extends StatefulWidget {
   final ChartInfo info;
   final SelectionController? selectionController;
   final Map<AxisId, AxisController> axisControllers;
+  final LegendSelectionCallback? legendSelectionCallback;
 
   const RubinChart({
     super.key,
@@ -362,6 +364,7 @@ class RubinChart extends StatefulWidget {
     Object? chartId,
     this.selectionController,
     this.axisControllers = const {},
+    this.legendSelectionCallback,
   }) : chartId = chartId ?? "Chart-0";
 
   @override
@@ -370,6 +373,7 @@ class RubinChart extends StatefulWidget {
 
 mixin RubinChartMixin {
   SelectionController? get selectionController;
+  LegendSelectionCallback? get legendSelectionCallback;
 
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
     if (info.legend != null) {
@@ -384,7 +388,7 @@ mixin RubinChartMixin {
             theme: info.theme,
             seriesList: info.seriesList,
             layoutId: layoutId,
-            selectionController: selectionController,
+            selectionCallback: legendSelectionCallback,
           );
           return viewer;
         }
@@ -477,6 +481,8 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   Offset _cursorOffset = Offset.zero;
   @override
   SelectionController? get selectionController => widget.selectionController;
+  @override
+  LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
 
   @override
   Widget build(BuildContext context) {

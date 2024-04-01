@@ -7,6 +7,9 @@ import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 
+/// A callback function that is called a [Series] in a [Legend] is selected.
+typedef LegendSelectionCallback = void Function({required Series series});
+
 class LegendEntry extends StatelessWidget {
   final Marker marker;
   final TextSpan textSpan;
@@ -80,7 +83,7 @@ abstract class LegendViewer extends StatelessWidget {
   final List<LegendEntry> rows;
   final Size legendSize;
   final ChartLayoutId layoutId;
-  final SelectionController? selectionController;
+  final LegendSelectionCallback? selectionCallback;
 
   const LegendViewer({
     super.key,
@@ -89,7 +92,7 @@ abstract class LegendViewer extends StatelessWidget {
     required this.rows,
     required this.legendSize,
     required this.layoutId,
-    this.selectionController,
+    this.selectionCallback,
   });
 }
 
@@ -101,7 +104,7 @@ class VerticalLegendViewer extends LegendViewer {
     required super.rows,
     required super.legendSize,
     required super.layoutId,
-    super.selectionController,
+    super.selectionCallback,
   });
 
   static VerticalLegendViewer fromSeriesList({
@@ -110,7 +113,7 @@ class VerticalLegendViewer extends LegendViewer {
     required ChartTheme theme,
     required SeriesList seriesList,
     required ChartLayoutId layoutId,
-    SelectionController? selectionController,
+    LegendSelectionCallback? selectionCallback,
   }) {
     List<LegendEntry> rows = [];
     double width = 0;
@@ -133,7 +136,7 @@ class VerticalLegendViewer extends LegendViewer {
       rows: rows,
       legendSize: Size(width, height),
       layoutId: layoutId,
-      selectionController: selectionController,
+      selectionCallback: selectionCallback,
     );
   }
 
@@ -152,8 +155,7 @@ class VerticalLegendViewer extends LegendViewer {
         itemBuilder: (BuildContext context, int index) {
           return InkWell(
             onTap: () {
-              selectionController?.updateSelection(
-                  null, rows[index].series.data.data.values.first.keys.toSet());
+              selectionCallback?.call(series: rows[index].series);
             },
             child: rows[index],
           );

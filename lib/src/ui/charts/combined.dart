@@ -13,6 +13,7 @@ class CombinedChart extends StatefulWidget {
   final SelectionController? selectionController;
   final List<List<ChartInfo?>> children;
   final ChartTheme theme;
+  final LegendSelectionCallback? legendSelectionCallback;
 
   const CombinedChart({
     Key? key,
@@ -20,6 +21,7 @@ class CombinedChart extends StatefulWidget {
     this.theme = ChartTheme.defaultTheme,
     this.selectionController,
     required this.children,
+    this.legendSelectionCallback,
   }) : super(key: key);
 
   @override
@@ -32,9 +34,12 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
   final List<ChartLayoutId> hiddenLabels = [];
   final List<AxisId> hiddenAxes = [];
+  @override
   late SelectionController selectionController;
   final Map<ChartInfo, Offset> _initialLegendOffsets = {};
   Offset _cursorOffset = Offset.zero;
+  @override
+  LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
 
   @override
   void initState() {

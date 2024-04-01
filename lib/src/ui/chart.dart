@@ -284,6 +284,7 @@ enum ChartComponent {
   bottomLegend,
   leftLegend,
   rightLegend,
+  floatingLegend,
   topAxis,
   bottomAxis,
   leftAxis,
@@ -300,6 +301,8 @@ enum ChartComponent {
         return ChartComponent.leftLegend;
       case LegendLocation.right:
         return ChartComponent.rightLegend;
+      case LegendLocation.floating:
+        return ChartComponent.floatingLegend;
       default:
         throw UnimplementedError("Invalid legend location: $location");
     }
@@ -368,7 +371,9 @@ class RubinChart extends StatefulWidget {
 mixin RubinChartMixin {
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
     if (info.legend != null) {
-      if (info.legend!.location == LegendLocation.left || info.legend!.location == LegendLocation.right) {
+      if (info.legend!.location == LegendLocation.left ||
+          info.legend!.location == LegendLocation.right ||
+          info.legend!.location == LegendLocation.floating) {
         ChartLayoutId layoutId =
             ChartLayoutId(ChartComponent.legendFromLocation(info.legend!.location), chartId);
         if (!hidden.contains(layoutId)) {
@@ -465,6 +470,9 @@ mixin RubinChartMixin {
 }
 
 class RubinChartState extends State<RubinChart> with RubinChartMixin {
+  Offset _initialLegendOffset = Offset.zero;
+  Offset _cursorOffset = Offset.zero;
+
   @override
   Widget build(BuildContext context) {
     List<Widget> children = buildSingleChartChildren(
@@ -481,7 +489,21 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
       if (legendViewer != null) {
         children.add(LayoutId(
           id: legendViewer.layoutId,
-          child: legendViewer,
+          child: GestureDetector(
+            onPanStart: (DragStartDetails details) {
+              _initialLegendOffset = legendViewer!.legend.offset;
+              _cursorOffset = details.globalPosition;
+            },
+            onPanUpdate: (DragUpdateDetails details) {
+              legendViewer!.legend.offset = _initialLegendOffset + details.globalPosition - _cursorOffset;
+              setState(() {});
+            },
+            onPanEnd: (DragEndDetails details) {
+              _initialLegendOffset = Offset.zero;
+              _cursorOffset = Offset.zero;
+            },
+            child: legendViewer,
+          ),
         ));
       }
     }
@@ -489,8 +511,7 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
       delegate: ChartLayoutDelegate(
         chartId: widget.chartId,
         xToYRatio: widget.info.xToYRatio,
-        legendId: legendViewer?.layoutId,
-        legendSize: legendViewer?.legendSize,
+        legendViewer: legendViewer,
       ),
       children: children,
     );
@@ -538,6 +559,7 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
         ChartComponent.bottomLegend,
         ChartComponent.leftLegend,
         ChartComponent.rightLegend,
+        ChartComponent.floatingLegend,
       ];
 
   Map<ChartLayoutId, Size> calcComponentSizes(Object chartId, Size size) {
@@ -576,7 +598,13 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
   }
 
   /// Layout a single chart.
-  void layoutSingleChart(Object chartId, Size chartSize, Offset offset, Map<ChartLayoutId, Size> childSizes) {
+  void layoutSingleChart(
+    Object chartId,
+    Size chartSize,
+    Offset offset,
+    Map<ChartLayoutId, Size> childSizes,
+    Offset? legendOffset,
+  ) {
     // Layout the chart
     layoutChild(ChartLayoutId(ChartComponent.chart, chartId), BoxConstraints.tight(chartSize));
     Size? titleSize = childSizes[ChartLayoutId(ChartComponent.title, chartId)];
@@ -633,6 +661,10 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
                         (rightAxisSize?.width ?? 0),
                     offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
             break;
+          case ChartComponent.floatingLegend:
+            legendOffset ??= Offset.zero;
+            positionChild(id, offset + const Offset(100, 10) + legendOffset);
+            break;
           case ChartComponent.bottomAxis:
             positionChild(
                 id,
@@ -669,14 +701,12 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
 class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
   final Object chartId;
   final double? xToYRatio;
-  final Size? legendSize;
-  final ChartLayoutId? legendId;
+  final LegendViewer? legendViewer;
 
   ChartLayoutDelegate({
     required this.chartId,
     required this.xToYRatio,
-    this.legendSize,
-    this.legendId,
+    this.legendViewer,
   });
 
   @override
@@ -693,15 +723,17 @@ class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin
     double fullHeight = height;
 
     // Calcualte the size of the legend (if there is one)
-    if (legendId != null) {
-      double legendWidth = legendSize!.width;
-      double legendHeight = legendSize!.height;
+    Offset? legendOffset;
+    if (legendViewer != null) {
+      double legendWidth = legendViewer!.legendSize.width;
+      double legendHeight = legendViewer!.legendSize.height;
       if (legendHeight > height) {
         legendHeight = height;
       }
-      layoutChild(legendId!, BoxConstraints.tight(Size(legendWidth, legendHeight)));
+      layoutChild(legendViewer!.layoutId, BoxConstraints.tight(Size(legendWidth, legendHeight)));
       width = width - legendWidth;
-      componentSizes[legendId!] = Size(legendWidth, legendHeight);
+      componentSizes[legendViewer!.layoutId] = Size(legendWidth, legendHeight);
+      legendOffset = legendViewer!.legend.offset;
     }
 
     if (xToYRatio != null) {
@@ -732,7 +764,7 @@ class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin
 
     // Position the chart and its labels
     layoutSingleChart(chartId, chartSize,
-        Offset(margin.left + extraMargin.left, margin.top + extraMargin.top), componentSizes);
+        Offset(margin.left + extraMargin.left, margin.top + extraMargin.top), componentSizes, legendOffset);
   }
 
   @override

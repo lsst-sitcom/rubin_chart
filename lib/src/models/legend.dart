@@ -22,7 +22,6 @@ enum LegendLocation {
 }
 
 /// The legend of a chart
-@immutable
 class Legend {
   /// The location of the legend.
   /// Unless [LegendLocation.floating] is used, the legend will be placed
@@ -31,7 +30,7 @@ class Legend {
 
   /// The offset of the legend from the top-left corner of the chart
   /// if [LegendLocation.floating] is used.
-  final Offset? offset;
+  Offset offset;
 
-  const Legend({this.location = LegendLocation.right, this.offset});
+  Legend({this.location = LegendLocation.right, this.offset = Offset.zero});
 }

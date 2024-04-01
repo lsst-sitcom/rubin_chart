@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
+import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
@@ -32,6 +33,8 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final List<ChartLayoutId> hiddenLabels = [];
   final List<AxisId> hiddenAxes = [];
   late SelectionController selectionController;
+  final Map<ChartInfo, Offset> _initialLegendOffsets = {};
+  Offset _cursorOffset = Offset.zero;
 
   @override
   void initState() {
@@ -189,6 +192,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
       }
     }
     List<Widget> children = [];
+    Map<ChartInfo, LegendViewer> legendViewers = {};
     for (ChartInfo? info in widget.children.expand((e) => e)) {
       if (info != null) {
         children.addAll(buildSingleChartChildren(
@@ -199,6 +203,36 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
           hidden: hiddenLabels,
           hiddenAxes: hiddenAxes,
         ));
+
+        if (info.legend != null) {
+          if (info.legend!.location == LegendLocation.floating) {
+            legendViewers[info] = buildLegendViewer(
+              info,
+              [],
+              info.id,
+            )!;
+          } else {
+            throw UnimplementedError("Only floating legends are supported for combined charts");
+          }
+          children.add(LayoutId(
+              id: legendViewers[info]!.layoutId,
+              child: GestureDetector(
+                onPanStart: (DragStartDetails details) {
+                  _initialLegendOffsets[info] = legendViewers[info]!.legend.offset;
+                  _cursorOffset = details.globalPosition;
+                },
+                onPanUpdate: (DragUpdateDetails details) {
+                  Offset offset = details.globalPosition - _cursorOffset + _initialLegendOffsets[info]!;
+                  legendViewers[info]!.legend.offset = offset;
+                  setState(() {});
+                },
+                onPanEnd: (DragEndDetails details) {
+                  _initialLegendOffsets.remove(info);
+                  _cursorOffset = Offset.zero;
+                },
+                child: legendViewers[info]!,
+              )));
+        }
       }
     }
 
@@ -207,6 +241,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         children: widget.children,
         rows: rows,
         columns: columns,
+        legendViewers: legendViewers,
       ),
       children: children,
     );
@@ -218,11 +253,13 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
   final List<List<ChartInfo?>> children;
   final List<List<ChartInfo>> rows;
   final List<List<ChartInfo>> columns;
+  final Map<ChartInfo, LegendViewer> legendViewers;
 
   CombinedChartLayoutDelegate({
     required this.children,
     required this.rows,
     required this.columns,
+    required this.legendViewers,
   });
 
   @override
@@ -249,6 +286,8 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
       if (hasChild(id)) {
         left = math.max(left, componentSizes[id]!.width);
       }
+      id = ChartLayoutId(ChartComponent.leftLegend, childInfo.id);
+      if (hasChild(id)) {}
     }
     for (ChartInfo childInfo in columns[columns.length - 1]) {
       ChartLayoutId id = ChartLayoutId(ChartComponent.rightAxis, childInfo.id);
@@ -302,7 +341,15 @@ class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLay
         ChartInfo? info = children[i][j];
         if (info != null) {
           Offset offset = Offset(offsetX, offsetY);
-          layoutSingleChart(info.id, Size(widths[j], heights[i]), offset, componentSizes);
+          ChartLayoutId legendId = ChartLayoutId(ChartComponent.floatingLegend, info.id);
+          Offset? legendOffset;
+          if (hasChild(legendId)) {
+            double legendWidth = legendViewers[info]!.legendSize.width;
+            double legendHeight = math.min(legendViewers[info]!.legendSize.height, heights[i]);
+            layoutChild(legendId, BoxConstraints.tight(Size(legendWidth, legendHeight)));
+            legendOffset = legendViewers[info]!.legend.offset;
+          }
+          layoutSingleChart(info.id, Size(widths[j], heights[i]), offset, componentSizes, legendOffset);
         }
         offsetX += widths[j];
       }

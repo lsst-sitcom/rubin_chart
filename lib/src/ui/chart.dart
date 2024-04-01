@@ -369,6 +369,8 @@ class RubinChart extends StatefulWidget {
 }
 
 mixin RubinChartMixin {
+  SelectionController? get selectionController;
+
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
     if (info.legend != null) {
       if (info.legend!.location == LegendLocation.left ||
@@ -382,6 +384,7 @@ mixin RubinChartMixin {
             theme: info.theme,
             seriesList: info.seriesList,
             layoutId: layoutId,
+            selectionController: selectionController,
           );
           return viewer;
         }
@@ -472,6 +475,8 @@ mixin RubinChartMixin {
 class RubinChartState extends State<RubinChart> with RubinChartMixin {
   Offset _initialLegendOffset = Offset.zero;
   Offset _cursorOffset = Offset.zero;
+  @override
+  SelectionController? get selectionController => widget.selectionController;
 
   @override
   Widget build(BuildContext context) {
@@ -490,6 +495,7 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
         children.add(LayoutId(
           id: legendViewer.layoutId,
           child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
             onPanStart: (DragStartDetails details) {
               _initialLegendOffset = legendViewer!.legend.offset;
               _cursorOffset = details.globalPosition;

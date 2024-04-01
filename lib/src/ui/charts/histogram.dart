@@ -654,8 +654,6 @@ class HistogramPainter extends CustomPainter {
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
-    double lastCount = 0;
-
     for (HistogramBins bins in allBins.values) {
       for (int i = 0; i < bins.bins.length; i++) {
         HistogramBin bin = bins.bins[i];
@@ -748,7 +746,6 @@ class HistogramPainter extends CustomPainter {
             paintEdge,
           );
         }*/
-        lastCount = bin.count.toDouble();
       }
     }
   }

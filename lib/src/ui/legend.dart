@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/legend.dart';
 import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
@@ -12,6 +12,7 @@ class LegendEntry extends StatelessWidget {
   final TextSpan textSpan;
   final Size rowSize;
   final ChartTheme theme;
+  final Series series;
 
   const LegendEntry({
     super.key,
@@ -19,6 +20,7 @@ class LegendEntry extends StatelessWidget {
     required this.textSpan,
     required this.rowSize,
     required this.theme,
+    required this.series,
   });
 
   static LegendEntry init({
@@ -26,6 +28,7 @@ class LegendEntry extends StatelessWidget {
     required Marker marker,
     required String label,
     required ChartTheme theme,
+    required Series series,
   }) {
     TextSpan textSpan = TextSpan(
       text: label,
@@ -42,6 +45,7 @@ class LegendEntry extends StatelessWidget {
       textSpan: textSpan,
       rowSize: rowSize,
       theme: theme,
+      series: series,
     );
   }
 
@@ -76,6 +80,7 @@ abstract class LegendViewer extends StatelessWidget {
   final List<LegendEntry> rows;
   final Size legendSize;
   final ChartLayoutId layoutId;
+  final SelectionController? selectionController;
 
   const LegendViewer({
     super.key,
@@ -84,6 +89,7 @@ abstract class LegendViewer extends StatelessWidget {
     required this.rows,
     required this.legendSize,
     required this.layoutId,
+    this.selectionController,
   });
 }
 
@@ -95,6 +101,7 @@ class VerticalLegendViewer extends LegendViewer {
     required super.rows,
     required super.legendSize,
     required super.layoutId,
+    super.selectionController,
   });
 
   static VerticalLegendViewer fromSeriesList({
@@ -103,6 +110,7 @@ class VerticalLegendViewer extends LegendViewer {
     required ChartTheme theme,
     required SeriesList seriesList,
     required ChartLayoutId layoutId,
+    SelectionController? selectionController,
   }) {
     List<LegendEntry> rows = [];
     double width = 0;
@@ -112,6 +120,7 @@ class VerticalLegendViewer extends LegendViewer {
         marker: seriesList.getMarker(i),
         label: seriesList.values[i].name ?? "Series $i",
         theme: theme,
+        series: seriesList.values[i],
       );
       rows.add(entry);
       width = math.max(width, entry.rowSize.width);
@@ -124,6 +133,7 @@ class VerticalLegendViewer extends LegendViewer {
       rows: rows,
       legendSize: Size(width, height),
       layoutId: layoutId,
+      selectionController: selectionController,
     );
   }
 
@@ -140,7 +150,13 @@ class VerticalLegendViewer extends LegendViewer {
       child: ListView.builder(
         itemCount: rows.length,
         itemBuilder: (BuildContext context, int index) {
-          return rows[index];
+          return InkWell(
+            onTap: () {
+              selectionController?.updateSelection(
+                  null, rows[index].series.data.data.values.first.keys.toSet());
+            },
+            child: rows[index],
+          );
         },
       ),
     );

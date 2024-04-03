@@ -219,6 +219,10 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   void initAxesAndBins() {
     _initAxes();
     _initBins();
+    for (BoxChartBox box in binContainers.values.first.bins.cast<BoxChartBox>()) {
+      print("${box.min}, ${box.quartile1}, ${box.median}, ${box.quartile3}, ${box.max}");
+      break;
+    }
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
+import 'package:rubin_chart/src/ui/charts/box.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 
 /// The different types of aggregation that can be used in a histogram.
@@ -460,6 +461,10 @@ class BinnedChartPainter extends CustomPainter {
         Color? edgeColor = bin.edgeColor;
         Paint? paintFill;
         Paint? paintEdge;
+        Paint paintWhisker = paintEdge ?? Paint()
+          ..color = Colors.black
+          ..strokeWidth = 2;
+
         if (fillColor != null) {
           if (selectedBins != null && !selectedBins!.containsBin(i)) {
             fillColor = fillColor.withOpacity(0.5);
@@ -471,6 +476,10 @@ class BinnedChartPainter extends CustomPainter {
             ..color = edgeColor
             ..strokeWidth = bin.edgeWidth
             ..style = PaintingStyle.stroke;
+        }
+
+        if (selectedBins != null && !selectedBins!.containsBin(i)) {
+          paintWhisker.color = paintWhisker.color.withOpacity(0.5);
         }
 
         if (binRect.overlaps(plotWindow)) {
@@ -537,6 +546,59 @@ class BinnedChartPainter extends CustomPainter {
             paintEdge,
           );
         }*/
+
+        if (bin is BoxChartBox) {
+          // Draw the whiskers
+          Offset minWhiskerStart;
+          Offset minWhiskerEnd;
+          Offset minSerifStart;
+          Offset minSerifEnd;
+          Offset maxWhiskerStart;
+          Offset maxWhiskerEnd;
+          Offset maxSerifStart;
+          Offset maxSerifEnd;
+          Offset medianStart;
+          Offset medianEnd;
+          if (mainAxisAlignment == AxisOrientation.horizontal) {
+            // Calculate the midpoint of the main axis.
+            // We use projections since the x scale might be non-linear.
+            minSerifStart = axes.doubleToPixel([bin.mainStart, bin.min], plotSize);
+            minSerifEnd = axes.doubleToPixel([bin.mainEnd, bin.min], plotSize);
+            double midpointPx = (minSerifEnd.dx + minSerifStart.dx) / 2;
+            double midpoint = axes.doubleFromPixel(Offset(midpointPx, minSerifStart.dy), plotSize)[0];
+            minWhiskerStart = Offset(midpointPx, minSerifStart.dy);
+            minWhiskerEnd = axes.doubleToPixel([midpoint, bin.quartile1], plotSize);
+
+            maxSerifStart = axes.doubleToPixel([bin.mainStart, bin.max], plotSize);
+            maxSerifEnd = axes.doubleToPixel([bin.mainEnd, bin.max], plotSize);
+            maxWhiskerStart = Offset(midpointPx, maxSerifStart.dy);
+            maxWhiskerEnd = axes.doubleToPixel([midpoint, bin.quartile3], plotSize);
+
+            medianStart = axes.doubleToPixel([bin.mainStart, bin.median], plotSize);
+            medianEnd = axes.doubleToPixel([bin.mainEnd, bin.median], plotSize);
+          } else {
+            minSerifStart = axes.doubleToPixel([bin.min, bin.mainStart], plotSize);
+            minSerifEnd = axes.doubleToPixel([bin.min, bin.mainEnd], plotSize);
+            double midpoint = minSerifEnd.dy - minSerifStart.dy;
+            midpoint = axes.doubleFromPixel(Offset(minSerifStart.dx, midpoint), plotSize)[1];
+            minWhiskerStart = Offset(minSerifStart.dx, midpoint);
+            minWhiskerEnd = axes.doubleToPixel([bin.quartile1, midpoint], plotSize);
+
+            maxSerifStart = axes.doubleToPixel([bin.max, bin.mainStart], plotSize);
+            maxSerifEnd = axes.doubleToPixel([bin.max, bin.mainEnd], plotSize);
+            maxWhiskerStart = Offset(maxSerifStart.dx, midpoint);
+            maxWhiskerEnd = axes.doubleToPixel([bin.quartile3, midpoint], plotSize);
+
+            medianStart = axes.doubleToPixel([bin.mainStart, bin.mean], plotSize);
+            medianEnd = axes.doubleToPixel([bin.mainEnd, bin.mean], plotSize);
+          }
+          canvas.drawLine(minSerifStart + offset, minSerifEnd + offset, paintWhisker);
+          canvas.drawLine(maxSerifStart + offset, maxSerifEnd + offset, paintWhisker);
+          canvas.drawLine(minWhiskerStart + offset, minWhiskerEnd + offset, paintWhisker);
+          canvas.drawLine(maxWhiskerStart + offset, maxWhiskerEnd + offset, paintWhisker);
+          canvas.drawLine(medianStart + offset, medianEnd + offset,
+              paintWhisker..strokeWidth = paintWhisker.strokeWidth * 1.5);
+        }
       }
     }
   }

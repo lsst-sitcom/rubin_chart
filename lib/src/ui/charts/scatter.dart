@@ -78,7 +78,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// The axes of the chart.
   @override
-  Map<Object, ChartAxes> get axes => _axes;
+  Map<Object, ChartAxes> get allAxes => _axes;
 
   /// The axes of the chart.
   final Map<Object, ChartAxes> _axes = {};

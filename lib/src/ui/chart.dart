@@ -106,7 +106,7 @@ mixin ChartMixin<T extends StatefulWidget> on State<T> {
   SeriesList get seriesList;
 
   /// The axes of the chart.
-  Map<Object, ChartAxes> get axes;
+  Map<Object, ChartAxes> get allAxes;
 
   /// The selected (and highlighted) data points.
   Set<Object> selectedDataPoints = {};
@@ -152,7 +152,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Scale an axis, or both axes.
   void onScale(PointerScaleEvent event, AxisPainter axisPainter) {
-    for (ChartAxes axes in this.axes.values) {
+    for (ChartAxes axes in this.allAxes.values) {
       if (scaleShiftKey == null) {
         axes.scale(event.scale, event.scale, axisPainter.chartSize);
       } else if (scaleShiftKey == LogicalKeyboardKey.keyX) {
@@ -169,7 +169,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
     Size chartSize = axisPainter.chartSize;
     if (isShiftKey(scaleShiftKey)) {
-      for (ChartAxes axes in axes.values) {
+      for (ChartAxes axes in allAxes.values) {
         axes.scale(
           1 - event.scrollDelta.dx / chartSize.width,
           1 + event.scrollDelta.dy / chartSize.height,
@@ -177,7 +177,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
         );
       }
     } else {
-      for (ChartAxes axes in axes.values) {
+      for (ChartAxes axes in allAxes.values) {
         axes.translate(event.scrollDelta, chartSize);
       }
     }

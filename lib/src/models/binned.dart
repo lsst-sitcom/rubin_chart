@@ -1,8 +1,12 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
+import 'package:rubin_chart/src/models/marker.dart';
 import 'package:rubin_chart/src/models/series.dart';
+import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
+import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 
 /// The different types of aggregation that can be used in a histogram.
 enum BinAggregationType {
@@ -165,7 +169,7 @@ class BinnedChartInfo extends ChartInfo {
   }) : assert(nBins != null || edges != null);
 }
 
-class BinnedChart extends StatefulWidget {
+abstract class BinnedChart extends StatefulWidget {
   final BinnedChartInfo info;
   final SelectionController? selectionController;
   final Map<AxisId, AxisController> axisControllers;
@@ -182,25 +186,14 @@ class BinnedChart extends StatefulWidget {
   });
 
   @override
-  BinnedChartState createState() => BinnedChartState();
-
-  static Widget builder({
-    required ChartInfo info,
-    Map<AxisId, AxisController>? axisControllers,
-    SelectionController? selectionController,
-    List<AxisId>? hiddenAxes,
-  }) {
-    return BinnedChart(
-      info: info as BinnedChartInfo,
-      selectionController: selectionController,
-      axisControllers: axisControllers ?? {},
-      hiddenAxes: hiddenAxes ?? [],
-    );
-  }
+  BinnedChartState createState();
 }
 
-abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scrollable2DChartMixin {
+abstract class BinnedChartState<T extends BinnedChart> extends State<T>
+    with ChartMixin, Scrollable2DChartMixin {
   AxisOrientation get mainAxisAlignment;
+
+  BinnedChartInfo get info;
 
   @override
   SeriesList get seriesList => SeriesList(
@@ -210,12 +203,12 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
 
   /// The axes of the chart.
   @override
-  Map<Object, ChartAxes> get axes => _axes;
+  Map<Object, ChartAxes> get allAxes => _axes;
 
   /// The axes of the chart.
   final Map<Object, ChartAxes> _axes = {};
 
-  final Map<BigInt, BinnedDataContainer> _binContainers = {};
+  final Map<BigInt, BinnedDataContainer> binContainers = {};
 
   SelectedBinRange? selectedBins;
 
@@ -224,9 +217,9 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
   late AxisLocation baseLocation;
 
   @override
-  void didUpdateWidget(BinnedChart oldWidget) {
+  void didUpdateWidget(T oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _initBins();
+    updateAxesAndBins();
   }
 
   @override
@@ -247,104 +240,9 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
     initAxesAndBins();
   }
 
-  void initAxesAndBins() {
-    _initAxes();
-    _initBins();
-  }
+  void initAxesAndBins();
 
-  void _initAxes() {
-    // Populate the axis controllers
-    axisControllers.addAll(widget.axisControllers.values);
-
-    // Initialize the axes
-    _axes.addAll(widget.info.initializeAxes());
-
-    // Initialize the axis controllers
-    for (ChartAxes axes in _axes.values) {
-      for (ChartAxis axis in axes.axes.values) {
-        if (widget.axisControllers.containsKey(axis.info.axisId)) {
-          axis.controller = widget.axisControllers[axis.info.axisId];
-        }
-        if (widget.hiddenAxes.contains(axis.info.axisId)) {
-          axis.showLabels = false;
-        }
-      }
-    }
-
-    // Subscribe to the axis controllers
-    for (ChartAxes axes in _axes.values) {
-      for (ChartAxis axis in axes.axes.values) {
-        if (widget.axisControllers.containsKey(axis.info.axisId)) {
-          widget.axisControllers[axis.info.axisId]!
-              .subscribe(({Bounds<double>? bounds, AxisTicks? ticks, ChartAxisInfo? info}) {
-            axis.update(bounds: bounds, ticks: ticks, info: info, state: this);
-            setState(() {});
-          });
-        }
-      }
-    }
-  }
-
-  void _initBins() {
-    // Clear the parameters
-    _binContainers.clear();
-
-    ChartAxis mainAxis;
-    int mainCoordIdx;
-    if (widget.info.mainAxisAlignment == AxisOrientation.horizontal) {
-      mainAxis = _axes.values.first.axes.values.first;
-      mainCoordIdx = 0;
-    } else {
-      mainAxis = _axes.values.first.axes.values.last;
-      mainCoordIdx = 1;
-    }
-    ChartAxes axes = _axes.values.first;
-
-    // Calculate the edges for the bins
-    List<double> edges = [];
-    if (widget.info.edges != null) {
-      edges.addAll(widget.info.edges!);
-    } else {
-      double binWidth = 1 / widget.info.nBins!;
-      for (int i = 0; i < widget.info.nBins!; i++) {
-        List<double> coords =
-            axes.doubleFromPixel(Offset(i * binWidth, (i + 1) * binWidth), const Size(1, 1));
-        edges.add(coords[mainCoordIdx]);
-      }
-
-      if (mainAxis.info.isInverted) {
-        edges = edges.reversed.toList();
-      }
-    }
-
-    // Create the bins
-    for (int i = 0; i < widget.info.allSeries.length; i++) {
-      Series series = widget.info.allSeries[i];
-      _binContainers[series.id] = BinnedDataContainer(
-        bins: List.generate(edges.length - 1, (j) {
-          return BoxChartBox(
-            mainAxisAlignment: mainAxisAlignment,
-            mainStart: edges[j],
-            mainEnd: edges[j + 1],
-            data: {},
-            fillColor:
-                series.marker?.color ?? widget.info.theme.colorCycle[i % widget.info.theme.colorCycle.length],
-            edgeColor: series.marker?.edgeColor,
-            edgeWidth: (series.marker?.size ?? 10) / 10,
-          );
-        }),
-      );
-      Map<Object, List<dynamic>> data = {};
-      List<Object> dataIds = series.data.data.values.first.keys.toList();
-      for (int i = 0; i < series.data.length; i++) {
-        data[dataIds[i]] = series.data.getRow(i);
-      }
-      for (MapEntry<Object, dynamic> entry in data.entries) {
-        List<double> coords = axes.dataToDouble(entry.value);
-        _binContainers[series.id]!.insert(entry.key, coords);
-      }
-    }
-  }
+  void updateAxesAndBins();
 
   @override
   Widget build(BuildContext context) {
@@ -365,11 +263,11 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
       children.add(
         Positioned.fill(
           child: CustomPaint(
-            painter: BoxChartPainter(
+            painter: BinnedChartPainter(
               mainAxisAlignment: mainAxisAlignment,
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
-              binContainers: _binContainers,
+              binContainers: binContainers,
               selectedBins: selectedBins,
               tickLabelMargin: EdgeInsets.only(
                 left: axisPainter.margin.left + axisPainter.tickPadding,
@@ -457,7 +355,7 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
         }
       }
       if (selectedBins != null) {
-        selectedDataPoints = selectedBins!.getSelectedDataIds(_binContainers);
+        selectedDataPoints = selectedBins!.getSelectedDataIds(binContainers);
       }
     } else {
       selectedBins = null;
@@ -471,7 +369,7 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
     // Call the selection callback if available
     if (widget.info.onSelection != null) {
       widget.info.onSelection!(
-          details: BinnedSelectionDetails(selectedBins?.getBins(_binContainers) ?? [], selectedDataPoints));
+          details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
     }
 
     setState(() {});
@@ -488,7 +386,7 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
     ChartAxes axes = _axes.values.first;
 
-    for (MapEntry<BigInt, BinnedDataContainer> entry in _binContainers.entries) {
+    for (MapEntry<BigInt, BinnedDataContainer> entry in binContainers.entries) {
       BigInt seriesIndex = entry.key;
       BinnedDataContainer bins = entry.value;
       for (int i = 0; i < bins.bins.length; i++) {
@@ -505,5 +403,147 @@ abstract class BinnedChartState extends State<BinnedChart> with ChartMixin, Scro
       }
     }
     return null;
+  }
+}
+
+/// A painter for a collection of histograms.
+class BinnedChartPainter extends CustomPainter {
+  /// The axes of the plot, used to project the markers onto the plot.
+  final ChartAxes axes;
+
+  /// The bins to draw
+  final Map<BigInt, BinnedDataContainer> binContainers;
+
+  /// The error bar style used for the series.
+  final ErrorBars? errorBars;
+
+  /// Offset from the lower left to make room for labels.
+  final EdgeInsets tickLabelMargin;
+
+  /// (Optional) selected bin
+  final SelectedBinRange? selectedBins;
+
+  /// Orientation of the main axis
+  final AxisOrientation mainAxisAlignment;
+
+  BinnedChartPainter({
+    required this.axes,
+    required this.mainAxisAlignment,
+    required this.errorBars,
+    required this.binContainers,
+    required this.selectedBins,
+    this.tickLabelMargin = EdgeInsets.zero,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Calculate the projection used for all points in the series
+    Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
+        size.height - tickLabelMargin.top - tickLabelMargin.bottom);
+    Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
+    Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
+
+    // Since all of the objects in the series use the same marker style,
+    // we can calculate the [Paint] objects once and reuse them.
+    for (BinnedDataContainer bins in binContainers.values) {
+      for (int i = 0; i < bins.bins.length; i++) {
+        BinnedData bin = bins.bins[i];
+        Rect binRect = bin.rectToPixel(
+          axes: axes,
+          chartSize: plotSize,
+          offset: offset,
+          mainAxisAlignment: mainAxisAlignment,
+        );
+
+        // Create the painters for the edge and fill of the bin
+        Color? fillColor = bin.fillColor;
+        Color? edgeColor = bin.edgeColor;
+        Paint? paintFill;
+        Paint? paintEdge;
+        if (fillColor != null) {
+          if (selectedBins != null && !selectedBins!.containsBin(i)) {
+            fillColor = fillColor.withOpacity(0.5);
+          }
+          paintFill = Paint()..color = fillColor;
+        }
+        if (edgeColor != null) {
+          paintEdge = Paint()
+            ..color = edgeColor
+            ..strokeWidth = bin.edgeWidth
+            ..style = PaintingStyle.stroke;
+        }
+
+        if (binRect.overlaps(plotWindow)) {
+          // Paint the bin
+          if (paintFill != null) {
+            Rect overlap = binRect.intersect(plotWindow);
+            canvas.drawRect(
+              overlap,
+              paintFill,
+            );
+          }
+          // Paint the outline
+          if (paintEdge != null) {
+            /*AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
+            double bin0 = crossTransform.map(0) + crossOffset;
+            double clippedBin0 = math.max(bin0, plotWindow.top);
+
+            // Calculate the pixel coordinates of the bin
+            double mainStart = mainTransform.map(bin.start) + mainOffset;
+            double mainEnd = mainTransform.map(bin.end) + mainOffset;
+            double lastCrossEnd = crossTransform.map(lastCount) + crossOffset;
+            double crossEnd = crossTransform.map(bin.count) + crossOffset;
+
+            // Clip the outline to the plot window
+            double clippedMainStart = math.max(mainStart, alignedPlotWindow.mainStart);
+            double clippedMainEnd = math.min(mainEnd, alignedPlotWindow.mainEnd);
+            double clippedLastCrossEnd = math.max(lastCrossEnd, alignedPlotWindow.crossStart);
+            double clippedCrossEnd = math.min(crossEnd, alignedPlotWindow.crossEnd);
+            // Draw the minimum bin side
+            if (alignedPlotWindow.inMain(mainStart)) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(mainStart, clippedLastCrossEnd),
+                alignedPlotWindow.getOffset(mainStart, clippedCrossEnd),
+                paintEdge,
+              );
+            }
+            // Draw the top/bottom
+            if (alignedPlotWindow.inCross(crossEnd)) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(clippedMainStart, crossEnd),
+                alignedPlotWindow.getOffset(clippedMainEnd, crossEnd),
+                paintEdge,
+              );
+            }
+
+            // Draw the maximum bin side
+            double nextCount = i < bins.bins.length - 1 ? bins.bins[i + 1].count.toDouble() : 0;
+            if (i == bins.bins.length - 1 && alignedPlotWindow.inMain(mainEnd) || nextCount == 0) {
+              canvas.drawLine(
+                alignedPlotWindow.getOffset(mainEnd, clippedCrossEnd),
+                alignedPlotWindow.getOffset(mainEnd, clippedBin0),
+                paintEdge,
+              );
+            }*/
+          }
+        }
+        // Draw the bottom of the bins
+        /*if (alignedPlotWindow.inCross(bin0) && paintEdge != null) {
+          double clippedMin = math.max(mainMin, alignedPlotWindow.mainStart);
+          double clippedMax = math.min(mainMax, alignedPlotWindow.mainEnd);
+          canvas.drawLine(
+            alignedPlotWindow.getOffset(clippedMin, bin0),
+            alignedPlotWindow.getOffset(clippedMax, bin0),
+            paintEdge,
+          );
+        }*/
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    // TODO: imporve repaint logic
+    return true;
   }
 }

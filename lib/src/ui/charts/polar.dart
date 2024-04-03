@@ -200,8 +200,6 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
 
         Bounds<double> bounds = const Bounds<double>(0, 2 * math.pi);
         AxisTicks ticks = AxisTicks(
-          //stepSize: math.pi / 4,
-          stepSize: NiceNumber(0, 1, 1),
           bounds: bounds,
           ticks: List.generate(9, (index) => index * 45),
           tickLabels: tickLabels,

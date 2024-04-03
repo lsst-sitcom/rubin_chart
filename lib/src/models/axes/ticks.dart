@@ -1,4 +1,5 @@
 import "dart:math";
+import "package:rubin_chart/src/models/axes/mapping.dart";
 import "package:rubin_chart/src/utils/utils.dart";
 
 /// Convert a [DateTime] to a modified julian date (MJD).
@@ -203,8 +204,6 @@ NiceNumber _getStepSize<T extends num>(T min, T max, int minTicks, int maxTicks,
 /// A class for calculating ticks for an axis.
 class AxisTicks {
   /// The step size between ticks
-  final NiceNumber stepSize;
-
   /// The ticks
   final List<double> ticks;
 
@@ -214,14 +213,14 @@ class AxisTicks {
   final List<String> tickLabels;
 
   AxisTicks({
-    required this.stepSize,
     required this.ticks,
     required this.bounds,
     required this.tickLabels,
   });
 
   /// Generate tick marks for a range of numbers.
-  static AxisTicks fromBounds(Bounds<num> bounds, int minTicks, int maxTicks, bool encloseBounds) {
+  static AxisTicks fromBounds(
+      Bounds<num> bounds, int minTicks, int maxTicks, bool encloseBounds, Mapping mapping) {
     double min = bounds.min.toDouble();
     double max = bounds.max.toDouble();
 
@@ -247,7 +246,6 @@ class AxisTicks {
     List<String> tickLabels = ticks.map((e) => e.toStringAsFixed(stepSize.power.abs())).toList();
 
     return AxisTicks(
-      stepSize: stepSize,
       ticks: ticks,
       bounds: Bounds(ticks.first, ticks.last),
       tickLabels: tickLabels,
@@ -257,7 +255,6 @@ class AxisTicks {
   static AxisTicks fromStrings(List<String> tickLabels) {
     List<double> ticks = List.generate(tickLabels.length, (index) => index.toDouble());
     return AxisTicks(
-      stepSize: NiceNumber(0, 1, 1),
       ticks: ticks,
       bounds: Bounds(ticks.first, ticks.last),
       tickLabels: tickLabels,

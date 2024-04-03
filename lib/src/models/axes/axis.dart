@@ -268,7 +268,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     bool showTicks = true,
     bool showLabels = true,
   }) {
-    AxisTicks ticks = AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
+    AxisTicks ticks = AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false, axisInfo.mapping);
     return NumericalChartAxis(
       bounds: bounds,
       dataBounds: bounds,
@@ -338,7 +338,8 @@ class NumericalChartAxis extends ChartAxis<double> {
       max = math.max(max, bounds.max.toDouble());
     }
     Bounds<double> dataBounds = Bounds(min, max);
-    AxisTicks ticks = AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true);
+    AxisTicks ticks =
+        AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true, axisInfo.mapping);
     min = math.min(min, ticks.bounds.min.toDouble());
     max = math.max(max, ticks.bounds.max.toDouble());
 
@@ -371,7 +372,7 @@ class NumericalChartAxis extends ChartAxis<double> {
 
   @override
   AxisTicks _updateTicks(Bounds<double> bounds) {
-    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
+    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false, info.mapping);
   }
 
   @override
@@ -450,7 +451,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     bool showTicks = true,
   }) {
     Bounds<double> doubleBounds = Bounds(dateTimeToMjd(bounds.min), dateTimeToMjd(bounds.max));
-    AxisTicks ticks = AxisTicks.fromBounds(doubleBounds, theme.minTicks, theme.maxTicks, false);
+    AxisTicks ticks =
+        AxisTicks.fromBounds(doubleBounds, theme.minTicks, theme.maxTicks, false, axisInfo.mapping);
     return DateTimeChartAxis._(
       info: axisInfo,
       bounds: doubleBounds,
@@ -478,7 +480,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     double doubleMin = dateTimeToMjd(min);
     double doubleMax = dateTimeToMjd(max);
     Bounds<double> dataBounds = Bounds(doubleMin, doubleMax);
-    AxisTicks ticks = AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true);
+    AxisTicks ticks =
+        AxisTicks.fromBounds(dataBounds, theme.minTicks, theme.maxTicks, true, axisInfo.mapping);
     doubleMin = math.min(doubleMin, ticks.bounds.min.toDouble());
     doubleMax = math.max(doubleMax, ticks.bounds.max.toDouble());
     Bounds<double> bounds = Bounds(doubleMin, doubleMax);
@@ -579,7 +582,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     /*DateTime minDate = mjdToDateTime(bounds.min);
     DateTime maxDate = mjdToDateTime(bounds.max);
     return AxisTicks.fromDateTime(minDate, maxDate, theme.minTicks, theme.maxTicks, true);*/
-    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
+    return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false, info.mapping);
   }
 }
 

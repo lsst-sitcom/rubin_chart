@@ -5,12 +5,14 @@ export 'src/models/axes/axes.dart';
 export 'src/models/axes/mapping.dart';
 export 'src/models/axes/ticks.dart';
 
+export 'src/models/binned.dart';
 export 'src/models/legend.dart';
 export 'src/models/marker.dart';
 export 'src/models/series.dart';
 
 export 'src/theme/theme.dart';
 
+export 'src/ui/charts/box.dart';
 export 'src/ui/charts/cartesian.dart';
 export 'src/ui/charts/combined.dart';
 export 'src/ui/charts/histogram.dart';

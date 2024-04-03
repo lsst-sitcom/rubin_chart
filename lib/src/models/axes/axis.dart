@@ -373,6 +373,9 @@ class NumericalChartAxis extends ChartAxis<double> {
   AxisTicks _updateTicks(Bounds<double> bounds) {
     return AxisTicks.fromBounds(bounds, theme.minTicks, theme.maxTicks, false);
   }
+
+  @override
+  String toString() => "NumericalChartAxis<${info.axisId}: $_bounds>";
 }
 
 class StringChartAxis extends ChartAxis<String> {

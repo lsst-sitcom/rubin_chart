@@ -13,11 +13,11 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
-/// A single bin in a histogram.
-class HistogramBin extends BinnedData {
+/// A single box in a [BoxChart], with whiskers for min/max and the mean and median.
+class BoxChartBox extends BinnedData {
   AxisOrientation mainAxisAlignment;
 
-  HistogramBin({
+  BoxChartBox({
     required super.data,
     required super.mainStart,
     required super.mainEnd,
@@ -27,19 +27,95 @@ class HistogramBin extends BinnedData {
     required this.mainAxisAlignment,
   });
 
-  @override
-  String toString() {
-    return "HistogramBin(start: $mainStart, end: $mainEnd, count: $count)";
+  /// The data in the box sorted by value.
+  final List<MapEntry<Object, double>> _sortedCrossAxisData = [];
+
+  /// Empty the sorted data list.
+  void empty() => _sortedCrossAxisData.clear();
+
+  // Efficiently find the insertion index using binary search
+  int _findInsertionIndex(double value) {
+    int min = 0;
+    int max = _sortedCrossAxisData.length;
+    while (min < max) {
+      int mid = min + ((max - min) >> 1);
+      if (_sortedCrossAxisData[mid].value < value) {
+        min = mid + 1;
+      } else {
+        max = mid;
+      }
+    }
+    return min;
   }
 
+  /// Get the cross-axis entry from the data.
+  double getCrossEntry(List<double> data) {
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      return data[1];
+    } else {
+      return data[0];
+    }
+  }
+
+  /// Get the minimum value from the sorted data list.
+  double get min => _sortedCrossAxisData.first.value;
+
+  /// Get the maximum value from the sorted data list.
+  double get max => _sortedCrossAxisData.last.value;
+
+  /// Get the mean value from the sorted data list.
+  double get mean {
+    final sum = _sortedCrossAxisData.fold<double>(0, (prev, element) => prev + element.value);
+    return sum / _sortedCrossAxisData.length;
+  }
+
+  /// Get the median value from the sorted data list.
+  double get median => _percentile(50);
+
+  /// Get the first quartile value from the sorted data list.
+  double get quartile1 => _percentile(25);
+
+  /// Get the third quartile value from the sorted data list.
+  double get quartile3 => _percentile(75);
+
+  /// Get the number of data points in the box.
+  int get count => _sortedCrossAxisData.length;
+
+  double _percentile(int percentile) {
+    if (_sortedCrossAxisData.isEmpty) return 0.0;
+    double position = (percentile / 100) * (_sortedCrossAxisData.length - 1) + 1;
+    int index = position.toInt() - 1;
+    double fraction = position - (index + 1);
+    if (index + 1 >= _sortedCrossAxisData.length) return _sortedCrossAxisData.last.value;
+    return _sortedCrossAxisData[index].value +
+        fraction * (_sortedCrossAxisData[index + 1].value - _sortedCrossAxisData[index].value);
+  }
+
+  /// Get the data IDs in the box.
+  Set<Object> get dataIds => _sortedCrossAxisData.map((e) => e.key).toSet();
+
+  /// Get the sorted data list.
+  List<MapEntry<Object, double>> get sortedCrossAxisData => [..._sortedCrossAxisData];
+
+  List<MapEntry<Object, double>> inRange(double start, double end) {
+    return _sortedCrossAxisData.where((element) => start <= element.value && element.value < end).toList();
+  }
+
+  /// Insert a key-value pair to the sorted data list.
   @override
-  void insert(Object dataId, List<double> data) {
-    this.data[dataId] = data;
+  void insert(Object key, List<double> value) {
+    MapEntry<Object, double> entry = MapEntry(key, getCrossEntry(value));
+    int index = _findInsertionIndex(entry.value);
+    _sortedCrossAxisData.insert(index, entry);
   }
 
   @override
   bool contains(List<double> data) {
-    return data[0] >= mainStart && data[0] < mainEnd;
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      return mainStart <= data[0] && data[0] < mainEnd;
+    } else {
+      return mainStart <= data[1] && data[1] < mainEnd;
+    }
   }
 
   /// Convert the bounds of a bin to a [Rect] in pixel coordinates.
@@ -57,11 +133,11 @@ class HistogramBin extends BinnedData {
     if (mainAxisAlignment == AxisOrientation.horizontal) {
       x0 = mainStart;
       xf = mainEnd;
-      y0 = 0;
-      yf = count.toDouble();
+      y0 = quartile1;
+      yf = quartile3;
     } else {
-      x0 = 0;
-      xf = count.toDouble();
+      x0 = quartile1;
+      xf = quartile3;
       y0 = mainStart;
       yf = mainEnd;
     }
@@ -73,8 +149,10 @@ class HistogramBin extends BinnedData {
 
 /// Information for a histogram chart
 @immutable
-class HistogramInfo extends BinnedChartInfo {
-  HistogramInfo({
+class BoxChartInfo extends BinnedChartInfo {
+  final AxisOrientation mainAxisAlignment;
+
+  BoxChartInfo({
     required super.id,
     required super.allSeries,
     super.title,
@@ -90,17 +168,25 @@ class HistogramInfo extends BinnedChartInfo {
     super.doFill = true,
     super.edges,
     super.onSelection,
+    this.mainAxisAlignment = AxisOrientation.horizontal,
   })  : assert(nBins != null || edges != null),
-        super(builder: Histogram.builder);
+        super(builder: BoxChart.builder);
+
+  Map<Object, ChartAxes> initializeAxes() => initializeSimpleAxes(
+        seriesList: allSeries,
+        axisInfo: axisInfo,
+        theme: theme,
+        axesInitializer: CartesianChartAxes.fromAxes,
+      );
 }
 
-class Histogram extends StatefulWidget {
-  final HistogramInfo info;
+class BoxChart extends StatefulWidget {
+  final BoxChartInfo info;
   final SelectionController? selectionController;
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
 
-  const Histogram({
+  const BoxChart({
     super.key,
     required this.info,
     this.selectionController,
@@ -109,7 +195,7 @@ class Histogram extends StatefulWidget {
   });
 
   @override
-  HistogramState createState() => HistogramState();
+  BoxChartState createState() => BoxChartState();
 
   static Widget builder({
     required ChartInfo info,
@@ -117,8 +203,8 @@ class Histogram extends StatefulWidget {
     SelectionController? selectionController,
     List<AxisId>? hiddenAxes,
   }) {
-    return Histogram(
-      info: info as HistogramInfo,
+    return BoxChart(
+      info: info as BoxChartInfo,
       selectionController: selectionController,
       axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
@@ -126,7 +212,7 @@ class Histogram extends StatefulWidget {
   }
 }
 
-class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChartMixin {
+class BoxChartState extends State<BoxChart> with ChartMixin, Scrollable2DChartMixin {
   @override
   SeriesList get seriesList => SeriesList(
         widget.info.allSeries,
@@ -148,12 +234,12 @@ class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChart
   /// This is used to determine the orientation and layout of the histogram.
   late AxisLocation baseLocation;
 
-  late AxisOrientation mainAxisAlignment;
+  AxisOrientation get mainAxisAlignment => widget.info.mainAxisAlignment;
 
   @override
-  void didUpdateWidget(Histogram oldWidget) {
+  void didUpdateWidget(BoxChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _initAxesAndBins();
+    _initBins();
   }
 
   @override
@@ -171,201 +257,27 @@ class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChart
     }
 
     // Initialize the axes and bins
-    _initAxesAndBins();
+    _initAxes();
+    _initBins();
   }
 
-  void _initAxesAndBins() {
-    // Clear the parameters
-    axisControllers.clear();
-    _binContainers.clear();
-    _axes.clear();
-
-    // Add the axis controllers
+  void _initAxes() {
+    // Populate the axis controllers
     axisControllers.addAll(widget.axisControllers.values);
 
-    // Get the actual bounds for the bins and main axis
-    List<Series> allSeries = widget.info.allSeries;
-    if (allSeries.isEmpty) {
-      throw UnimplementedError('Histograms must have at least one series for now');
-    }
-    double min = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).min;
-    double max = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).max;
-    List<List<String>> uniqueValues = [];
-    for (Series series in allSeries) {
-      if (series.data.plotColumns.length != 1) {
-        throw ChartInitializationException('Histograms must have exactly one data column');
-      }
-      Bounds<double> bounds = series.data.calculateBounds(series.data.plotColumns.values.first);
-      min = math.min(min, bounds.min);
-      max = math.max(max, bounds.max);
-      if (series.data.columnTypes[series.data.plotColumns.values.first] == ColumnDataType.string) {
-        uniqueValues
-            .add(series.data.data[series.data.plotColumns.values.first]!.values.cast<String>().toList());
-      }
-    }
+    // Initialize the axes
+    _axes.addAll(widget.info.initializeAxes());
 
-    // Initialize the main axis based on the [SeriesData].
-    ChartAxis mainAxis;
-    AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
-    ChartAxisInfo mainAxisInfo = widget.info.axisInfo[mainAxisId]!;
-    if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
-        ColumnDataType.datetime) {
-      mainAxis = DateTimeChartAxis.fromBounds(
-        boundsList: [Bounds(min, max)],
-        axisInfo: mainAxisInfo,
-        theme: widget.info.theme,
-      );
-    } else if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
-        ColumnDataType.number) {
-      mainAxis = NumericalChartAxis.fromBounds(
-        boundsList: [Bounds(min, max)],
-        axisInfo: mainAxisInfo,
-        theme: widget.info.theme,
-      );
-    } else if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
-        ColumnDataType.string) {
-      mainAxis = StringChartAxis.fromData(
-        data: uniqueValues,
-        axisInfo: mainAxisInfo,
-        theme: widget.info.theme,
-      );
-    } else {
-      throw ChartInitializationException(
-          'Unable to determine column type for ${allSeries.first.data.plotColumns.values.first}');
-    }
-    baseLocation = mainAxis.info.axisId.location;
-    if (baseLocation == AxisLocation.left || baseLocation == AxisLocation.right) {
-      mainAxisAlignment = AxisOrientation.vertical;
-    } else if (baseLocation == AxisLocation.top || baseLocation == AxisLocation.bottom) {
-      mainAxisAlignment = AxisOrientation.horizontal;
-    } else if (baseLocation == AxisLocation.angular || baseLocation == AxisLocation.radial) {
-      throw UnimplementedError('Polar histograms are not yet supported');
-    } else {
-      throw ChartInitializationException('Invalid histogram axis location');
-    }
-
-    // Calculate the edges for the bins
-    List<double> edges = [];
-    if (widget.info.edges != null) {
-      edges.addAll(widget.info.edges!);
-    } else {
-      if (widget.info.nBins == null) {
-        throw Exception('Either nBins or edges must be provided');
-      }
-      // Create bins using the correct mapping to give the bins equal width in the image.
-      // If a non-linear scaling is used, such as log scaling, that will be accounted
-      // for in the bin edges.
-
-      // We need x and y axes to create [ChartAxes], so we create a dummy Y axis.
-      AxisId dummyAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
-      int coordIdx = 0;
-      if (mainAxisAlignment == AxisOrientation.vertical) {
-        dummyAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
-        coordIdx = 1;
-      }
-      ChartAxis dummyAxis = NumericalChartAxis.fromBounds(
-        boundsList: [const Bounds(0, 1)],
-        axisInfo: ChartAxisInfo(label: "dummy", axisId: dummyAxisId),
-        theme: widget.info.theme,
-      );
-      ChartAxes axes =
-          CartesianChartAxes.fromAxes(axes: {mainAxis.info.axisId: mainAxis, dummyAxisId: dummyAxis});
-      double binWidth = 1 / widget.info.nBins!;
-      for (int i = 0; i < widget.info.nBins!; i++) {
-        List<double> coords =
-            axes.doubleFromPixel(Offset(i * binWidth, (i + 1) * binWidth), const Size(1, 1));
-        edges.add(coords[coordIdx]);
-      }
-
-      if (mainAxisInfo.isInverted) {
-        edges = edges.reversed.toList();
-      }
-    }
-
-    // Create the bins
-    for (int i = 0; i < widget.info.allSeries.length; i++) {
-      Series series = widget.info.allSeries[i];
-      _binContainers[series.id] = BinnedDataContainer(
-        bins: List.generate(edges.length - 1, (j) {
-          return HistogramBin(
-            mainAxisAlignment: mainAxisAlignment,
-            mainStart: edges[j],
-            mainEnd: edges[j + 1],
-            data: {},
-            fillColor:
-                series.marker?.color ?? widget.info.theme.colorCycle[i % widget.info.theme.colorCycle.length],
-            edgeColor: series.marker?.edgeColor,
-            edgeWidth: (series.marker?.size ?? 10) / 10,
-          );
-        }),
-      );
-      Map<Object, dynamic> data = series.data.data[series.data.plotColumns.values.first]!;
-      for (MapEntry<Object, dynamic> entry in data.entries) {
-        _binContainers[series.id]!.insert(entry.key, [mainAxis.toDouble(entry.value)]);
-      }
-    }
-
-    // Create the cross-axis
-    final maxCount = _binContainers.values
-        .expand((histogramBins) => histogramBins.bins)
-        .map((bin) => (bin as HistogramBin).count)
-        .reduce((a, b) => a > b ? a : b);
-    ChartAxisInfo? crossAxisInfo;
-    for (AxisId id in widget.info.axisInfo.keys) {
-      if (mainAxisAlignment == AxisOrientation.horizontal) {
-        if (id.location == AxisLocation.left || id.location == AxisLocation.right) {
-          crossAxisInfo = widget.info.axisInfo[id];
-          break;
+    // Initialize the axis controllers
+    for (ChartAxes axes in _axes.values) {
+      for (ChartAxis axis in axes.axes.values) {
+        if (widget.axisControllers.containsKey(axis.info.axisId)) {
+          axis.controller = widget.axisControllers[axis.info.axisId];
         }
-      } else if (mainAxisAlignment == AxisOrientation.vertical) {
-        if (id.location == AxisLocation.top || id.location == AxisLocation.bottom) {
-          crossAxisInfo = widget.info.axisInfo[id];
-          break;
+        if (widget.hiddenAxes.contains(axis.info.axisId)) {
+          axis.showLabels = false;
         }
       }
-    }
-    if (crossAxisInfo == null) {
-      AxisId crossAxisId;
-      if (mainAxisAlignment == AxisOrientation.vertical) {
-        crossAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
-      } else if (mainAxisAlignment == AxisOrientation.horizontal) {
-        crossAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
-      } else {
-        throw UnimplementedError('Polar histograms are not yet supported');
-      }
-      crossAxisInfo = ChartAxisInfo(
-        label: "count",
-        axisId: crossAxisId,
-        isInverted: mainAxisAlignment == AxisOrientation.horizontal,
-      );
-    }
-    NumericalChartAxis crossAxis = NumericalChartAxis.fromBounds(
-      boundsList: [Bounds(0, maxCount.toDouble())],
-      axisInfo: crossAxisInfo,
-      theme: widget.info.theme,
-    );
-
-    // Create the [ChartAxes].
-    if (mainAxisAlignment == AxisOrientation.horizontal) {
-      _axes[crossAxis.info.axisId.axesId] =
-          CartesianChartAxes(axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis});
-    } else {
-      _axes[crossAxis.info.axisId.axesId] =
-          CartesianChartAxes(axes: {crossAxis.info.axisId: crossAxis, mainAxis.info.axisId: mainAxis});
-    }
-
-    // Subscribe to the axis controllers
-    if (widget.axisControllers.containsKey(mainAxis.info.axisId)) {
-      mainAxis.controller = widget.axisControllers[mainAxis.info.axisId];
-    }
-    if (widget.hiddenAxes.contains(mainAxis.info.axisId)) {
-      mainAxis.showLabels = false;
-    }
-    if (widget.axisControllers.containsKey(crossAxis.info.axisId)) {
-      crossAxis.controller = widget.axisControllers[crossAxis.info.axisId];
-    }
-    if (widget.hiddenAxes.contains(crossAxis.info.axisId)) {
-      crossAxis.showLabels = false;
     }
 
     // Subscribe to the axis controllers
@@ -378,6 +290,67 @@ class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChart
             setState(() {});
           });
         }
+      }
+    }
+  }
+
+  void _initBins() {
+    // Clear the parameters
+    _binContainers.clear();
+
+    ChartAxis mainAxis;
+    int mainCoordIdx;
+    if (widget.info.mainAxisAlignment == AxisOrientation.horizontal) {
+      mainAxis = _axes.values.first.axes.values.first;
+      mainCoordIdx = 0;
+    } else {
+      mainAxis = _axes.values.first.axes.values.last;
+      mainCoordIdx = 1;
+    }
+    ChartAxes axes = _axes.values.first;
+
+    // Calculate the edges for the bins
+    List<double> edges = [];
+    if (widget.info.edges != null) {
+      edges.addAll(widget.info.edges!);
+    } else {
+      double binWidth = 1 / widget.info.nBins!;
+      for (int i = 0; i < widget.info.nBins!; i++) {
+        List<double> coords =
+            axes.doubleFromPixel(Offset(i * binWidth, (i + 1) * binWidth), const Size(1, 1));
+        edges.add(coords[mainCoordIdx]);
+      }
+
+      if (mainAxis.info.isInverted) {
+        edges = edges.reversed.toList();
+      }
+    }
+
+    // Create the bins
+    for (int i = 0; i < widget.info.allSeries.length; i++) {
+      Series series = widget.info.allSeries[i];
+      _binContainers[series.id] = BinnedDataContainer(
+        bins: List.generate(edges.length - 1, (j) {
+          return BoxChartBox(
+            mainAxisAlignment: mainAxisAlignment,
+            mainStart: edges[j],
+            mainEnd: edges[j + 1],
+            data: {},
+            fillColor:
+                series.marker?.color ?? widget.info.theme.colorCycle[i % widget.info.theme.colorCycle.length],
+            edgeColor: series.marker?.edgeColor,
+            edgeWidth: (series.marker?.size ?? 10) / 10,
+          );
+        }),
+      );
+      Map<Object, List<dynamic>> data = {};
+      List<Object> dataIds = series.data.data.values.first.keys.toList();
+      for (int i = 0; i < series.data.length; i++) {
+        data[dataIds[i]] = series.data.getRow(i);
+      }
+      for (MapEntry<Object, dynamic> entry in data.entries) {
+        List<double> coords = axes.dataToDouble(entry.value);
+        _binContainers[series.id]!.insert(entry.key, coords);
       }
     }
   }
@@ -401,7 +374,7 @@ class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChart
       children.add(
         Positioned.fill(
           child: CustomPaint(
-            painter: HistogramPainter(
+            painter: BoxChartPainter(
               mainAxisAlignment: mainAxisAlignment,
               axes: _axes[series.axesId]!,
               errorBars: series.errorBars,
@@ -545,7 +518,7 @@ class HistogramState extends State<Histogram> with ChartMixin, Scrollable2DChart
 }
 
 /// A painter for a collection of histograms.
-class HistogramPainter extends CustomPainter {
+class BoxChartPainter extends CustomPainter {
   /// The axes of the plot, used to project the markers onto the plot.
   final ChartAxes axes;
 
@@ -564,7 +537,7 @@ class HistogramPainter extends CustomPainter {
   /// Orientation of the main axis
   final AxisOrientation mainAxisAlignment;
 
-  HistogramPainter({
+  BoxChartPainter({
     required this.axes,
     required this.mainAxisAlignment,
     required this.errorBars,

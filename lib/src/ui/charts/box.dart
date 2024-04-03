@@ -238,6 +238,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
     // Initialize the axis controllers
     for (ChartAxes chartAxes in allAxes.values) {
       for (ChartAxis axis in chartAxes.axes.values) {
+        print("${axis.info.axisId.location}: ${axis.bounds}");
         if (widget.axisControllers.containsKey(axis.info.axisId)) {
           axis.controller = widget.axisControllers[axis.info.axisId];
         }

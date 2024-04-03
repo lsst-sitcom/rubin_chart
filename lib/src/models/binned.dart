@@ -548,6 +548,9 @@ class BinnedChartPainter extends CustomPainter {
         }*/
 
         if (bin is BoxChartBox) {
+          if (bin.count == 0) {
+            continue;
+          }
           // Draw the whiskers
           Offset minWhiskerStart;
           Offset minWhiskerEnd;
@@ -579,18 +582,18 @@ class BinnedChartPainter extends CustomPainter {
           } else {
             minSerifStart = axes.doubleToPixel([bin.min, bin.mainStart], plotSize);
             minSerifEnd = axes.doubleToPixel([bin.min, bin.mainEnd], plotSize);
-            double midpoint = minSerifEnd.dy - minSerifStart.dy;
-            midpoint = axes.doubleFromPixel(Offset(minSerifStart.dx, midpoint), plotSize)[1];
-            minWhiskerStart = Offset(minSerifStart.dx, midpoint);
+            double midpointPx = (minSerifEnd.dy + minSerifStart.dy) / 2;
+            double midpoint = axes.doubleFromPixel(Offset(minSerifStart.dx, midpointPx), plotSize)[1];
+            minWhiskerStart = Offset(minSerifStart.dx, midpointPx);
             minWhiskerEnd = axes.doubleToPixel([bin.quartile1, midpoint], plotSize);
 
             maxSerifStart = axes.doubleToPixel([bin.max, bin.mainStart], plotSize);
             maxSerifEnd = axes.doubleToPixel([bin.max, bin.mainEnd], plotSize);
-            maxWhiskerStart = Offset(maxSerifStart.dx, midpoint);
+            maxWhiskerStart = Offset(maxSerifStart.dx, midpointPx);
             maxWhiskerEnd = axes.doubleToPixel([bin.quartile3, midpoint], plotSize);
 
-            medianStart = axes.doubleToPixel([bin.mainStart, bin.mean], plotSize);
-            medianEnd = axes.doubleToPixel([bin.mainEnd, bin.mean], plotSize);
+            medianStart = axes.doubleToPixel([bin.median, bin.mainStart], plotSize);
+            medianEnd = axes.doubleToPixel([bin.median, bin.mainEnd], plotSize);
           }
           canvas.drawLine(minSerifStart + offset, minSerifEnd + offset, paintWhisker);
           canvas.drawLine(maxSerifStart + offset, maxSerifEnd + offset, paintWhisker);

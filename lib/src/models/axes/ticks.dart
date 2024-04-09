@@ -32,7 +32,7 @@ DateTime dateFromString(String string) {
   List<String> dateSplit = date.split("-");
   List<String> timeSplit = time.split(":");
 
-  int hours = timeSplit.length > 0 ? int.parse(timeSplit[0]) : 0;
+  int hours = timeSplit.isNotEmpty ? int.parse(timeSplit[0]) : 0;
   int minutes = timeSplit.length > 1 ? int.parse(timeSplit[1]) : 0;
   double secondsDouble = timeSplit.length > 2 ? double.parse(timeSplit[2]) : 0;
   int seconds = secondsDouble.floor();
@@ -129,91 +129,21 @@ class NiceNumber {
   String toString() => "$value: power=$power, factor=$factor, nearest10th=$nearest10";
 }
 
-/// Calculate the step size to generate ticks in [range].
-/// If [encloseBounds] is true then ticks will be added to the
-/// each side so that the bounds are included in the ticks
-/// (usually used for initialization).
-/// Otherwise the ticks will be inside or equal to the bounds.
-NiceNumber calculateStepSize(
-  int nTicks,
-  NiceNumber stepSize,
-  num range,
-  bool encloseBounds,
-  int extrema,
-  ComparisonOperators operator,
-) {
-  int iterations = 0;
-  NiceNumber initialStepSize = stepSize;
-  while (compare<num>(nTicks, extrema, operator)) {
-    stepSize = stepSize.modifyFactor(-1);
-    nTicks = (range / stepSize.value).ceil() + 1;
-    if (encloseBounds) {
-      nTicks += 2;
-    }
-    if (iterations++ > 5) {
-      // Just use the original value
-      print("Warning: Could not find a nice number for the ticks");
-      return initialStepSize;
-    }
-  }
-  return stepSize;
-}
-
-List<T> _ticksFromStepSize<T extends num>(T step, T min, T max, bool encloseBounds) {
-  List<T> ticks = [];
-  T val = min;
-
-  // We use while loops below because dart cannot handle arithmentic with generic
-  // types (ie. val += step is not allowed for generic types), preventing us
-  // from using a for loop.
-  if (encloseBounds) {
-    // Make the ticks outside of the bounds
-    while (val <= max + step) {
-      ticks.add(val);
-      val = (val + step) as T;
-    }
-  } else {
-    // Make the ticks inside the bounds
-    while (val <= max) {
-      ticks.add(val);
-      val = (val + step) as T;
-    }
-  }
-  return ticks;
-}
-
-NiceNumber _getStepSize<T extends num>(T min, T max, int minTicks, int maxTicks, bool encloseBounds) {
-  int avgTicks = (minTicks + maxTicks) ~/ 2;
-  NiceNumber stepSize = NiceNumber.fromDouble((max - min) / (avgTicks - 1), true);
-
-  // If number of ticks is outside of the desired tick range,
-  // then modify the step size until it is within the range.
-  T range = (max - min) as T;
-  int nTicks = (range / stepSize.value).ceil() + 1;
-  if (encloseBounds) {
-    nTicks += 2;
-  }
-  if (nTicks < minTicks) {
-    stepSize = calculateStepSize(nTicks, stepSize, range, encloseBounds, minTicks, ComparisonOperators.lt);
-  } else if (nTicks > maxTicks) {
-    stepSize = calculateStepSize(nTicks, stepSize, range, encloseBounds, maxTicks, ComparisonOperators.gt);
-  }
-  return stepSize;
-}
-
 /// A class for calculating ticks for an axis.
 class AxisTicks {
   /// The step size between ticks
   /// The ticks
-  final List<double> ticks;
+  final List<double> majorTicks;
+  final List<double> minorTicks;
 
   /// The minimum value of the axis.
   final Bounds<num> bounds;
 
-  final List<String> tickLabels;
+  final List<String?> tickLabels;
 
   AxisTicks({
-    required this.ticks,
+    required this.majorTicks,
+    required this.minorTicks,
     required this.bounds,
     required this.tickLabels,
   });
@@ -221,41 +151,19 @@ class AxisTicks {
   /// Generate tick marks for a range of numbers.
   static AxisTicks fromBounds(
       Bounds<num> bounds, int minTicks, int maxTicks, bool encloseBounds, Mapping mapping) {
-    double min = bounds.min.toDouble();
-    double max = bounds.max.toDouble();
-
-    assert(max > min, "max must be greater than min");
-
-    // Set the ticks based on the step size and whether or not the axis bounds should be included.
-    NiceNumber stepSize = _getStepSize(min, max, minTicks, maxTicks, encloseBounds);
-    double step = stepSize.value;
-
-    List<double> ticks = [];
-    if (encloseBounds) {
-      // Make the ticks outside of the bounds
-      min = (min / step).floor() * step;
-      max = (max / step).ceil() * step;
-      ticks = _ticksFromStepSize(step, min, max, encloseBounds);
-    } else {
-      // Make the ticks inside the bounds
-      min = (min / step).ceil() * step;
-      max = (max / step).floor() * step;
-      ticks = _ticksFromStepSize(step, min, max, encloseBounds);
-    }
-
-    List<String> tickLabels = ticks.map((e) => e.toStringAsFixed(stepSize.power.abs())).toList();
-
-    return AxisTicks(
-      ticks: ticks,
-      bounds: Bounds(ticks.first, ticks.last),
-      tickLabels: tickLabels,
+    return mapping.ticksFromBounds(
+      bounds: bounds,
+      minTicks: minTicks,
+      maxTicks: maxTicks,
+      encloseBounds: encloseBounds,
     );
   }
 
   static AxisTicks fromStrings(List<String> tickLabels) {
     List<double> ticks = List.generate(tickLabels.length, (index) => index.toDouble());
     return AxisTicks(
-      ticks: ticks,
+      majorTicks: ticks,
+      minorTicks: [],
       bounds: Bounds(ticks.first, ticks.last),
       tickLabels: tickLabels,
     );
@@ -269,9 +177,10 @@ class AxisTicks {
     if (timeDifference < const Duration(microseconds: 1)) {
       throw "Invalid time range, $timeDifference < 1 micro scecond";
     } else if (timeDifference < const Duration(milliseconds: 1)) {
-      NiceNumber stepSize = _getStepSize(min.microsecond, max.microsecond, minTicks, maxTicks, encloseBounds);
+      NiceNumber stepSize =
+          getLinearTickStepSize(min.microsecond, max.microsecond, minTicks, maxTicks, encloseBounds);
       int step = stepSize.value.toInt();
-      List<int> micros = _ticksFromStepSize(step, min.microsecond, max.microsecond, encloseBounds);
+      List<int> micros = getLinearTicksFromStepSize(step, min.microsecond, max.microsecond, encloseBounds);
       ticks = micros.map((e) => min.microsecondsSinceEpoch + e.toDouble()).toList();
       tickLabels = micros.map((e) => DateTime.fromMicrosecondsSinceEpoch(e).toString()).toList();
     } else if (timeDifference < Duration(minutes: minTicks)) {}
@@ -280,7 +189,7 @@ class AxisTicks {
   }
 
   /// The number of ticks.
-  int get length => ticks.length;
+  int get length => majorTicks.length;
 
   @override
   String toString() => tickLabels.toString();

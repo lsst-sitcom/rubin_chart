@@ -37,7 +37,8 @@ class ChartTheme {
   final Color? backgroundColor;
   final Color? tickColor;
   final double tickThickness;
-  final double tickLength;
+  final double majorTickLength;
+  final double minorTickLength;
   final TextStyle? tickLabelStyle;
   final TextStyle? axisLabelStyle;
   final Color? gridColor;
@@ -63,7 +64,8 @@ class ChartTheme {
     this.backgroundColor = Colors.white,
     this.tickColor = Colors.black,
     this.tickThickness = 2,
-    this.tickLength = 10,
+    this.majorTickLength = 10,
+    this.minorTickLength = 5,
     this.tickLabelStyle,
     this.axisLabelStyle,
     this.gridColor = Colors.grey,

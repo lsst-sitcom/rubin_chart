@@ -89,7 +89,7 @@ class PolarChartAxes extends ChartAxes {
 
   /// Convert x values into pixel values.
   @override
-  double xToPixel({required double x, required double chartWidth}) {
+  double xLinearToPixel({required double x, required double chartWidth}) {
     double xMin = xBounds.min;
     double xMax = xBounds.max;
     return (x - xMin) / (xMax - xMin) * chartWidth * scaleX + center.dx;
@@ -97,7 +97,7 @@ class PolarChartAxes extends ChartAxes {
 
   /// Convert pixel x values into native x values.
   @override
-  double xFromPixel({required double px, required double chartWidth}) {
+  double xLinearFromPixel({required double px, required double chartWidth}) {
     double xMin = xBounds.min;
     double xMax = xBounds.max;
     return (px - center.dx) / (chartWidth * scaleX) * (xMax - xMin) + xMin;
@@ -105,7 +105,7 @@ class PolarChartAxes extends ChartAxes {
 
   /// Convert y values into pixel values.
   @override
-  double yToPixel({required double y, required double chartHeight}) {
+  double yLinearToPixel({required double y, required double chartHeight}) {
     double yMin = yBounds.min;
     double yMax = yBounds.max;
     return (y - yMin) / (yMax - yMin) * chartHeight * scaleY + center.dy;
@@ -113,7 +113,7 @@ class PolarChartAxes extends ChartAxes {
 
   /// Convert pixel y values into native y values.
   @override
-  double yFromPixel({required double py, required double chartHeight}) {
+  double yLinearFromPixel({required double py, required double chartHeight}) {
     double yMin = yBounds.min;
     double yMax = yBounds.max;
     return (py - center.dy) / (chartHeight * scaleY) * (yMax - yMin) + yMin;
@@ -201,7 +201,8 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
         Bounds<double> bounds = const Bounds<double>(0, 2 * math.pi);
         AxisTicks ticks = AxisTicks(
           bounds: bounds,
-          ticks: List.generate(9, (index) => index * 45),
+          majorTicks: List.generate(9, (index) => index * 45),
+          minorTicks: [],
           tickLabels: tickLabels,
         );
         angularAxis = NumericalChartAxis(
@@ -248,6 +249,7 @@ class PolarAxisPainter extends AxisPainter {
     AxisLocation location,
     Paint paint,
     ChartAxes chartAxes,
+    double tickLength,
   ) {
     PolarChartAxes polarAxes = chartAxes as PolarChartAxes;
     ChartAxis rAxis = chartAxes.radialAxis;
@@ -260,8 +262,9 @@ class PolarAxisPainter extends AxisPainter {
     if (location == AxisLocation.radial) {
       canvas.drawCircle(center, radius, paint);
     } else if (location == AxisLocation.angular) {
-      double maxTick =
-          rAxis.info.isInverted ? rAxis.ticks.ticks.first.toDouble() : rAxis.ticks.ticks.last.toDouble();
+      double maxTick = rAxis.info.isInverted
+          ? rAxis.ticks.majorTicks.first.toDouble()
+          : rAxis.ticks.majorTicks.last.toDouble();
       Offset edgePoint = chartAxes.project(data: [maxTick, tick], chartSize: size);
       canvas.drawLine(center, edgePoint + offset, paint);
     } else {
@@ -274,17 +277,17 @@ class PolarAxisPainter extends AxisPainter {
     AxisId axisId = axis.info.axisId;
     AxisTicks ticks = axis.ticks;
     Offset offset = Offset(margin.left + tickPadding, margin.top + tickPadding);
-    for (int i = 0; i < ticks.ticks.length; i++) {
+    for (int i = 0; i < ticks.majorTicks.length; i++) {
       TextPainter painter = tickLabelPainters[axisId]![i];
       Offset fullOffset = offset;
-      double tick = ticks.ticks[i];
+      double tick = ticks.majorTicks[i];
 
       if (axisId.location == AxisLocation.radial) {
         Offset topLeft = chartAxes.project(data: [tick, 0], chartSize: size);
         fullOffset += topLeft - Offset(0, painter.height);
       } else if (axisId.location == AxisLocation.angular) {
         ChartAxis rAxis = (allAxes.values.first as PolarChartAxes).radialAxis;
-        double radius = rAxis.info.isInverted ? rAxis.ticks.ticks.first : rAxis.ticks.ticks.last;
+        double radius = rAxis.info.isInverted ? rAxis.ticks.majorTicks.first : rAxis.ticks.majorTicks.last;
         Offset topLeft = chartAxes.project(data: [radius, tick], chartSize: size);
         Offset preProjected = chartAxes.doubleToLinear([radius, tick]);
         CartesianQuadrant quadrant = getQuadrant(preProjected.dx, -preProjected.dy);

@@ -36,7 +36,7 @@ abstract class AxisPainter extends CustomPainter {
         AxisTicks ticks = axis.ticks;
 
         tickLabelPainters[axisId] = [];
-        for (int j = 0; j < ticks.ticks.length; j++) {
+        for (int j = 0; j < ticks.majorTicks.length; j++) {
           TextPainter painter = TextPainter(
             text: TextSpan(
               text: ticks.tickLabels[j].toString(),
@@ -57,7 +57,14 @@ abstract class AxisPainter extends CustomPainter {
   bool get clip;
 
   void drawTick(
-      Canvas canvas, Size size, double tick, AxisLocation location, Paint paint, ChartAxes chartAxes);
+    Canvas canvas,
+    Size size,
+    double tick,
+    AxisLocation location,
+    Paint paint,
+    ChartAxes chartAxes,
+    double tickLength,
+  );
 
   void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, ChartAxes chartAxes);
 
@@ -86,8 +93,11 @@ abstract class AxisPainter extends CustomPainter {
           ChartAxis axis = axes[axisId];
           if (axis.showTicks) {
             AxisTicks ticks = axis.ticks;
-            for (double tick in ticks.ticks) {
-              drawTick(canvas, chartSize, tick, axisId.location, tickPaint, axes);
+            for (double tick in ticks.majorTicks) {
+              drawTick(canvas, chartSize, tick, axisId.location, tickPaint, axes, theme.majorTickLength);
+            }
+            for (double tick in ticks.minorTicks) {
+              drawTick(canvas, chartSize, tick, axisId.location, tickPaint, axes, theme.minorTickLength);
             }
           }
 

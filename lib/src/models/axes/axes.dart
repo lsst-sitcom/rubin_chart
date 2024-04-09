@@ -88,26 +88,26 @@ abstract class ChartAxes {
   List<double> doubleFromLinear(Offset cartesian);
 
   /// Convert x values into pixel values.
-  double xToPixel({required double x, required double chartWidth});
+  double xLinearToPixel({required double x, required double chartWidth});
 
   /// Convert pixel x values into native x values.
-  double xFromPixel({required double px, required double chartWidth});
+  double xLinearFromPixel({required double px, required double chartWidth});
 
   /// Convert y values into pixel values.
-  double yToPixel({required double y, required double chartHeight});
+  double yLinearToPixel({required double y, required double chartHeight});
 
   /// Convert pixel y values into native y values.
-  double yFromPixel({required double py, required double chartHeight});
+  double yLinearFromPixel({required double py, required double chartHeight});
 
   /// Convert x and y values into pixel values.
   Offset linearToPixel({required Offset linearCoords, required Size chartSize}) => Offset(
-      xToPixel(x: linearCoords.dx, chartWidth: chartSize.width),
-      yToPixel(y: linearCoords.dy, chartHeight: chartSize.height));
+      xLinearToPixel(x: linearCoords.dx, chartWidth: chartSize.width),
+      yLinearToPixel(y: linearCoords.dy, chartHeight: chartSize.height));
 
   /// Convert pixel values into x and y values.
   Offset linearFromPixel({required Offset pixel, required Size chartSize}) => Offset(
-      xFromPixel(px: pixel.dx, chartWidth: chartSize.width),
-      yFromPixel(py: pixel.dy, chartHeight: chartSize.height));
+      xLinearFromPixel(px: pixel.dx, chartWidth: chartSize.width),
+      yLinearFromPixel(py: pixel.dy, chartHeight: chartSize.height));
 
   /// Project a list of data points onto the chart.
   Offset project({required List<dynamic> data, required Size chartSize}) =>

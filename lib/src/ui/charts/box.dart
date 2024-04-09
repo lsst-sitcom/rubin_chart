@@ -219,10 +219,6 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   void initAxesAndBins() {
     _initAxes();
     _initBins();
-    for (BoxChartBox box in binContainers.values.first.bins.cast<BoxChartBox>()) {
-      print("${box.min}, ${box.quartile1}, ${box.median}, ${box.quartile3}, ${box.max}");
-      break;
-    }
   }
 
   @override
@@ -238,7 +234,6 @@ class BoxChartState extends BinnedChartState<BoxChart> {
     // Initialize the axis controllers
     for (ChartAxes chartAxes in allAxes.values) {
       for (ChartAxis axis in chartAxes.axes.values) {
-        print("${axis.info.axisId.location}: ${axis.bounds}");
         if (widget.axisControllers.containsKey(axis.info.axisId)) {
           axis.controller = widget.axisControllers[axis.info.axisId];
         }

@@ -37,10 +37,16 @@ class CartesianChartAxes extends ChartAxes {
   ChartAxis get yAxis => axes[yAxisId]!;
 
   @override
-  Bounds<double> get xBounds => xAxis.bounds;
+  Bounds<double> get xBounds => Bounds<double>(
+        xAxis.info.mapping.map(xAxis.bounds.min),
+        xAxis.info.mapping.map(xAxis.bounds.max),
+      );
 
   @override
-  Bounds<double> get yBounds => yAxis.bounds;
+  Bounds<double> get yBounds => Bounds<double>(
+        yAxis.info.mapping.map(yAxis.bounds.min),
+        yAxis.info.mapping.map(yAxis.bounds.max),
+      );
 
   /// Return an [Offset] from a pair of [double] x, y coordinates.
   @override
@@ -48,16 +54,19 @@ class CartesianChartAxes extends ChartAxes {
     if (data.length != 2) {
       throw ChartInitializationException("Cartesian projection requires two coordinates, got ${data.length}");
     }
-    return Offset(data[0], data[1]);
+    return Offset(xAxis.info.mapping.map(data[0]), yAxis.info.mapping.map(data[1]));
   }
 
   /// Return a pair of [double] x, y coordinates from an [Offset].
   @override
-  List<double> doubleFromLinear(Offset cartesian) => [cartesian.dx, cartesian.dy];
+  List<double> doubleFromLinear(Offset cartesian) => [
+        xAxis.info.mapping.inverse(cartesian.dx),
+        yAxis.info.mapping.inverse(cartesian.dy),
+      ];
 
   /// Convert x values into pixel values.
   @override
-  double xToPixel({required double x, required double chartWidth}) {
+  double xLinearToPixel({required double x, required double chartWidth}) {
     double xMin = xBounds.min;
     double xMax = xBounds.max;
     double px = (x - xMin) / (xMax - xMin) * chartWidth;
@@ -69,7 +78,7 @@ class CartesianChartAxes extends ChartAxes {
 
   /// Convert pixel x values into native x values.
   @override
-  double xFromPixel({required double px, required double chartWidth}) {
+  double xLinearFromPixel({required double px, required double chartWidth}) {
     if (xAxis.info.isInverted) {
       px = chartWidth - px;
     }
@@ -80,7 +89,7 @@ class CartesianChartAxes extends ChartAxes {
 
   /// Convert y values into pixel values.
   @override
-  double yToPixel({required double y, required double chartHeight}) {
+  double yLinearToPixel({required double y, required double chartHeight}) {
     double yMin = yBounds.min;
     double yMax = yBounds.max;
     double py = (y - yMin) / (yMax - yMin) * chartHeight;
@@ -92,7 +101,7 @@ class CartesianChartAxes extends ChartAxes {
 
   /// Convert pixel y values into native y values.
   @override
-  double yFromPixel({required double py, required double chartHeight}) {
+  double yLinearFromPixel({required double py, required double chartHeight}) {
     if (yAxis.info.isInverted) {
       py = chartHeight - py;
     }
@@ -147,8 +156,17 @@ class CartesianChartAxes extends ChartAxes {
   /// Scale the displayed axes by a given amount.
   @override
   void scale(double scaleX, double scaleY, Size chartSize) {
-    _scaleAxis(xAxis, scaleX);
-    _scaleAxis(yAxis, scaleY);
+    Offset linearMin = doubleToLinear([xAxis.bounds.min, yAxis.bounds.min]);
+    Offset linearMax = doubleToLinear([xAxis.bounds.max, yAxis.bounds.max]);
+    Offset center = (linearMin + linearMax) / 2;
+    double xRange = linearMax.dx - linearMin.dx;
+    double yRange = linearMax.dy - linearMin.dy;
+    double xDelta = xRange / scaleX / 2;
+    double yDelta = yRange / scaleY / 2;
+    List<double> newMin = doubleFromLinear(center - Offset(xDelta, yDelta));
+    List<double> newMax = doubleFromLinear(center + Offset(xDelta, yDelta));
+    xAxis.updateTicksAndBounds(Bounds(newMin[0], newMax[0]));
+    yAxis.updateTicksAndBounds(Bounds(newMin[1], newMax[1]));
   }
 }
 
@@ -205,27 +223,24 @@ class CartesianAxisPainter extends AxisPainter {
     AxisLocation location,
     Paint paint,
     ChartAxes chartAxes,
+    double tickLength,
   ) {
     if (location == AxisLocation.left) {
-      double y = chartAxes.yToPixel(y: tick, chartHeight: size.height);
+      double y = chartAxes.yLinearToPixel(y: tick, chartHeight: size.height);
       canvas.drawLine(Offset(margin.left + tickPadding, margin.top + tickPadding + y),
-          Offset(margin.left + tickPadding + theme.tickLength, margin.top + tickPadding + y), paint);
+          Offset(margin.left + tickPadding + tickLength, margin.top + tickPadding + y), paint);
     } else if (location == AxisLocation.bottom) {
-      double x = chartAxes.xToPixel(x: tick, chartWidth: size.width);
-      canvas.drawLine(
-          Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height),
-          Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height - theme.tickLength),
-          paint);
+      double x = chartAxes.xLinearToPixel(x: tick, chartWidth: size.width);
+      canvas.drawLine(Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height),
+          Offset(margin.left + tickPadding + x, margin.top + tickPadding + size.height - tickLength), paint);
     } else if (location == AxisLocation.right) {
-      double y = chartAxes.yToPixel(y: tick, chartHeight: size.height);
-      canvas.drawLine(
-          Offset(margin.left + tickPadding + size.width, margin.top + tickPadding + y),
-          Offset(margin.left + tickPadding + size.width - theme.tickLength, margin.top + tickPadding + y),
-          paint);
+      double y = chartAxes.yLinearToPixel(y: tick, chartHeight: size.height);
+      canvas.drawLine(Offset(margin.left + tickPadding + size.width, margin.top + tickPadding + y),
+          Offset(margin.left + tickPadding + size.width - tickLength, margin.top + tickPadding + y), paint);
     } else if (location == AxisLocation.top) {
-      double x = chartAxes.xToPixel(x: tick, chartWidth: size.width);
+      double x = chartAxes.xLinearToPixel(x: tick, chartWidth: size.width);
       canvas.drawLine(Offset(margin.left + tickPadding + x, margin.top + tickPadding),
-          Offset(margin.left + tickPadding + x, margin.top + tickPadding + theme.tickLength), paint);
+          Offset(margin.left + tickPadding + x, margin.top + tickPadding + tickLength), paint);
     } else {
       throw UnimplementedError("Unknown axis location: $location");
     }
@@ -235,29 +250,29 @@ class CartesianAxisPainter extends AxisPainter {
   void drawTickLabels(Canvas canvas, Size size, ChartAxis axis, ChartAxes chartAxes) {
     AxisId axisId = axis.info.axisId;
     AxisTicks ticks = axis.ticks;
-    bool minIsBound = ticks.bounds.min == axis.bounds.min;
-    bool maxIsBound = ticks.bounds.max == axis.bounds.max;
+    bool minIsBound = ticks.majorTicks.isNotEmpty && ticks.majorTicks.first == axis.bounds.min;
+    bool maxIsBound = ticks.majorTicks.isNotEmpty && ticks.majorTicks.last == axis.bounds.max;
 
-    for (int i = 0; i < ticks.ticks.length; i++) {
-      if (i == 0 && minIsBound || i == ticks.ticks.length - 1 && maxIsBound) {
+    for (int i = 0; i < ticks.majorTicks.length; i++) {
+      if (i == 0 && minIsBound || i == ticks.majorTicks.length - 1 && maxIsBound) {
         continue;
       }
       TextPainter painter = tickLabelPainters[axisId]![i];
       late Offset offset;
 
       if (axisId.location == AxisLocation.left) {
-        double y = chartAxes.yToPixel(y: ticks.ticks[i], chartHeight: size.height);
+        double y = chartAxes.yLinearToPixel(y: ticks.majorTicks[i], chartHeight: size.height);
         offset = Offset(margin.left - painter.width, y + margin.top + tickPadding - painter.height / 2);
       } else if (axisId.location == AxisLocation.bottom) {
-        double x = chartAxes.xToPixel(x: ticks.ticks[i], chartWidth: size.width);
+        double x = chartAxes.xLinearToPixel(x: ticks.majorTicks[i], chartWidth: size.width);
         offset = Offset(
             x + margin.left + tickPadding - painter.width / 2, margin.top + 2 * tickPadding + size.height);
       } else if (axisId.location == AxisLocation.right) {
-        double y = chartAxes.yToPixel(y: ticks.ticks[i], chartHeight: size.height);
+        double y = chartAxes.yLinearToPixel(y: ticks.majorTicks[i], chartHeight: size.height);
         offset = Offset(
             margin.left + 2 * tickPadding + size.width, y + margin.top + tickPadding - painter.height / 2);
       } else if (axisId.location == AxisLocation.top) {
-        double x = chartAxes.xToPixel(x: ticks.ticks[i], chartWidth: size.width);
+        double x = chartAxes.xLinearToPixel(x: ticks.majorTicks[i], chartWidth: size.width);
         offset = Offset(x + margin.left - painter.width / 2, 0);
       } else {
         throw UnimplementedError("Unknown axis location: ${axisId.location}");

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -322,4 +323,10 @@ class BoxChartState extends BinnedChartState<BoxChart> {
       }
     }
   }
+
+  @override
+  void onHoverStart(PointerHoverEvent event) {}
+
+  @override
+  void onHoverEnd(PointerHoverEvent event) {}
 }

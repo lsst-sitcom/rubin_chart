@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -347,4 +348,10 @@ class HistogramState extends BinnedChartState<Histogram> {
       }
     }
   }
+
+  @override
+  void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {}
+
+  @override
+  void onHoverEnd(PointerHoverEvent event) {}
 }

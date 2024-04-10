@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
@@ -201,6 +203,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   BinnedChartInfo get info;
 
+  OverlayEntry? hoverOverlay;
+
   @override
   SeriesList get seriesList => SeriesList(
         widget.info.allSeries,
@@ -217,6 +221,9 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   final Map<BigInt, BinnedDataContainer> binContainers = {};
 
   SelectedBinRange? selectedBins;
+
+  Timer? _hoverTimer;
+  bool _isHovering = false;
 
   /// The location of the base of the histogram bins.
   /// This is used to determine the orientation and layout of the histogram.
@@ -249,6 +256,19 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   void initAxesAndBins();
 
   void updateAxesAndBins();
+
+  void onHoverStart(PointerHoverEvent event, {BinnedData? bin});
+
+  void onHoverEnd(PointerHoverEvent event) {}
+
+  void _clearHover() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _isHovering = false;
+    hoverOverlay?.remove();
+    hoverOverlay = null;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -299,41 +319,51 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     return Focus(
         focusNode: focusNode,
         child: Listener(
-            onPointerSignal: (PointerSignalEvent event) {
-              if (event is PointerScrollEvent) {
-                onPan(event, axisPainter);
-              } else if (event is PointerScaleEvent) {
-                onScale(event, axisPainter);
-              }
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (TapUpDetails details) {
-                _onTapUp(details, axisPainter);
+          onPointerSignal: (PointerSignalEvent event) {
+            if (event is PointerScrollEvent) {
+              onPan(event, axisPainter);
+            } else if (event is PointerScaleEvent) {
+              onScale(event, axisPainter);
+            }
+          },
+          child: MouseRegion(
+              onHover: (PointerHoverEvent event) {
+                // In Flutter web this is triggered when the mouse is moved,
+                // so we need to keep track of the hover timer manually.
+
+                // Restart the hover timer
+                _hoverTimer?.cancel();
+                _hoverTimer = Timer(const Duration(milliseconds: 500), () {
+                  onHoverStart(event);
+                  _hoverTimer?.cancel();
+                  _hoverTimer = null;
+                  _isHovering = true;
+                  setState(() {});
+                });
+
+                if (_isHovering) {
+                  _clearHover();
+                  onHoverEnd(event);
+                }
+                _isHovering = false;
               },
-              /*onPanStart: (DragStartDetails details) {
-            _onDragStart(details, axisPainter);
-          },
-          onPanUpdate: (DragUpdateDetails details) {
-            _onDragUpdate(details, axisPainter);
-          },
-          onPanEnd: (DragEndDetails details) {
-            _onDragEnd(details, axisPainter);
-          },
-          onPanCancel: () {
-            _onDragCancel();
-          },*/
-              child: SizedBox(
-                /*decoration: BoxDecoration(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (TapUpDetails details) {
+                  _onTapUp(details, axisPainter);
+                },
+                child: SizedBox(
+                  /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,
                 width: 2,
               ),
               //borderRadius: BorderRadius.circular(10),
             ),*/
-                child: Stack(children: children),
-              ),
-            )));
+                  child: Stack(children: children),
+                ),
+              )),
+        ));
   }
 
   /// Handles the tap up event on the histogram chart.

@@ -353,6 +353,7 @@ class HistogramState extends BinnedChartState<Histogram> {
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
+    required ChartAxis crossAxis,
     required BinnedData bin,
   }) {
     HistogramBin histogramBin = bin as HistogramBin;
@@ -365,8 +366,14 @@ class HistogramState extends BinnedChartState<Histogram> {
       ),
       child: Column(children: [
         Text("${mainAxis.info.label}: "),
-        Text("Count: ${histogramBin.count}"),
-        Text("Range: ${histogramBin.mainStart} - ${histogramBin.mainEnd}"),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                "Range: ${histogramBin.mainStart.toStringAsFixed(3)} - ${histogramBin.mainEnd.toStringAsFixed(3)}"),
+            Text("Count: ${histogramBin.count}"),
+          ],
+        ),
       ]),
     );
   }

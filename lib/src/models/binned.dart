@@ -260,22 +260,27 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
+    required ChartAxis crossAxis,
     required BinnedData bin,
   });
 
   void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {
     if (bin == null) return;
     ChartAxis mainAxis;
+    ChartAxis crossAxis;
     if (mainAxisAlignment == AxisOrientation.horizontal) {
       mainAxis = allAxes.values.first.axes.values.first;
+      crossAxis = allAxes.values.first.axes.values.last;
     } else {
       mainAxis = allAxes.values.first.axes.values.last;
+      crossAxis = allAxes.values.first.axes.values.first;
     }
 
     Widget tooltip = getTooltip(
       event: event,
       bin: bin,
       mainAxis: mainAxis,
+      crossAxis: crossAxis,
     );
 
     final RenderBox renderBox = context.findRenderObject() as RenderBox;

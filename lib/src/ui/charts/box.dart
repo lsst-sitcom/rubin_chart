@@ -328,6 +328,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
+    required ChartAxis crossAxis,
     required BinnedData bin,
   }) {
     BoxChartBox box = bin as BoxChartBox;
@@ -340,12 +341,26 @@ class BoxChartState extends BinnedChartState<BoxChart> {
       ),
       child: Column(
         children: [
-          Text("${mainAxis.info.label}: "),
-          Text("Min: ${box.min}"),
-          Text("Q1: ${box.quartile1}"),
-          Text("Median: ${box.median}"),
-          Text("Q3: ${box.quartile3}"),
-          Text("Max: ${box.max}"),
+          Text("${mainAxis.info.label}"),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Min: ${box.mainStart.toStringAsFixed(3)}"),
+              Text("Max: ${box.mainEnd.toStringAsFixed(3)}"),
+            ],
+          ),
+          const Divider(),
+          Text("${crossAxis.info.label}: "),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Min: ${box.min.toStringAsFixed(3)}"),
+              Text("Q1: ${box.quartile1.toStringAsFixed(3)}"),
+              Text("Median: ${box.median.toStringAsFixed(3)}"),
+              Text("Q3: ${box.quartile3.toStringAsFixed(3)}"),
+              Text("Max: ${box.max.toStringAsFixed(3)}"),
+            ],
+          ),
         ],
       ),
     );

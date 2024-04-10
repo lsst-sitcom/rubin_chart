@@ -150,6 +150,8 @@ class BinnedChartInfo extends ChartInfo {
   /// Callback for when a bin is selected.
   final BinnedSelectionCallback? onSelection;
 
+  final BinnedSelectionCallback? onDrillDown;
+
   BinnedChartInfo({
     required super.id,
     required super.allSeries,
@@ -167,6 +169,7 @@ class BinnedChartInfo extends ChartInfo {
     this.doFill = true,
     this.edges,
     this.onSelection,
+    this.onDrillDown,
   }) : assert(nBins != null || edges != null);
 }
 
@@ -375,6 +378,12 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     // Call the selection callback if available
     if (widget.info.onSelection != null) {
       widget.info.onSelection!(
+          details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
+    }
+
+    // Call the drill down callback if available
+    if (widget.info.onDrillDown != null) {
+      widget.info.onDrillDown!(
           details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
     }
 

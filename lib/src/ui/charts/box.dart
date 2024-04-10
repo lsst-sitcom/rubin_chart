@@ -164,6 +164,7 @@ class BoxChartInfo extends BinnedChartInfo {
     super.doFill = true,
     super.edges,
     super.onSelection,
+    super.onDrillDown,
     this.mainAxisAlignment = AxisOrientation.horizontal,
   })  : assert(nBins != null || edges != null),
         super(builder: BoxChart.builder);

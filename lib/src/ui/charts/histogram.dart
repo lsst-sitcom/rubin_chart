@@ -87,6 +87,7 @@ class HistogramInfo extends BinnedChartInfo {
     super.doFill = true,
     super.edges,
     super.onSelection,
+    super.onDrillDown,
   })  : assert(nBins != null || edges != null),
         super(builder: Histogram.builder);
 }

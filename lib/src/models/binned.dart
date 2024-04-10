@@ -257,7 +257,45 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   void updateAxesAndBins();
 
-  void onHoverStart(PointerHoverEvent event, {BinnedData? bin});
+  Widget getTooltip({
+    required PointerHoverEvent event,
+    required ChartAxis mainAxis,
+    required BinnedData bin,
+  });
+
+  void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {
+    if (bin == null) return;
+    ChartAxis mainAxis;
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      mainAxis = allAxes.values.first.axes.values.first;
+    } else {
+      mainAxis = allAxes.values.first.axes.values.last;
+    }
+
+    Widget tooltip = getTooltip(
+      event: event,
+      bin: bin,
+      mainAxis: mainAxis,
+    );
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
+
+    hoverOverlay = OverlayEntry(
+      builder: (context) {
+        return Positioned(
+          left: globalPosition.dx,
+          top: globalPosition.dy,
+          child: Material(
+            color: Colors.transparent,
+            child: tooltip,
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(hoverOverlay!);
+  }
 
   void onHoverEnd(PointerHoverEvent event) {}
 
@@ -334,7 +372,13 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
                 // Restart the hover timer
                 _hoverTimer?.cancel();
                 _hoverTimer = Timer(const Duration(milliseconds: 500), () {
-                  onHoverStart(event);
+                  SelectedBin? hoverBin = _getBinOnTap(event.localPosition, axisPainter);
+                  if (hoverBin == null) {
+                    _clearHover();
+                    return;
+                  }
+                  BinnedData bin = binContainers[hoverBin.seriesIndex]!.bins[hoverBin.binIndex];
+                  onHoverStart(event: event, bin: bin);
                   _hoverTimer?.cancel();
                   _hoverTimer = null;
                   _isHovering = true;

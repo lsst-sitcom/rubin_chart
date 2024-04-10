@@ -325,7 +325,31 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   }
 
   @override
-  void onHoverStart(PointerHoverEvent event) {}
+  Widget getTooltip({
+    required PointerHoverEvent event,
+    required ChartAxis mainAxis,
+    required BinnedData bin,
+  }) {
+    BoxChartBox box = bin as BoxChartBox;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Column(
+        children: [
+          Text("${mainAxis.info.label}: "),
+          Text("Min: ${box.min}"),
+          Text("Q1: ${box.quartile1}"),
+          Text("Median: ${box.median}"),
+          Text("Q3: ${box.quartile3}"),
+          Text("Max: ${box.max}"),
+        ],
+      ),
+    );
+  }
 
   @override
   void onHoverEnd(PointerHoverEvent event) {}

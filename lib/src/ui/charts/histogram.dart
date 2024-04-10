@@ -350,8 +350,24 @@ class HistogramState extends BinnedChartState<Histogram> {
   }
 
   @override
-  void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {}
+  Widget getTooltip({
+    required PointerHoverEvent event,
+    required ChartAxis mainAxis,
+    required BinnedData bin,
+  }) {
+    HistogramBin histogramBin = bin as HistogramBin;
 
-  @override
-  void onHoverEnd(PointerHoverEvent event) {}
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Column(children: [
+        Text("${mainAxis.info.label}: "),
+        Text("Count: ${histogramBin.count}"),
+        Text("Range: ${histogramBin.mainStart} - ${histogramBin.mainEnd}"),
+      ]),
+    );
+  }
 }

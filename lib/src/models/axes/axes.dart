@@ -165,6 +165,7 @@ Map<Object, ChartAxes> initializeSimpleAxes({
   required AxesInitializer axesInitializer,
   required ChartTheme theme,
   required Map<AxisId, ChartAxisInfo> axisInfo,
+  required Set<Object> drillDownDataPoints,
 }) {
   final Map<AxisId, ChartAxis> axes = {};
   for (MapEntry<AxisId, ChartAxisInfo> entry in axisInfo.entries) {
@@ -178,7 +179,11 @@ Map<Object, ChartAxes> initializeSimpleAxes({
     if (seriesForAxis.isEmpty) {
       throw AxisUpdateException("Axis $axisId has no series linked to it.");
     }
-    axes[axisId] = initializeAxis(allSeries: seriesForAxis, theme: theme, axisInfo: entry.value);
+    axes[axisId] = initializeAxis(
+        allSeries: seriesForAxis,
+        theme: theme,
+        axisInfo: entry.value,
+        drillDownDataPoints: drillDownDataPoints);
   }
   final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();
   final Map<Object, ChartAxes> result = {};

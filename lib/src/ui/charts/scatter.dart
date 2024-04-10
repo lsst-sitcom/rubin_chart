@@ -30,13 +30,14 @@ abstract class ScatterPlotInfo extends ChartInfo {
     super.xToYRatio,
   }) : super(builder: ScatterPlot.builder);
 
-  Map<Object, ChartAxes> initializeAxes();
+  Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints});
   AxisPainter initializeAxesPainter({required Map<Object, ChartAxes> allAxes, required ChartTheme theme});
 }
 
 class ScatterPlot extends StatefulWidget {
   final ScatterPlotInfo info;
   final SelectionController? selectionController;
+  final SelectionController? drillDownController;
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
 
@@ -44,6 +45,7 @@ class ScatterPlot extends StatefulWidget {
     Key? key,
     required this.info,
     this.selectionController,
+    this.drillDownController,
     this.axisControllers = const {},
     this.hiddenAxes = const [],
   }) : super(key: key);
@@ -52,6 +54,7 @@ class ScatterPlot extends StatefulWidget {
     required ChartInfo info,
     Map<AxisId, AxisController>? axisControllers,
     SelectionController? selectionController,
+    SelectionController? drillDownController,
     List<AxisId>? hiddenAxes,
   }) {
     if (info is! ScatterPlotInfo) {
@@ -60,6 +63,7 @@ class ScatterPlot extends StatefulWidget {
     return ScatterPlot(
       info: info,
       selectionController: selectionController,
+      drillDownController: drillDownController,
       axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
     );
@@ -86,22 +90,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
-  @override
-  void initState() {
-    super.initState();
-    // Add key detector
-    focusNode.addListener(focusNodeListener);
-
-    axisControllers.addAll(widget.axisControllers.values);
-    if (widget.selectionController != null) {
-      widget.selectionController!.subscribe((Set<Object> dataPoints) {
-        selectedDataPoints = dataPoints;
-        setState(() {});
-      });
-    }
-
+  /// Initialize the axes based on the [Series] and potentially
+  /// drilled down data points in the chart.
+  void _initializeAxes() {
     // Initialize the axes
-    _axes.addAll(widget.info.initializeAxes());
+    _axes.addAll(widget.info.initializeAxes(drillDownDataPoints: drillDownDataPoints));
 
     // Initialize the axis controllers
     for (ChartAxes axes in _axes.values) {
@@ -127,8 +120,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         }
       }
     }
+  }
 
-    // Initialize the quadtrees
+  void _initializeQuadTree() {
     List<Object> axesIndices = _axes.keys.toList();
     for (Object axesIndex in axesIndices) {
       ChartAxes axes = _axes[axesIndex]!;
@@ -167,6 +161,51 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
   }
 
+  void _onSelectionUpdate(Set<Object> dataPoints) {
+    selectedDataPoints = dataPoints;
+    setState(() {});
+  }
+
+  void _onDrillDownUpdate(Set<Object> dataPoints) {
+    drillDownDataPoints = dataPoints;
+    if (widget.info.zoomOnDrillDown) {
+      _axes.clear();
+      _initializeAxes();
+    }
+    // Initialize the axes
+    //_initializeAxes();
+
+    // Initialize the quadtrees
+    //_initializeQuadTree();
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Add key detector
+    focusNode.addListener(focusNodeListener);
+
+    // Add the axis controllers to the list of controllers
+    axisControllers.addAll(widget.axisControllers.values);
+
+    // Initialize selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.subscribe(_onSelectionUpdate);
+    }
+
+    //Initialize drill down controller
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.subscribe(_onDrillDownUpdate);
+    }
+
+    // Initialize the axes
+    _initializeAxes();
+
+    // Initialize the quadtrees
+    _initializeQuadTree();
+  }
+
   @override
   Widget build(BuildContext context) {
     List<Widget> children = [];
@@ -197,17 +236,19 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         Positioned.fill(
           child: CustomPaint(
             painter: SeriesPainter(
-                axes: _axes[series.axesId]!,
-                marker: marker,
-                errorBars: series.errorBars,
-                data: series.data,
-                tickLabelMargin: EdgeInsets.only(
-                  left: axisPainter.margin.left + axisPainter.tickPadding,
-                  right: axisPainter.margin.right + axisPainter.tickPadding,
-                  top: axisPainter.margin.top + axisPainter.tickPadding,
-                  bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
-                ),
-                selectedDataPoints: selectedDataPoints),
+              axes: _axes[series.axesId]!,
+              marker: marker,
+              errorBars: series.errorBars,
+              data: series.data,
+              tickLabelMargin: EdgeInsets.only(
+                left: axisPainter.margin.left + axisPainter.tickPadding,
+                right: axisPainter.margin.right + axisPainter.tickPadding,
+                top: axisPainter.margin.top + axisPainter.tickPadding,
+                bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
+              ),
+              selectedDataPoints: selectedDataPoints,
+              drillDownDataPoints: drillDownDataPoints,
+            ),
           ),
         ),
       );

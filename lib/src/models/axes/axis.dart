@@ -709,6 +709,7 @@ ChartAxis initializeAxis({
   required Map<Series, AxisId> allSeries,
   required ChartTheme theme,
   required ChartAxisInfo axisInfo,
+  required Set<Object> drillDownDataPoints,
 }) {
   // Check that the map of allSeries is value
   if (!allSeries.entries.every((entry) => entry.key.data.plotColumns.containsKey(entry.value))) {
@@ -722,8 +723,12 @@ ChartAxis initializeAxis({
   if (data is double) {
     return NumericalChartAxis.fromBounds(
       axisInfo: axisInfo,
-      boundsList:
-          allSeries.entries.map((e) => e.key.data.calculateBounds(e.key.data.plotColumns[e.value]!)).toList(),
+      boundsList: allSeries.entries
+          .map((e) => e.key.data.calculateBounds(
+                e.key.data.plotColumns[e.value]!,
+                drillDownDataPoints,
+              ))
+          .toList(),
       theme: theme,
     );
   } else if (data is String) {
@@ -736,12 +741,24 @@ ChartAxis initializeAxis({
       theme: theme,
     );
   } else if (data is DateTime) {
-    return DateTimeChartAxis.fromData(
-      axisInfo: axisInfo,
-      data: allSeries.entries
+    List<List<DateTime>> values;
+    if (drillDownDataPoints.isEmpty) {
+      values = allSeries.entries
           .map((e) =>
               e.key.data.data[e.key.data.plotColumns[e.value]]!.values.map((e) => e as DateTime).toList())
-          .toList(),
+          .toList();
+    } else {
+      values = allSeries.entries
+          .map((e) => e.key.data.data[e.key.data.plotColumns[e.value]]!.entries
+              .where((entry) => drillDownDataPoints.contains(entry.key))
+              .map((entry) => entry.value as DateTime)
+              .toList())
+          .toList();
+    }
+
+    return DateTimeChartAxis.fromData(
+      axisInfo: axisInfo,
+      data: values,
       theme: theme,
     );
   }

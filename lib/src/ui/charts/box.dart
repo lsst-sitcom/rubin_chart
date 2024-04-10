@@ -168,11 +168,12 @@ class BoxChartInfo extends BinnedChartInfo {
   })  : assert(nBins != null || edges != null),
         super(builder: BoxChart.builder);
 
-  Map<Object, ChartAxes> initializeAxes() => initializeSimpleAxes(
+  Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints}) => initializeSimpleAxes(
         seriesList: allSeries,
         axisInfo: axisInfo,
         theme: theme,
         axesInitializer: CartesianChartAxes.fromAxes,
+        drillDownDataPoints: drillDownDataPoints,
       );
 }
 
@@ -181,6 +182,7 @@ class BoxChart extends BinnedChart {
     super.key,
     required BoxChartInfo info,
     super.selectionController,
+    super.drillDownController,
     super.axisControllers = const {},
     super.hiddenAxes = const [],
   }) : super(info: info);
@@ -192,6 +194,7 @@ class BoxChart extends BinnedChart {
     required ChartInfo info,
     Map<AxisId, AxisController>? axisControllers,
     SelectionController? selectionController,
+    SelectionController? drillDownController,
     List<AxisId>? hiddenAxes,
   }) {
     return BoxChart(
@@ -230,7 +233,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
     axisControllers.addAll(widget.axisControllers.values);
 
     // Initialize the axes
-    allAxes.addAll(info.initializeAxes());
+    allAxes.addAll(info.initializeAxes(drillDownDataPoints: drillDownDataPoints));
 
     // Initialize the axis controllers
     for (ChartAxes chartAxes in allAxes.values) {

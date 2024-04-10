@@ -174,7 +174,7 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
   }) : super(xToYRatio: 1.0);
 
   @override
-  Map<Object, ChartAxes> initializeAxes() {
+  Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints}) {
     final Map<AxisId, ChartAxis> axes = {};
     ChartAxis? radialAxis;
     ChartAxis? angularAxis;
@@ -185,7 +185,12 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
         for (Series series in allSeries) {
           seriesMap[series] = axisInfo.axisId;
         }
-        radialAxis = initializeAxis(allSeries: seriesMap, theme: theme, axisInfo: axisInfo);
+        radialAxis = initializeAxis(
+          allSeries: seriesMap,
+          theme: theme,
+          axisInfo: axisInfo,
+          drillDownDataPoints: drillDownDataPoints,
+        );
         axes[entry.key] = radialAxis;
       } else if (entry.value.axisId.location == AxisLocation.angular) {
         List<String> tickLabels = [];

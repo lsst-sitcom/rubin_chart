@@ -96,6 +96,7 @@ class Histogram extends BinnedChart {
     super.key,
     required HistogramInfo info,
     super.selectionController,
+    super.drillDownController,
     super.axisControllers = const {},
     super.hiddenAxes = const [],
   }) : super(info: info);
@@ -107,11 +108,13 @@ class Histogram extends BinnedChart {
     required ChartInfo info,
     Map<AxisId, AxisController>? axisControllers,
     SelectionController? selectionController,
+    SelectionController? drillDownController,
     List<AxisId>? hiddenAxes,
   }) {
     return Histogram(
       info: info as HistogramInfo,
       selectionController: selectionController,
+      drillDownController: drillDownController,
       axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
     );
@@ -143,14 +146,21 @@ class HistogramState extends BinnedChartState<Histogram> {
     if (allSeries.isEmpty) {
       throw UnimplementedError('Histograms must have at least one series for now');
     }
-    double min = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).min;
-    double max = allSeries.first.data.calculateBounds(allSeries.first.data.plotColumns.values.first).max;
+    Bounds<double> initBounds = allSeries.first.data.calculateBounds(
+      allSeries.first.data.plotColumns.values.first,
+      drillDownDataPoints,
+    );
+    double min = initBounds.min;
+    double max = initBounds.max;
     List<List<String>> uniqueValues = [];
     for (Series series in allSeries) {
       if (series.data.plotColumns.length != 1) {
         throw ChartInitializationException('Histograms must have exactly one data column');
       }
-      Bounds<double> bounds = series.data.calculateBounds(series.data.plotColumns.values.first);
+      Bounds<double> bounds = series.data.calculateBounds(
+        series.data.plotColumns.values.first,
+        drillDownDataPoints,
+      );
       min = math.min(min, bounds.min);
       max = math.max(max, bounds.max);
       if (series.data.columnTypes[series.data.plotColumns.values.first] == ColumnDataType.string) {

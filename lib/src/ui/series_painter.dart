@@ -22,6 +22,8 @@ class SeriesPainter extends CustomPainter {
 
   final Set<Object> selectedDataPoints;
 
+  final Set<Object> drillDownDataPoints;
+
   SeriesPainter({
     required this.axes,
     required this.marker,
@@ -29,6 +31,7 @@ class SeriesPainter extends CustomPainter {
     required this.data,
     this.tickLabelMargin = EdgeInsets.zero,
     this.selectedDataPoints = const {},
+    this.drillDownDataPoints = const {},
   });
 
   /// Paint the series on the [Canvas].
@@ -64,6 +67,10 @@ class SeriesPainter extends CustomPainter {
     Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
 
     for (int i = 0; i < data.length; i++) {
+      if (drillDownDataPoints.isNotEmpty &&
+          !drillDownDataPoints.contains(data.data.values.first.keys.toList()[i])) {
+        continue;
+      }
       Offset point = axes.project(data: data.getRow(i), chartSize: plotSize) + offset;
       if (plotWindow.contains(point)) {
         marker.paint(canvas, paintFill, paintEdge, point);

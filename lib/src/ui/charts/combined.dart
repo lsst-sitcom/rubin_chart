@@ -11,6 +11,7 @@ import 'package:rubin_chart/src/ui/legend.dart';
 class CombinedChart extends StatefulWidget {
   final String? title;
   final SelectionController? selectionController;
+  final SelectionController? drillDownController;
   final List<List<ChartInfo?>> children;
   final ChartTheme theme;
   final LegendSelectionCallback? legendSelectionCallback;
@@ -20,6 +21,7 @@ class CombinedChart extends StatefulWidget {
     this.title,
     this.theme = ChartTheme.defaultTheme,
     this.selectionController,
+    this.drillDownController,
     required this.children,
     this.legendSelectionCallback,
   }) : super(key: key);
@@ -36,6 +38,8 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   final List<AxisId> hiddenAxes = [];
   @override
   late SelectionController selectionController;
+  @override
+  SelectionController? drillDownController;
   final Map<ChartInfo, Offset> _initialLegendOffsets = {};
   Offset _cursorOffset = Offset.zero;
   @override
@@ -122,6 +126,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             label: "x",
             axisId: AxisId(rowLocation!, "dummy"),
           ),
+          drillDownDataPoints: drillDownController?.selectedDataPoints ?? {},
         );
 
         AxisController axisController = AxisController(
@@ -175,6 +180,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
             label: "y",
             axisId: AxisId(columnLocation!, "dummy"),
           ),
+          drillDownDataPoints: drillDownController?.selectedDataPoints ?? {},
         );
 
         AxisController axisController = AxisController(
@@ -204,6 +210,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
           chartId: info.id,
           info: info,
           selectionController: selectionController,
+          drillDownController: widget.drillDownController,
           axisControllers: axisControllers,
           hidden: hiddenLabels,
           hiddenAxes: hiddenAxes,

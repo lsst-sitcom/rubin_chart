@@ -173,11 +173,12 @@ class CartesianScatterPlotInfo extends ScatterPlotInfo {
   });
 
   @override
-  Map<Object, ChartAxes> initializeAxes() => initializeSimpleAxes(
+  Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints}) => initializeSimpleAxes(
         seriesList: allSeries,
         axisInfo: axisInfo,
         theme: theme,
         axesInitializer: CartesianChartAxes.fromAxes,
+        drillDownDataPoints: drillDownDataPoints,
       );
 
   @override

@@ -110,6 +110,11 @@ mixin ChartMixin<T extends StatefulWidget> on State<T> {
   /// The selected (and highlighted) data points.
   Set<Object> selectedDataPoints = {};
 
+  /// Exclusive set of data points.
+  /// If [drillDownDataPoints] is not empty then
+  /// only these data points will be shown.
+  Set<Object> drillDownDataPoints = {};
+
   /// Controllers to synch aligned axes.
   Set<AxisController> axisControllers = {};
 }
@@ -248,6 +253,7 @@ class ChartInfo {
   final double flexX;
   final double flexY;
   final double? xToYRatio;
+  final bool zoomOnDrillDown;
 
   ChartInfo({
     required this.id,
@@ -262,6 +268,7 @@ class ChartInfo {
     this.flexX = 1,
     this.flexY = 1,
     this.xToYRatio,
+    this.zoomOnDrillDown = true,
   }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
   SeriesList get seriesList => SeriesList(allSeries, colorCycle ?? theme.colorCycle);
@@ -274,6 +281,7 @@ typedef ChartBuilder = Widget Function({
   required ChartInfo info,
   Map<AxisId, AxisController>? axisControllers,
   SelectionController? selectionController,
+  SelectionController? drillDownController,
   List<AxisId>? hiddenAxes,
 });
 
@@ -354,6 +362,7 @@ class RubinChart extends StatefulWidget {
   final Object chartId;
   final ChartInfo info;
   final SelectionController? selectionController;
+  final SelectionController? drillDownController;
   final Map<AxisId, AxisController> axisControllers;
   final LegendSelectionCallback? legendSelectionCallback;
 
@@ -362,6 +371,7 @@ class RubinChart extends StatefulWidget {
     required this.info,
     Object? chartId,
     this.selectionController,
+    this.drillDownController,
     this.axisControllers = const {},
     this.legendSelectionCallback,
   }) : chartId = chartId ?? "Chart-0";
@@ -372,6 +382,7 @@ class RubinChart extends StatefulWidget {
 
 mixin RubinChartMixin {
   SelectionController? get selectionController;
+  SelectionController? get drillDownController;
   LegendSelectionCallback? get legendSelectionCallback;
 
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
@@ -402,6 +413,7 @@ mixin RubinChartMixin {
     required Object chartId,
     required ChartInfo info,
     required SelectionController? selectionController,
+    required SelectionController? drillDownController,
     required Map<AxisId, AxisController> axisControllers,
     List<ChartLayoutId> hidden = const [],
     List<AxisId> hiddenAxes = const [],
@@ -465,6 +477,7 @@ mixin RubinChartMixin {
         child: info.builder(
           info: info,
           selectionController: selectionController,
+          drillDownController: drillDownController,
           axisControllers: axisControllers,
           hiddenAxes: hiddenAxes,
         ),
@@ -481,6 +494,8 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   @override
   SelectionController? get selectionController => widget.selectionController;
   @override
+  SelectionController? get drillDownController => widget.drillDownController;
+  @override
   LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
 
   @override
@@ -489,6 +504,7 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
       chartId: widget.chartId,
       info: widget.info,
       selectionController: widget.selectionController,
+      drillDownController: widget.drillDownController,
       axisControllers: widget.axisControllers,
     );
 

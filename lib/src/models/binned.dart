@@ -173,6 +173,7 @@ class BinnedChartInfo extends ChartInfo {
 abstract class BinnedChart extends StatefulWidget {
   final BinnedChartInfo info;
   final SelectionController? selectionController;
+  final SelectionController? drillDownController;
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
   final AxisOrientation? mainAxisAlignment;
@@ -181,6 +182,7 @@ abstract class BinnedChart extends StatefulWidget {
     super.key,
     required this.info,
     this.selectionController,
+    this.drillDownController,
     this.axisControllers = const {},
     this.hiddenAxes = const [],
     this.mainAxisAlignment,
@@ -365,6 +367,9 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     // Update the selection controller if available
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 
     // Call the selection callback if available

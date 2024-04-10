@@ -161,8 +161,18 @@ class SeriesData {
     return coordinates;
   }
 
-  Bounds<double> calculateBounds(Object column) {
-    List<dynamic> values = data[column]!.values.toList();
+  Bounds<double> calculateBounds(Object column, Set<Object> drillDownData) {
+    List<dynamic> values;
+    if (drillDownData.isEmpty) {
+      values = data[column]!.values.toList();
+    } else {
+      values = data[column]!
+          .entries
+          .where((entry) => drillDownData.contains(entry.key))
+          .map((entry) => entry.value)
+          .toList();
+    }
+
     if (values.first is num) {
       return Bounds.fromList(values.map((e) => (e as num).toDouble()).toList());
     } else if (values.first is DateTime) {

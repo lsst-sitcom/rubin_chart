@@ -567,7 +567,11 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
       ticks: ticks,
       theme: theme,
     );*/
-    throw UnimplementedError();
+    return fromDataMjd(
+      axisInfo: axisInfo,
+      data: boundsList.map((e) => [mjdToDateTime(e.min), mjdToDateTime(e.max)]).toList(),
+      theme: theme,
+    );
   }
 
   @override

@@ -112,8 +112,8 @@ class CartesianChartAxes extends ChartAxes {
 
   @override
   Rect get linearRect => Rect.fromPoints(
-        doubleToLinear([xBounds.min, yBounds.min]),
-        doubleToLinear([xBounds.max, yBounds.max]),
+        Offset(xBounds.min, yBounds.min),
+        Offset(xBounds.max, yBounds.max),
       );
 
   void _translateAxis(ChartAxis axis, double min, double max, double delta) {

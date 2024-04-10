@@ -318,7 +318,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
           onPanCancel: () {
             _onDragCancel();
           },*/
-              child: Container(
+              child: SizedBox(
                 /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,

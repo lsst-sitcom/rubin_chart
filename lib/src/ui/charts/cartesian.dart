@@ -140,19 +140,6 @@ class CartesianChartAxes extends ChartAxes {
     _translateAxis(yAxis, translatedMin[1], translatedMax[1], delta.dy);
   }
 
-  void _scaleAxis(ChartAxis axis, double scale) {
-    double min = axis.bounds.min;
-    double max = axis.bounds.max;
-    double midpoint = (min + max) / 2;
-    double range = max - min;
-    double delta = range / scale / 2;
-
-    min = midpoint - delta;
-    max = midpoint + delta;
-
-    axis.updateTicksAndBounds(Bounds(min, max));
-  }
-
   /// Scale the displayed axes by a given amount.
   @override
   void scale(double scaleX, double scaleY, Size chartSize) {

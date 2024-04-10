@@ -122,6 +122,7 @@ class HistogramState extends BinnedChartState<Histogram> {
   @override
   HistogramInfo get info => widget.info as HistogramInfo;
 
+  @override
   late AxisOrientation mainAxisAlignment;
 
   @override

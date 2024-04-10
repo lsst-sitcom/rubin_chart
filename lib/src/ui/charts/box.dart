@@ -74,6 +74,7 @@ class BoxChartBox extends BinnedData {
   double get quartile3 => _percentile(75);
 
   /// Get the number of data points in the box.
+  @override
   int get count => _sortedCrossAxisData.length;
 
   double _percentile(int percentile) {

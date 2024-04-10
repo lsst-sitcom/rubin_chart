@@ -259,7 +259,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
               onPanCancel: () {
                 _onDragCancel();
               },
-              child: Container(
+              child: SizedBox(
                 /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,

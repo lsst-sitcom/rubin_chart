@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:rubin_chart/rubin_chart.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -152,7 +151,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 
   /// Scale an axis, or both axes.
   void onScale(PointerScaleEvent event, AxisPainter axisPainter) {
-    for (ChartAxes axes in this.allAxes.values) {
+    for (ChartAxes axes in allAxes.values) {
       if (scaleShiftKey == null) {
         axes.scale(event.scale, event.scale, axisPainter.chartSize);
       } else if (scaleShiftKey == LogicalKeyboardKey.keyX) {

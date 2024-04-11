@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -73,6 +74,13 @@ class ScatterPlot extends StatefulWidget {
   ScatterPlotState createState() => ScatterPlotState();
 }
 
+class HoverDataPoint {
+  final Object chartAxesId;
+  final Object dataId;
+
+  HoverDataPoint(this.chartAxesId, this.dataId);
+}
+
 class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DChartMixin {
   @override
   SeriesList get seriesList => SeriesList(
@@ -89,6 +97,64 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
+
+  OverlayEntry? hoverOverlay;
+
+  Timer? _hoverTimer;
+  bool _isHovering = false;
+
+  void _clearHover() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _isHovering = false;
+    hoverOverlay?.remove();
+    hoverOverlay = null;
+    setState(() {});
+  }
+
+  void onHoverEnd(PointerHoverEvent event) {}
+
+  void onHoverStart({required PointerHoverEvent event, required Map<Object, dynamic> data}) {
+    Widget tooltip = getTooltip(
+      data: data,
+    );
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
+
+    hoverOverlay = OverlayEntry(
+      builder: (context) {
+        return Positioned(
+          left: globalPosition.dx,
+          top: globalPosition.dy,
+          child: Material(
+            color: Colors.transparent,
+            child: tooltip,
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(hoverOverlay!);
+  }
+
+  Widget getTooltip({required Map<Object, dynamic> data}) {
+    List<Widget> tooltipData = [];
+    for (MapEntry<Object, dynamic> entry in data.entries) {
+      tooltipData.add(Text("${entry.key}: ${entry.value.toStringAsFixed(3)}"));
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Column(
+        children: tooltipData,
+      ),
+    );
+  }
 
   /// Initialize the axes based on the [Series] and potentially
   /// drilled down data points in the chart.
@@ -283,32 +349,82 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
                 onScale(event, axisPainter);
               }
             },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (TapUpDetails details) {
-                _onTapUp(details, axisPainter);
+            child: MouseRegion(
+              onHover: (PointerHoverEvent event) {
+                // In Flutter web this is triggered when the mouse is moved,
+                // so we need to keep track of the hover timer manually.
+
+                // Restart the hover timer
+                _hoverTimer?.cancel();
+                _hoverTimer = Timer(const Duration(milliseconds: 500), () {
+                  // See if the cursoer is hovering over a point
+                  HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
+                  if (hoverDataPoint == null) {
+                    _clearHover();
+                    return;
+                  }
+
+                  // Find the full series data for the point that was hovered over
+                  Series? hoverSeries;
+                  for (Series series in widget.info.allSeries) {
+                    if (series.axesId == hoverDataPoint.chartAxesId) {
+                      hoverSeries = series;
+                      break;
+                    }
+                  }
+                  if (hoverSeries == null) {
+                    // This should never happen
+                    throw Exception("No series found for axes ${hoverDataPoint.chartAxesId}");
+                  }
+                  // Extract the series data for the hovered point
+                  SeriesData seriesData = hoverSeries.data;
+                  Map<Object, dynamic> tooltipData = {};
+                  for (Object column in seriesData.plotColumns.values) {
+                    tooltipData[column] = seriesData.data[column]![hoverDataPoint.dataId];
+                  }
+
+                  // Call the hover start function.
+                  onHoverStart(event: event, data: tooltipData);
+                  _hoverTimer?.cancel();
+                  _hoverTimer = null;
+                  _isHovering = true;
+                  setState(() {});
+                });
+
+                if (_isHovering) {
+                  _clearHover();
+                  onHoverEnd(event);
+                }
+                _isHovering = false;
               },
-              onPanStart: (DragStartDetails details) {
-                _onDragStart(details, axisPainter);
-              },
-              onPanUpdate: (DragUpdateDetails details) {
-                _onDragUpdate(details, axisPainter);
-              },
-              onPanEnd: (DragEndDetails details) {
-                _onDragEnd(details, axisPainter);
-              },
-              onPanCancel: () {
-                _onDragCancel();
-              },
-              child: SizedBox(
-                /*decoration: BoxDecoration(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (TapUpDetails details) {
+                  _onTapUp(details.localPosition, axisPainter);
+                  setState(() {});
+                },
+                onPanStart: (DragStartDetails details) {
+                  _onDragStart(details, axisPainter);
+                },
+                onPanUpdate: (DragUpdateDetails details) {
+                  _onDragUpdate(details, axisPainter);
+                },
+                onPanEnd: (DragEndDetails details) {
+                  _onDragEnd(details, axisPainter);
+                },
+                onPanCancel: () {
+                  _onDragCancel();
+                },
+                child: SizedBox(
+                  /*decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.red,
                 width: 2,
               ),
               //borderRadius: BorderRadius.circular(10),
             ),*/
-                child: Stack(children: children),
+                  child: Stack(children: children),
+                ),
               ),
             )));
   }
@@ -389,28 +505,37 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     return null;
   }
 
-  void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
+  HoverDataPoint? _onTapUp(Offset localPosition, AxisPainter axisPainter, [bool isHover = false]) {
     focusNode.requestFocus();
     Size chartSize = axisPainter.chartSize;
 
     QuadTreeElement? nearest;
+    Object? nearestChartAxesId;
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
       ChartAxes axes = _axes[axesId]!;
       QuadTree<Object> quadTree = entry.value;
       // Select nearest point in the quadtree.
-      double x = details.localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding;
-      double y = details.localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding;
+      double x = localPosition.dx - axisPainter.margin.left - axisPainter.tickPadding;
+      double y = localPosition.dy - axisPainter.margin.top - axisPainter.tickPadding;
       QuadTreeElement? localNearest = _getSelectedPoint(Offset(x, y), axisPainter, axes, chartSize, quadTree);
       if (localNearest != null) {
         if (nearest != null) {
           if ((localNearest.center - Offset(x, y)).distanceSquared <
               (nearest.center - Offset(x, y)).distanceSquared) {
             nearest = localNearest;
+            nearestChartAxesId = axesId;
           }
         } else {
           nearest = localNearest;
+          nearestChartAxesId = axesId;
         }
+      }
+    }
+
+    if (isHover) {
+      if (nearest != null) {
+        return HoverDataPoint(nearestChartAxesId!, nearest.element);
       }
     }
 
@@ -422,6 +547,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(null, selectedDataPoints);
     }
-    setState(() {});
+    return null;
   }
 }

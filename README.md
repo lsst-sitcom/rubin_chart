@@ -1,39 +1,13 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# Rubin Chart
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/guides/libraries/writing-package-pages).
+This package is a library developed for work on the Vera C. Rubin Observatory Legacy Survey of Space Time (LSST) to assist in visualizing data taken by the Simonyi Survey Telescope.
+For our analyses none of the existing open source flutter chart libraries that we found met all of our needs, as we require:
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-library-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/developing-packages).
--->
+1. The ability to quickly display hundreds of thousands to millions of data points.
+2. The ability to interact with those plots by panning, zooming, and interactively selecting and drilling down on plots that are connected together.
+3. The ability to implement interactive legends that allow us to add and edit the series that are plotted in a chart.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+The primary use of this library for us is to display information using the yet to be named https://github.com/lsst-ts/rubintv_visualization package, which connects to the telescope database and allows us to explore and drilldown on data.
+So we recommend looking at that package to see how this library is used in the wild, although we have really customized that package for our particular use case.
 
-## Features
-
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
-```
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+We do hope that this can become a useful tool for others in the Flutter community, and our project as a whole is entirely open source, so please feel free to make changes and help us continue development.

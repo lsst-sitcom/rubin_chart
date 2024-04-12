@@ -1,7 +1,7 @@
 library rubin_chart;
 
-export 'src/models/axes/axis.dart';
 export 'src/models/axes/axes.dart';
+export 'src/models/axes/axis.dart';
 export 'src/models/axes/mapping.dart';
 export 'src/models/axes/ticks.dart';
 

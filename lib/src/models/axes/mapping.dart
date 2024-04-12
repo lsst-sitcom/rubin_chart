@@ -1,8 +1,30 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:math' as math;
 
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
+/// An error occurred while mapping a value.
 class MappingError implements Exception {
   MappingError(this.message);
 
@@ -12,11 +34,17 @@ class MappingError implements Exception {
   String toString() => "$runtimeType:\n\t$message";
 }
 
-abstract class Mapping<T> {
+/// A mapping between linear data values and (potentially) non-linear data values.
+abstract class Mapping {
   const Mapping();
-  double map(T x);
-  T inverse(double x);
 
+  /// Forward map the data value.
+  double map(double x);
+
+  /// Invert the mapping to get the data value.
+  double inverse(double x);
+
+  /// Get the ticks for the axis based on the bounds and the desired number of ticks.
   AxisTicks ticksFromBounds({
     required Bounds<num> bounds,
     required int minTicks,
@@ -55,6 +83,7 @@ NiceNumber calculateLinearTickStepSize(
   return stepSize;
 }
 
+/// Get the ticks for a linear axis based on the step size.
 List<T> getLinearTicksFromStepSize<T extends num>(T step, T min, T max, bool encloseBounds) {
   List<T> ticks = [];
   T val = min;
@@ -78,6 +107,7 @@ List<T> getLinearTicksFromStepSize<T extends num>(T step, T min, T max, bool enc
   return ticks;
 }
 
+/// Get the step size for a linear axis based on the desired number of ticks.
 NiceNumber getLinearTickStepSize<T extends num>(
   T min,
   T max,
@@ -105,14 +135,15 @@ NiceNumber getLinearTickStepSize<T extends num>(
   return stepSize;
 }
 
-class LinearMapping extends Mapping<num> {
+/// A linear mapping between data values and linear x-y values.
+class LinearMapping extends Mapping {
   const LinearMapping();
 
   @override
   double map(num x) => x.toDouble();
 
   @override
-  num inverse(double x) => x;
+  double inverse(double x) => x;
 
   @override
   AxisTicks ticksFromBounds({
@@ -154,6 +185,7 @@ class LinearMapping extends Mapping<num> {
   }
 }
 
+/// A mapping between numerical strings and their unicode superscript values.
 Map<String, String> mapIntToSuperscript = {
   "-": "⁻",
   "0": "⁰",
@@ -168,6 +200,7 @@ Map<String, String> mapIntToSuperscript = {
   "9": "⁹",
 };
 
+/// Convert an integer to a unicode superscript string.
 String intToSuperscript(int x) {
   String result = "";
   for (String digit in x.toString().split("")) {
@@ -176,6 +209,7 @@ String intToSuperscript(int x) {
   return result;
 }
 
+/// Get the ticks for a logarithmic axis based on the bounds and the desired number of ticks.
 AxisTicks getLogTicks({
   required Bounds<num> bounds,
   required int minTicks,
@@ -189,6 +223,7 @@ AxisTicks getLogTicks({
   double max = bounds.max.toDouble();
   assert(max > min, "max must be greater than min");
 
+  // Map the bounds to the log scale
   int mappedMin;
   if (min > 0) {
     if (encloseBounds) {
@@ -206,6 +241,7 @@ AxisTicks getLogTicks({
     mappedMax = mapping.map(max).floor();
   }
 
+  // Generate the major ticks and tick labels
   List<int> mappedTicks = List.generate(mappedMax - mappedMin + 1, (index) => (mappedMin + index));
   List<double> ticks = mappedTicks.isEmpty ? [] : mappedTicks.map((e) => e.toDouble()).toList();
   List<String> tickLabels = mappedTicks.map((e) => "${baseString ?? base}${intToSuperscript(e)}").toList();
@@ -215,6 +251,8 @@ AxisTicks getLogTicks({
           math.min(min, math.pow(base, ticks.first)),
           math.max(max, math.pow(base, ticks.last)),
         );
+
+  // Generate the minor ticks
   List<double> minorTicks = [];
   if (base == 10) {
     double boundedMin = math.min(mappedMin.toDouble(), mapping.map(min));
@@ -240,14 +278,15 @@ AxisTicks getLogTicks({
   );
 }
 
-class LogMapping extends Mapping<num> {
+/// A mapping between data values and natural logarithmic x-y values.
+class LogMapping extends Mapping {
   const LogMapping();
 
   @override
-  double map(num x) => math.log(x);
+  double map(double x) => math.log(x);
 
   @override
-  num inverse(double x) => math.pow(math.e, x);
+  double inverse(double x) => math.pow(math.e, x).toDouble();
 
   @override
   AxisTicks ticksFromBounds({
@@ -268,13 +307,14 @@ class LogMapping extends Mapping<num> {
   }
 }
 
-class Log10Mapping extends Mapping<num> {
+/// A mapping between data values and base 10 logarithmic x-y values.
+class Log10Mapping extends Mapping {
   const Log10Mapping();
   @override
-  double map(num x) => math.log(x) / math.ln10;
+  double map(double x) => math.log(x) / math.ln10;
 
   @override
-  num inverse(double x) => math.pow(10, x).toDouble();
+  double inverse(double x) => math.pow(10, x).toDouble();
 
   @override
   AxisTicks ticksFromBounds({

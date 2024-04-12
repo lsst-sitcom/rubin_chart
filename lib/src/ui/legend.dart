@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,11 +31,24 @@ import 'package:rubin_chart/src/ui/chart.dart';
 /// A callback function that is called a [Series] in a [Legend] is selected.
 typedef LegendSelectionCallback = void Function({required Series series});
 
+/// A widget that displays a single Series entry in a legend.
 class LegendEntry extends StatelessWidget {
+  /// The marker for the series.
+  /// This may be different than the [series] marker because the
+  /// series marker can be null, in which case this is generated
+  /// using the color cycle of the [SeriesList].
   final Marker marker;
+
+  /// The text to display for the series.
   final TextSpan textSpan;
+
+  /// The size of the row.
   final Size rowSize;
+
+  /// The theme to use for the legend.
   final ChartTheme theme;
+
+  /// The series that this entry represents.
   final Series series;
 
   const LegendEntry({
@@ -26,6 +60,7 @@ class LegendEntry extends StatelessWidget {
     required this.series,
   });
 
+  /// Initialize a [LegendEntry] with the given parameters.
   static LegendEntry init({
     Key? key,
     required Marker marker,
@@ -77,12 +112,26 @@ class LegendEntry extends StatelessWidget {
   }
 }
 
+/// A widget that displays a legend for a chart.
 abstract class LegendViewer extends StatelessWidget {
+  /// The legend to display.
   final Legend legend;
+
+  /// The theme to use for the legend.
   final ChartTheme theme;
+
+  /// The rows to display in the legend.
   final List<LegendEntry> rows;
+
+  /// The size of the legend.
+  /// This must be pre-calculated on init from a static method because
+  /// it is needed to layout the chart.
   final Size legendSize;
+
+  /// The layout ID for the legend.
   final ChartLayoutId layoutId;
+
+  /// A callback function that is called when a series is selected.
   final LegendSelectionCallback? selectionCallback;
 
   const LegendViewer({
@@ -96,6 +145,7 @@ abstract class LegendViewer extends StatelessWidget {
   });
 }
 
+/// A viewer for a horizontal legend.
 class VerticalLegendViewer extends LegendViewer {
   const VerticalLegendViewer({
     super.key,
@@ -107,6 +157,7 @@ class VerticalLegendViewer extends LegendViewer {
     super.selectionCallback,
   });
 
+  /// Create a [VerticalLegendViewer] from a set of parameters.
   static VerticalLegendViewer fromSeriesList({
     Key? key,
     required Legend legend,

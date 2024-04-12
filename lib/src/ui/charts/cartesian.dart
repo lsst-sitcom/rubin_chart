@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -8,11 +29,16 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/scatter.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
+/// Axes for a Cartesian chart.
 class CartesianChartAxes extends ChartAxes {
+  /// The ID of the x-axis.
   late final AxisId xAxisId;
+
+  /// The ID of the y-axis.
   late final AxisId yAxisId;
 
   CartesianChartAxes({required super.axes}) {
+    // Extract and set the x and y axes from the map of axes.
     AxisId? xAxisId;
     AxisId? yAxisId;
     for (AxisId axisId in axes.keys) {
@@ -29,11 +55,14 @@ class CartesianChartAxes extends ChartAxes {
     this.yAxisId = yAxisId!;
   }
 
+  /// Create a new [CartesianChartAxes] from a map of axes.
   static CartesianChartAxes fromAxes({required Map<AxisId, ChartAxis> axes}) =>
       CartesianChartAxes(axes: axes);
 
+  /// Get the x-axis.
   ChartAxis get xAxis => axes[xAxisId]!;
 
+  /// Get the y-axis.
   ChartAxis get yAxis => axes[yAxisId]!;
 
   @override
@@ -116,6 +145,7 @@ class CartesianChartAxes extends ChartAxes {
         Offset(xBounds.max, yBounds.max),
       );
 
+  /// Translate a single [ChartAxis] by a given amount.
   void _translateAxis(ChartAxis axis, double min, double max, double delta) {
     if (max < min) {
       double temp = min;
@@ -157,6 +187,7 @@ class CartesianChartAxes extends ChartAxes {
   }
 }
 
+/// A class for storing information about a Cartesian scatter plot.
 class CartesianScatterPlotInfo extends ScatterPlotInfo {
   CartesianScatterPlotInfo({
     required super.id,
@@ -189,6 +220,7 @@ class CartesianScatterPlotInfo extends ScatterPlotInfo {
       );
 }
 
+/// A class for painting axes, including ticks, on a Cartesian chart.
 class CartesianAxisPainter extends AxisPainter {
   CartesianAxisPainter({
     required super.allAxes,

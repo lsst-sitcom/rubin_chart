@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -16,6 +37,7 @@ import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
+/// Information needed to build a scatter plot.
 abstract class ScatterPlotInfo extends ChartInfo {
   ScatterPlotInfo({
     required super.id,
@@ -31,16 +53,31 @@ abstract class ScatterPlotInfo extends ChartInfo {
     super.xToYRatio,
   }) : super(builder: ScatterPlot.builder);
 
+  /// Function to initialize the axes of the chart.
   Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints});
+
+  /// Function to initialize the axes painter of the chart.
   AxisPainter initializeAxesPainter({required Map<Object, ChartAxes> allAxes, required ChartTheme theme});
 }
 
+/// A scatter plot.
 class ScatterPlot extends StatefulWidget {
+  /// The information needed to build the scatter plot.
   final ScatterPlotInfo info;
+
+  /// The selection controller for the chart.
   final SelectionController? selectionController;
+
+  /// The drill down controller for the chart.
   final SelectionController? drillDownController;
+
+  /// The axis controllers for the chart.
   final Map<AxisId, AxisController> axisControllers;
+
+  /// The hidden axes for the chart.
   final List<AxisId> hiddenAxes;
+
+  /// Callback function for when the cursor is moved to new coordinates.
   final CoordinateCallback? onCoordinateUpdate;
 
   const ScatterPlot({
@@ -53,6 +90,7 @@ class ScatterPlot extends StatefulWidget {
     this.onCoordinateUpdate,
   }) : super(key: key);
 
+  /// Create a scatter plot.
   static Widget builder({
     required ChartInfo info,
     Map<AxisId, AxisController>? axisControllers,
@@ -78,13 +116,18 @@ class ScatterPlot extends StatefulWidget {
   ScatterPlotState createState() => ScatterPlotState();
 }
 
+/// A data point that is being hovered over.
 class HoverDataPoint {
+  /// The ID of the [ChartAxes] containing the data point.
   final Object chartAxesId;
+
+  /// The ID of the data point.
   final Object dataId;
 
-  HoverDataPoint(this.chartAxesId, this.dataId);
+  const HoverDataPoint(this.chartAxesId, this.dataId);
 }
 
+/// The state of a [ScatterPlot].
 class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DChartMixin {
   @override
   SeriesList get seriesList => SeriesList(
@@ -102,11 +145,16 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
+  /// The tooltip overlay.
   OverlayEntry? hoverOverlay;
 
+  /// Timer to keep track of whether or not the cursor is hovering over a point.
   Timer? _hoverTimer;
+
+  /// Whether or not the cursor is hovering over a point.
   bool _isHovering = false;
 
+  /// Clear the timer and all other hover data.
   void _clearHover() {
     _hoverTimer?.cancel();
     _hoverTimer = null;
@@ -116,12 +164,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {});
   }
 
+  /// Notify the user that the cursor is no longer over the chart.
   void onHoverEnd(PointerExitEvent event) {
     if (widget.onCoordinateUpdate != null) {
       widget.onCoordinateUpdate!({});
     }
   }
 
+  /// Create a tooltip when the cursor is hovering over a point.
   void onHoverStart({required PointerHoverEvent event, required Map<Object, dynamic> data}) {
     Widget tooltip = getTooltip(
       data: data,
@@ -146,6 +196,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     Overlay.of(context).insert(hoverOverlay!);
   }
 
+  /// Build the tooltip.
   Widget getTooltip({required Map<Object, dynamic> data}) {
     List<Widget> tooltipData = [];
     for (MapEntry<Object, dynamic> entry in data.entries) {
@@ -196,6 +247,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
   }
 
+  /// Initialize the quadtree used for selection.
   void _initializeQuadTree() {
     List<Object> axesIndices = _axes.keys.toList();
     for (Object axesIndex in axesIndices) {
@@ -235,22 +287,20 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
   }
 
+  /// Update the selection data points.
   void _onSelectionUpdate(Set<Object> dataPoints) {
     selectedDataPoints = dataPoints;
     setState(() {});
   }
 
+  /// If drill down is enabled, zoom in to the selected data points
+  /// from another chart.
   void _onDrillDownUpdate(Set<Object> dataPoints) {
     drillDownDataPoints = dataPoints;
     if (widget.info.zoomOnDrillDown) {
       _axes.clear();
       _initializeAxes();
     }
-    // Initialize the axes
-    //_initializeAxes();
-
-    // Initialize the quadtrees
-    //_initializeQuadTree();
     setState(() {});
   }
 
@@ -458,6 +508,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
             )));
   }
 
+  /// Update the drag parameters when the user starts dragging.
   void _onDragStart(DragStartDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
     dragStart = details.localPosition;
@@ -466,6 +517,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {});
   }
 
+  /// Update the drag region size and select data points within the drag region.
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
     dragEnd = details.localPosition;
@@ -496,10 +548,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {});
   }
 
+  /// Clear the drag parameters when the user stops dragging.
   void _onDragEnd(DragEndDetails details, AxisPainter axisPainter) => _cleanDrag();
 
+  /// Clear the drag parameters when the user cancels dragging.
   void _onDragCancel() => _cleanDrag();
 
+  /// Clear the drag parameters.
   void _cleanDrag() {
     dragStart = null;
     dragEnd = null;
@@ -534,6 +589,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     return null;
   }
 
+  /// Check for the nearest data point to the cursor when the user taps the chart.
+  /// If [isHover] then the function will return the nearest data point without
+  /// updating the selection.
   HoverDataPoint? _onTapUp(Offset localPosition, AxisPainter axisPainter, [bool isHover = false]) {
     focusNode.requestFocus();
     Size chartSize = axisPainter.chartSize;

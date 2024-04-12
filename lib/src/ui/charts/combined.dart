@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -8,13 +29,32 @@ import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
+/// A chart that combines multiple charts linked by shared axes
 class CombinedChart extends StatefulWidget {
+  /// The title of the combined chart.
   final String? title;
+
+  /// The selection controller for the chart.
   final SelectionController? selectionController;
+
+  /// The drill down controller for the chart.
   final SelectionController? drillDownController;
+
+  /// The children of the combined chart.
+  /// All children in the same row will have their y-axes aligned and shared,
+  /// while all children in the same column will have their x-axes aligned and shared.
+  /// Use "null" for any elements in the grid that should be empty, for example
+  /// `[[A, B], [null,C]]` will align A and B on the y-axis and B and C on the x-axis
+  /// with no chart below A.
   final List<List<ChartInfo?>> children;
+
+  /// The theme for the chart.
   final ChartTheme theme;
+
+  /// The callback for legend selection.
   final LegendSelectionCallback? legendSelectionCallback;
+
+  /// The callback for coordinate updates.
   final CoordinateCallback? onCoordinateUpdate;
 
   const CombinedChart({
@@ -32,12 +72,23 @@ class CombinedChart extends StatefulWidget {
   CombinedChartState createState() => CombinedChartState();
 }
 
+/// The state for the combined chart.
 class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
+  /// The rows of the chart.
   final List<List<ChartInfo>> rows = [];
+
+  /// The columns of the chart.
   final List<List<ChartInfo>> columns = [];
+
+  /// The controllers for the axes.
   final Map<AxisController, Map<AxisId, ChartInfo>> axesControllers = {};
+
+  /// The hidden labels.
   final List<ChartLayoutId> hiddenLabels = [];
+
+  /// The hidden axes.
   final List<AxisId> hiddenAxes = [];
+
   @override
   late SelectionController selectionController;
   @override
@@ -52,6 +103,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   @override
   void initState() {
     super.initState();
+    selectionController = widget.selectionController ?? SelectionController();
     _initAxesAndBins();
   }
 
@@ -61,6 +113,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
     _initAxesAndBins();
   }
 
+  /// Initialize the axes and bins for the all of the charts.
   void _initAxesAndBins() {
     // Clear the parameters
     rows.clear();
@@ -68,7 +121,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
     axesControllers.clear();
     hiddenLabels.clear();
 
-    selectionController = widget.selectionController ?? SelectionController();
+    // Add the appropriate [ChartInfo] to each row and column.
     int nRows = widget.children.length;
     int nCols = widget.children[0].length;
     for (int i = 0; i < nRows; i++) {
@@ -77,7 +130,6 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
     for (int i = 0; i < nCols; i++) {
       columns.add([]);
     }
-
     for (int i = 0; i < widget.children.length; i++) {
       for (int j = 0; j < widget.children[i].length; j++) {
         ChartInfo? info = widget.children[i][j];
@@ -88,6 +140,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
       }
     }
 
+    // Create the x axes.
     for (int i = 0; i < rows.length; i++) {
       if (rows[i].length > 1) {
         Map<AxisId, ChartInfo> axisCharts = {};
@@ -142,6 +195,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
       }
     }
 
+    // Create the y axes.
     for (int i = 0; i < columns.length; i++) {
       if (columns[i].length > 1) {
         Map<AxisId, ChartInfo> axisCharts = {};
@@ -199,6 +253,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Map the axis controllers to the axis ids
     Map<AxisId, AxisController> axisControllers = {};
     for (MapEntry<AxisController, Map<AxisId, ChartInfo>> entry in axesControllers.entries) {
       AxisController controller = entry.key;
@@ -206,6 +261,7 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
         axisControllers[infoEntry.key] = controller;
       }
     }
+    // Build the individual charts
     List<Widget> children = [];
     Map<ChartInfo, LegendViewer> legendViewers = {};
     for (ChartInfo? info in widget.children.expand((e) => e)) {
@@ -266,9 +322,16 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
 
 /// A delegate that lays out the components of a chart.
 class CombinedChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin {
+  /// The children of the combined chart.
   final List<List<ChartInfo?>> children;
+
+  /// The rows of the combined chart.
   final List<List<ChartInfo>> rows;
+
+  /// The columns of the combined chart.
   final List<List<ChartInfo>> columns;
+
+  /// The legend viewers for each chart.
   final Map<ChartInfo, LegendViewer> legendViewers;
 
   CombinedChartLayoutDelegate({

@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -27,7 +48,10 @@ T? listEquality<T extends num>(List<T> list, String op) {
   return result;
 }
 
+/// Returns the maximum value in a list of numbers.
 T? listMax<T extends num>(List<T> list) => listEquality(list, "max");
+
+/// Returns the minimum value in a list of numbers.
 T? listMin<T extends num>(List<T> list) => listEquality(list, "min");
 
 /// Sort a map by its keys and return the list of values
@@ -165,12 +189,24 @@ class Bounds<T extends Comparable> {
   }
 }
 
+/// Different comparison operators.
 enum ComparisonOperators {
+  /// Equal to.
   eq,
+
+  /// Not equal to.
   ne,
+
+  /// Less than.
   lt,
+
+  /// Greater than.
   gt,
+
+  /// Less than or equal to.
   le,
+
+  /// Greater than or equal to.
   ge,
 }
 

@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
@@ -11,23 +32,24 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/box.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 
-/// The different types of aggregation that can be used in a histogram.
-enum BinAggregationType {
-  count,
-  sum,
-  mean,
-  median,
-  min,
-  max,
-}
-
 /// A class that represents binned data.
 abstract class BinnedData {
+  /// The data in the bin mapped from the data ID to each data point.
   Map<Object, List<double>> data;
+
+  /// The first value of the main axis.
   double mainStart;
+
+  /// The last value of the main axis.
   double mainEnd;
+
+  /// The color to fill the bin with.
   final Color? fillColor;
+
+  /// The color to outline the bin with.
   final Color? edgeColor;
+
+  /// The width of the outline of the bin.
   final double edgeWidth;
 
   BinnedData({
@@ -39,10 +61,13 @@ abstract class BinnedData {
     this.edgeWidth = 1,
   });
 
+  /// Insert a data point into the bin.
   void insert(Object dataId, List<double> data);
 
+  /// Returns true if the bin contains the given data point.
   bool contains(List<double> data);
 
+  /// Returns a [Rect] that represents the bin in pixel coordinates.
   Rect rectToPixel({
     required ChartAxes axes,
     required Size chartSize,
@@ -128,15 +153,21 @@ class SelectedBinRange {
   }
 }
 
+/// Represents the details of a selection in a binned chart.
 class BinnedSelectionDetails {
+  /// The selected bins.
   final List<BinnedData> selectedBins;
+
+  /// The selected data points contained in the selected bins.
   final Set<Object> selectedDataPoints;
 
-  BinnedSelectionDetails(this.selectedBins, this.selectedDataPoints);
+  const BinnedSelectionDetails(this.selectedBins, this.selectedDataPoints);
 }
 
+/// A callback for when a bin is selected.
 typedef BinnedSelectionCallback = void Function({required BinnedSelectionDetails details});
 
+/// Information for a binned chart.
 class BinnedChartInfo extends ChartInfo {
   /// The number of bins to use
   /// Either [nBins] or [edges] must be provided.
@@ -152,6 +183,7 @@ class BinnedChartInfo extends ChartInfo {
   /// Callback for when a bin is selected.
   final BinnedSelectionCallback? onSelection;
 
+  /// Callback for when a bin is drilled down into.
   final BinnedSelectionCallback? onDrillDown;
 
   BinnedChartInfo({
@@ -175,13 +207,27 @@ class BinnedChartInfo extends ChartInfo {
   }) : assert(nBins != null || edges != null);
 }
 
+/// A chart based on binned data.
 abstract class BinnedChart extends StatefulWidget {
+  /// The information for the chart.
   final BinnedChartInfo info;
+
+  /// The selection controller for the chart to synch selection with other charts.
   final SelectionController? selectionController;
+
+  /// The drill down controller for the chart to drill down on other charts.
   final SelectionController? drillDownController;
+
+  /// The controllers for the axes of the chart to synch aligned axes.
   final Map<AxisId, AxisController> axisControllers;
+
+  /// Axes that should be hidden (usually when sharing an axis with another chart).
   final List<AxisId> hiddenAxes;
+
+  /// The main axis alignment for the chart.
   final AxisOrientation? mainAxisAlignment;
+
+  /// Callback for when the cursor moves to a new coordinate.
   final CoordinateCallback? onCoordinateUpdate;
 
   const BinnedChart({
@@ -199,12 +245,16 @@ abstract class BinnedChart extends StatefulWidget {
   BinnedChartState createState();
 }
 
+/// The state for a [BinnedChart].
 abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     with ChartMixin, Scrollable2DChartMixin {
+  /// The orientation of the main axis.
   AxisOrientation get mainAxisAlignment;
 
+  /// The [BinnedChartInfo] for the chart.
   BinnedChartInfo get info;
 
+  /// The tooltip if the user is hovering over a bin.
   OverlayEntry? hoverOverlay;
 
   @override
@@ -220,11 +270,16 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   /// The axes of the chart.
   final Map<Object, ChartAxes> _axes = {};
 
+  /// The collection of bins.
   final Map<BigInt, BinnedDataContainer> binContainers = {};
 
+  /// The selected bins.
   SelectedBinRange? selectedBins;
 
+  /// A timer used to determine if the user is hovering over a bin.
   Timer? _hoverTimer;
+
+  /// Whether the user is currently hovering over a bin.
   bool _isHovering = false;
 
   /// The location of the base of the histogram bins.
@@ -255,10 +310,15 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     initAxesAndBins();
   }
 
+  /// Initialize the axes and bins for the chart.
   void initAxesAndBins();
 
+  /// Update the axes and bins for the chart.
   void updateAxesAndBins();
 
+  /// Get the tooltip widget for the given bin.
+  /// This is not implemented in the base class because
+  /// histograms and box charts have different tooltips.
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
@@ -266,6 +326,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     required BinnedData bin,
   });
 
+  /// Create the tooltip if the user is hovering over a bin
   void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {
     if (bin == null) return;
     ChartAxis mainAxis;
@@ -304,8 +365,11 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     Overlay.of(context).insert(hoverOverlay!);
   }
 
+  /// Callback for when the user stops hovering over a bin.
   void onHoverEnd(PointerHoverEvent event) {}
 
+  /// Clear the hover overlay and other properties related to hovering
+  /// if the user is no longer hovering over a bin.
   void _clearHover() {
     _hoverTimer?.cancel();
     _hoverTimer = null;

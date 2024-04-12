@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import "dart:math" as math;
 import "dart:collection";
 
@@ -90,6 +111,7 @@ class AxisId {
 
   AxisId(this.location, [this.axesId = 0]);
 
+  /// Two [AxisId] instances are equal if their [location] and [axesId] are equal.
   @override
   bool operator ==(Object other) {
     if (other is AxisId) {
@@ -98,6 +120,7 @@ class AxisId {
     return false;
   }
 
+  /// The hash code of an [AxisId] is the hash of its [location] and [axesId].
   @override
   int get hashCode => Object.hash(location, axesId);
 
@@ -107,38 +130,77 @@ class AxisId {
 
 /// The orientation of a chart axis
 enum AxisLocation {
+  /// The axis is on the left side of the chart.
   left,
+
+  /// The axis is on the right side of the chart.
   right,
+
+  /// The axis is on the top of the chart.
   top,
+
+  /// The axis is on the bottom of the chart.
   bottom,
+
+  /// The axis is the x-direction on a 3D chart (not implemented).
   x3D,
+
+  /// The axis is the y-direction on a 3D chart (not implemented).
   y3D,
+
+  /// The axis is the z-direction on a 3D chart (not implemented).
   z3D,
+
+  /// The axis is the radial direction on a polar chart.
   radial,
+
+  /// The axis is the angular direction on a polar chart.
   angular,
 }
 
 /// The orientation of a chart axis
 enum AxisOrientation {
+  /// The axis is horizontal.
   horizontal,
+
+  /// The axis is vertical.
   vertical,
+
+  /// The axis is radial.
   radial,
+
+  /// The axis is angular.
   angular,
 }
 
 /// The different types of data than can be plotted.
 enum AxisDataType {
+  /// The data is a number.
   number,
+
+  /// The data is a string.
   string,
+
+  /// The data is a date-time.
   datetTime,
 }
 
+/// Information about a chart axis.
 @immutable
 class ChartAxisInfo {
+  /// The label to display for the axis.
   final String label;
+
+  /// The mapping to use for the axis.
   final Mapping mapping;
+
+  /// Whether the axis is inverted.
   final bool isInverted;
+
+  /// The [AxisId] of the axis.
   final AxisId axisId;
+
+  /// Whether the axis is bounded.
   final bool isBounded;
 
   /// If [fixedBounds] is not null, the bounds of the axis will be fixed to these values.
@@ -153,6 +215,7 @@ class ChartAxisInfo {
     this.fixedBounds,
   });
 
+  /// Whether the axis has fixed bounds.
   bool get isFixed => fixedBounds != null;
 }
 
@@ -171,10 +234,13 @@ abstract class ChartAxis<T extends Object> {
   /// Tick marks for the axis.
   AxisTicks _ticks;
 
+  /// The data type of the axis.
   final AxisDataType dataType;
 
+  /// The theme of the chart.
   final ChartTheme theme;
 
+  /// The controller for the axis.
   AxisController? controller;
 
   /// Whether to show the ticks on the axis.
@@ -197,7 +263,10 @@ abstract class ChartAxis<T extends Object> {
         _bounds = bounds,
         _ticks = ticks;
 
+  /// Convert a value to a double.
   double toDouble(T value);
+
+  /// Convert a double to a native coordinate value.
   T fromDouble(double value);
 
   /// Update the tick marks and adjust the bounds if necessary
@@ -221,12 +290,17 @@ abstract class ChartAxis<T extends Object> {
   /// Update the tick marks and adjust the bounds if necessary.
   AxisTicks _updateTicks(Bounds<double> bounds);
 
+  /// Extract the info for the axis.
   ChartAxisInfo get info => _info;
 
+  /// Extract the bounds for the axis.
   Bounds<double> get bounds => _bounds;
 
+  /// Extract the ticks for the axis.
   AxisTicks get ticks => _ticks;
 
+  /// Update the axis with new information,
+  /// usually from an [AxisController].
   void update({
     ChartAxisInfo? info,
     Bounds<double>? bounds,
@@ -248,6 +322,7 @@ abstract class ChartAxis<T extends Object> {
   }
 }
 
+/// An axis for plotting numerical data.
 class NumericalChartAxis extends ChartAxis<double> {
   NumericalChartAxis({
     required super.info,
@@ -261,6 +336,7 @@ class NumericalChartAxis extends ChartAxis<double> {
           dataType: AxisDataType.number,
         );
 
+  /// Create a [NumericalAxis] with fixed bounds.
   static fromFixedBounds({
     required ChartAxisInfo axisInfo,
     required Bounds<double> bounds,
@@ -280,6 +356,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     );
   }
 
+  /// Create a [NumericalAxis] from a list of data.
   static NumericalChartAxis fromData({
     required ChartAxisInfo axisInfo,
     required List<List<double>> data,
@@ -315,6 +392,7 @@ class NumericalChartAxis extends ChartAxis<double> {
     );
   }
 
+  /// Create a [NumericalAxis] from a list of bounds.
   static NumericalChartAxis fromBounds({
     required ChartAxisInfo axisInfo,
     required List<Bounds<double>> boundsList,
@@ -354,16 +432,6 @@ class NumericalChartAxis extends ChartAxis<double> {
     );
   }
 
-  NumericalChartAxis addData(
-    List<Bounds<double>> bounds,
-    ChartTheme theme,
-  ) =>
-      fromBounds(
-        axisInfo: info,
-        boundsList: [this.bounds, ...bounds],
-        theme: theme,
-      );
-
   @override
   double toDouble(double value) => value;
 
@@ -379,7 +447,11 @@ class NumericalChartAxis extends ChartAxis<double> {
   String toString() => "NumericalChartAxis<${info.axisId}: $_bounds>";
 }
 
+/// An axis for plotting string data.
+/// Currently this is not supported or implemented,
+/// but could be implemented with fairly minimal effort.
 class StringChartAxis extends ChartAxis<String> {
+  /// The unique [String] values in the data.
   final List<String> uniqueValues;
 
   StringChartAxis._({
@@ -393,6 +465,7 @@ class StringChartAxis extends ChartAxis<String> {
           dataType: AxisDataType.string,
         );
 
+  /// Create a [StringAxis] from a list of data.
   static StringChartAxis fromData({
     required ChartAxisInfo axisInfo,
     required List<List<String>> data,
@@ -443,6 +516,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
           dataType: AxisDataType.datetTime,
         );
 
+  /// Create a [DateTimeChartAxis] with fixed bounds.
   static fromFixedBounds({
     required ChartAxisInfo axisInfo,
     required Bounds<DateTime> bounds,
@@ -462,6 +536,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     );
   }
 
+  /// Create a [DateTimeChartAxis] in the modified Dulian date
+  /// (MJD) format from a list of date-times.
   static DateTimeChartAxis fromDataMjd({
     required ChartAxisInfo axisInfo,
     required List<List<DateTime>> data,
@@ -495,6 +571,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     );
   }
 
+  /// Create a [DateTimeChartAxis] from a list of date-times.
+  /// For now this just implements the data-time as MJD.
   static DateTimeChartAxis fromData({
     required ChartAxisInfo axisInfo,
     required List<List<DateTime>> data,
@@ -539,6 +617,8 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
     );
   }
 
+  /// Create a [DateTimeChartAxis] from a list of bounds.
+  /// For now this just implements the data-time as MJD.
   static DateTimeChartAxis fromBounds({
     required ChartAxisInfo axisInfo,
     required List<Bounds<double>> boundsList,
@@ -590,6 +670,7 @@ class DateTimeChartAxis extends ChartAxis<DateTime> {
   }
 }
 
+/// An exception that is thrown when an axis is missing.
 class MissingAxisException implements Exception {
   final String message;
 
@@ -599,116 +680,9 @@ class MissingAxisException implements Exception {
   String toString() => message;
 }
 
-/// A [Rect] replacement that uses the main and cross axis instead of left, top, right, and bottom.
-class AxisAlignedRect {
-  /// The minimum value of the main axis.
-  final double mainStart;
-
-  /// The minimum value of the cross axis.
-  final double crossStart;
-
-  /// The maximum value of the main axis.
-  final double mainEnd;
-
-  /// The maximum value of the cross axis.
-  final double crossEnd;
-
-  final AxisOrientation mainAxisAlignment;
-
-  AxisAlignedRect({
-    required this.mainStart,
-    required this.crossStart,
-    required this.mainEnd,
-    required this.crossEnd,
-    required this.mainAxisAlignment,
-  }) : assert(
-            mainAxisAlignment == AxisOrientation.vertical || mainAxisAlignment == AxisOrientation.horizontal);
-
-  // Helper to create from main and cross coordinates directly
-  static AxisAlignedRect fromMainCross(
-      double mainStart, double crossStart, double mainEnd, double crossEnd, AxisOrientation orientation) {
-    return AxisAlignedRect(
-      mainStart: mainStart,
-      crossStart: crossStart,
-      mainEnd: mainEnd,
-      crossEnd: crossEnd,
-      mainAxisAlignment: orientation,
-    );
-  }
-
-  static AxisAlignedRect fromRect(Rect rect, AxisOrientation orientation) {
-    if (orientation == AxisOrientation.vertical) {
-      return AxisAlignedRect(
-        mainStart: rect.top,
-        crossStart: rect.left,
-        mainEnd: rect.bottom,
-        crossEnd: rect.right,
-        mainAxisAlignment: orientation,
-      );
-    } else {
-      return AxisAlignedRect(
-        mainStart: rect.left,
-        crossStart: rect.top,
-        mainEnd: rect.right,
-        crossEnd: rect.bottom,
-        mainAxisAlignment: orientation,
-      );
-    }
-  }
-
-  // Convert to Flutter's Rect depending on orientation
-  Rect toRect() {
-    double left;
-    double right;
-    double top;
-    double bottom;
-
-    if (mainAxisAlignment == AxisOrientation.vertical) {
-      if (crossStart < crossEnd) {
-        left = crossStart;
-        right = crossEnd;
-      } else {
-        left = crossEnd;
-        right = crossStart;
-      }
-      if (mainStart < mainEnd) {
-        top = mainStart;
-        bottom = mainEnd;
-      } else {
-        top = mainEnd;
-        bottom = mainStart;
-      }
-    } else {
-      if (crossStart < crossEnd) {
-        top = crossStart;
-        bottom = crossEnd;
-      } else {
-        top = crossEnd;
-        bottom = crossStart;
-      }
-      if (mainStart < mainEnd) {
-        left = mainStart;
-        right = mainEnd;
-      } else {
-        left = mainEnd;
-        right = mainStart;
-      }
-    }
-
-    return Rect.fromLTRB(left, top, right, bottom);
-  }
-
-  Offset getOffset(double main, double cross) {
-    return mainAxisAlignment == AxisOrientation.vertical ? Offset(cross, main) : Offset(main, cross);
-  }
-
-  bool inMain(double main) =>
-      (mainStart <= main && main <= mainEnd) || (mainEnd <= main && main <= mainStart);
-
-  bool inCross(double cross) =>
-      (crossStart <= cross && cross <= crossEnd) || (crossEnd <= cross && cross <= crossStart);
-}
-
+/// Initialize a [ChartAxis] from [Series] data, a [ChartTheme], and [ChartAxisInfo].
+/// If [drillDownDataPoints] is not empty, the axis will be initialized with only the data points
+/// that are in the set.
 ChartAxis initializeAxis({
   required Map<Series, AxisId> allSeries,
   required ChartTheme theme,

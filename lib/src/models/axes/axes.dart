@@ -1,3 +1,27 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+///
+/// This module contains the [ChartAxes] class and related classes and functions
+/// to build and manipulate axes for a chart.
+
 import "dart:math" as math;
 
 import 'package:flutter/widgets.dart';
@@ -16,9 +40,27 @@ class AxesInitializationException implements Exception {
   String toString() => message;
 }
 
+/// A function used to initialize a set of axes.
 typedef AxesInitializer = ChartAxes Function({required Map<AxisId, ChartAxis> axes});
 
 /// A collection of axes for a chart.
+/// The axes are stored in a map with their [AxisId] as the key and
+/// can be cartesian (x, y), polar coordinates (radial, angular) or (in theory)
+/// any other (potentially higher dimensional) coordinate system.
+///
+/// [ChatAxes] contain methods to convert between the data coordiantes,
+/// which can be numbers or data times (for now), and various other interpretations.
+/// All coordinates are first converted into double values in their native
+/// coordinate system. Then they are converted into linear x,y coordinates.
+/// Finally, they are converted into pixel coordinates that can be displayed on the screen.
+///
+/// To implement these conversion we have chosen the nomenclature [dataToDouble] and
+/// [dataFromDouble] to convert between data and double values, making it clear that
+/// the "double" values are downstream from the "data" values. The same goes for
+/// [doubleToLinear] and [doubleFromLinear], which map to linear x and y coordinates
+/// regardless of the input coordinate system, and [linearToPixel] and [linearFromPixel],
+/// which map fro linear x,y coordinates to a coordinate system that fits in the
+/// designated chart area on the screen.
 abstract class ChartAxes {
   /// The axes of the chart.
   final Map<AxisId, ChartAxis> axes;
@@ -55,12 +97,13 @@ abstract class ChartAxes {
   @override
   String toString() => "ChartAxes($axes)";
 
-  /// Get the bounds of the x-axis.
+  /// Get the bounds of the linear x-axis.
   Bounds<double> get xBounds;
 
-  /// Get the bounds of the y-axis.
+  /// Get the bounds of the linear y-axis.
   Bounds<double> get yBounds;
 
+  /// Get the bounds of the radial axis.
   Rect get linearRect;
 
   /// Convert series data coordinates into double values.
@@ -160,6 +203,8 @@ Map<AxisId, ChartAxisInfo> getAxisInfoFromSeries(SeriesList seriesList) {
   return axesInfo;
 }
 
+/// Initialize a set of axes from a list of [Series], a [Theme],
+/// and [ChartAxis] information.
 Map<Object, ChartAxes> initializeSimpleAxes({
   required List<Series> seriesList,
   required AxesInitializer axesInitializer,
@@ -167,11 +212,13 @@ Map<Object, ChartAxes> initializeSimpleAxes({
   required Map<AxisId, ChartAxisInfo> axisInfo,
   required Set<Object> drillDownDataPoints,
 }) {
+  // A map of all the axes in the [ChartAxes].
   final Map<AxisId, ChartAxis> axes = {};
   for (MapEntry<AxisId, ChartAxisInfo> entry in axisInfo.entries) {
     AxisId axisId = entry.key;
     Map<Series, AxisId> seriesForAxis = {};
     for (Series series in seriesList) {
+      // Create a map between the series and the axis it is linked to.
       if (series.data.plotColumns.containsKey(axisId)) {
         seriesForAxis[series] = axisId;
       }
@@ -179,12 +226,14 @@ Map<Object, ChartAxes> initializeSimpleAxes({
     if (seriesForAxis.isEmpty) {
       throw AxisUpdateException("Axis $axisId has no series linked to it.");
     }
+    // Initialize the axis using the available series data.
     axes[axisId] = initializeAxis(
         allSeries: seriesForAxis,
         theme: theme,
         axisInfo: entry.value,
         drillDownDataPoints: drillDownDataPoints);
   }
+  // Create the [ChartAxes] from each set of axes that have been identified and initialized.
   final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();
   final Map<Object, ChartAxes> result = {};
   for (Object axesId in axesIds) {

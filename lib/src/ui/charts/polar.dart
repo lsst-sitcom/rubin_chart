@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -17,15 +38,25 @@ const degToRadians = math.pi / 180;
 /// Conversion factor from radians to degrees.
 const radiansToDeg = 1 / degToRadians;
 
+/// A set of axes for a polar chart.
 class PolarChartAxes extends ChartAxes {
+  /// The ID of the radial axis.
   late final AxisId radialAxisId;
+
+  /// The ID of the angular axis.
   late final AxisId angularAxisId;
-  //Offset center = Offset.zero;
+
+  /// The center of the chart.
   Offset center = const Offset(10, 10);
+
+  /// The scale of the x-axis (for zooming in/out).
   double scaleX = 1.0;
+
+  /// The scale of the y-axis (for zooming in/out).
   double scaleY = 1.0;
 
   PolarChartAxes({required super.axes}) {
+    // Extract the radial and angular axes from the map of axes.
     AxisId? radialAxisId;
     AxisId? angularAxisId;
     for (AxisId axisId in axes.keys) {
@@ -42,11 +73,18 @@ class PolarChartAxes extends ChartAxes {
     this.angularAxisId = angularAxisId!;
   }
 
+  /// Create a new [PolarChartAxes] from a map of axes.
   static PolarChartAxes fromAxes({required Map<AxisId, ChartAxis> axes}) => PolarChartAxes(axes: axes);
 
+  /// The radial axis.
   ChartAxis get radialAxis => axes[radialAxisId]!;
+
+  /// The angular axis.
   ChartAxis get angularAxis => axes[angularAxisId]!;
 
+  /// The Cartesian size of the axes.
+  /// Polar plots are always square, so they have one size as opposed to separate width and height,
+  /// where the size is just twice the radial extent.
   Bounds<double> get _axisSize {
     double size = radialAxis.bounds.max - radialAxis.bounds.min;
     return Bounds<double>(-size, size);
@@ -151,12 +189,18 @@ class PolarChartAxes extends ChartAxes {
   }
 }
 
+/// Units used for the angular axis in a polar plot.
 enum PolarUnits {
+  /// Angular axis is in radians.
   radians,
+
+  /// Angular axis is in degrees.
   degrees,
 }
 
+/// A class containing information about a polar scatter plot.
 class PolarScatterPlotInfo extends ScatterPlotInfo {
+  /// The units used for the angular axis.
   PolarUnits units;
 
   PolarScatterPlotInfo({
@@ -193,6 +237,7 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
         );
         axes[entry.key] = radialAxis;
       } else if (entry.value.axisId.location == AxisLocation.angular) {
+        // Always use the same set of tick labels for the angular axis.
         List<String> tickLabels = [];
         if (units == PolarUnits.radians) {
           tickLabels = ["0", "π/4", "π/2", "3π/4", "π", "5π/4", "3π/2", "7π/4", "2π"];
@@ -232,6 +277,7 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
       );
 }
 
+/// Paint the polar axes on a chart.
 class PolarAxisPainter extends AxisPainter {
   PolarAxisPainter({
     required super.allAxes,
@@ -239,6 +285,7 @@ class PolarAxisPainter extends AxisPainter {
     super.tickPadding = 10,
   });
 
+  /// Create a new [PolarAxisPainter] from a map of axes.
   static PolarAxisPainter fromAxes({
     required Map<Object, ChartAxes> allAxes,
     required ChartTheme theme,

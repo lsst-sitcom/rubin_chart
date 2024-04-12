@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -54,6 +75,7 @@ class ChartInitializationException implements Exception {
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
+/// Callback when a data point is, or set of data points are, selected.
 typedef SelectionUpdate = void Function(Set<Object> dataPoints);
 
 /// A controller to manage the selection of data points across multiple series.
@@ -244,18 +266,45 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
 /// Information required to build a chart.
 /// All charts accept a [ChartInfo] as a required input.
 class ChartInfo {
+  /// The ID of the chart.
   final Object id;
+
+  /// The title of the chart.
   final String? title;
+
+  /// The theme of the chart.
   final ChartTheme theme;
+
+  /// All of the series in the chart.
   final List<Series> allSeries;
+
+  /// The legend of the chart.
   final Legend? legend;
+
+  /// Information used to generate the axes of the chart.
   final Map<AxisId, ChartAxisInfo> axisInfo;
+
+  /// The color cycle of the chart.
+  /// If this is null then the color cycle from the theme is used.
   final List<Color>? colorCycle;
+
+  /// The builder for the chart.
+  /// Each [ChartInfo] instance must have a [ChartBuilder] implemented.
   final ChartBuilder builder;
+
+  /// The location of the interior axis labels.
   final AxisLocation? interiorAxisLabelLocation;
+
+  /// The flex factor of the x-axis.
   final double flexX;
+
+  /// The flex factor of the y-axis.
   final double flexY;
+
+  /// The ratio of the x-axis to the y-axis.
   final double? xToYRatio;
+
+  /// Whether to zoom on drill down.
   final bool zoomOnDrillDown;
 
   ChartInfo({
@@ -274,6 +323,7 @@ class ChartInfo {
     this.zoomOnDrillDown = true,
   }) : axisInfo = _genAxisInfoMap(axisInfo, allSeries);
 
+  /// Get the list of series and their marker colors based on the color cycle.
   SeriesList get seriesList => SeriesList(allSeries, colorCycle ?? theme.colorCycle);
 }
 
@@ -291,18 +341,40 @@ typedef ChartBuilder = Widget Function({
 
 /// Enum provinding the different components of a chart that might need to be laid out.
 enum ChartComponent {
+  /// The title of the chart.
   title,
+
+  /// A legend on the top of the chart.
   topLegend,
+
+  /// A legend on the bottom of the chart.
   bottomLegend,
+
+  /// A legend on the left of the chart.
   leftLegend,
+
+  /// A legend on the right of the chart.
   rightLegend,
+
+  /// A floating legend.
   floatingLegend,
+
+  /// An axis on the top of the chart.
   topAxis,
+
+  /// An axis on the bottom of the chart.
   bottomAxis,
+
+  /// An axis on the left of the chart.
   leftAxis,
+
+  /// An axis on the right of the chart.
   rightAxis,
+
+  /// The chart itself.
   chart;
 
+  /// Get the legend [ChartComponent] ID from a [LegendLocation].
   static ChartComponent legendFromLocation(LegendLocation location) {
     switch (location) {
       case LegendLocation.top:
@@ -320,6 +392,7 @@ enum ChartComponent {
     }
   }
 
+  /// Get an axis [ChartComponent] ID from an [AxisLocation].
   static ChartComponent axisFromLocation(AxisLocation location) {
     switch (location) {
       case AxisLocation.top:
@@ -362,13 +435,27 @@ class ChartLayoutId {
   String toString() => "AxisId($component, $id)";
 }
 
+/// A widget that displays a single chart.
 class RubinChart extends StatefulWidget {
+  /// The ID of the chart.
   final Object chartId;
+
+  /// The information about the chart.
   final ChartInfo info;
+
+  /// A controller to manage the selection of data points.
   final SelectionController? selectionController;
+
+  /// A controller to manage the drill down of data points.
   final SelectionController? drillDownController;
+
+  /// A controller to manage the axes of the chart.
   final Map<AxisId, AxisController> axisControllers;
+
+  /// A callback when a legend item is selected.
   final LegendSelectionCallback? legendSelectionCallback;
+
+  /// A callback when the coordinates of the pointer are updated.
   final CoordinateCallback? onCoordinateUpdate;
 
   const RubinChart({
@@ -386,12 +473,15 @@ class RubinChart extends StatefulWidget {
   State<RubinChart> createState() => RubinChartState();
 }
 
+/// A mixin that provides access to the [SelectionController], [DrillDownController],
+/// [LegendSelectionCallback], and [CoordinateCallback] of a chart.
 mixin RubinChartMixin {
   SelectionController? get selectionController;
   SelectionController? get drillDownController;
   LegendSelectionCallback? get legendSelectionCallback;
   CoordinateCallback? get onCoordinateUpdate;
 
+  /// Build a [LegendViewer] for the chart.
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
     if (info.legend != null) {
       if (info.legend!.location == LegendLocation.left ||
@@ -416,6 +506,7 @@ mixin RubinChartMixin {
     return null;
   }
 
+  /// Build the components of a single chart.
   List<Widget> buildSingleChartChildren({
     required Object chartId,
     required ChartInfo info,
@@ -496,9 +587,14 @@ mixin RubinChartMixin {
   }
 }
 
+/// The state of a [RubinChart].
 class RubinChartState extends State<RubinChart> with RubinChartMixin {
+  /// The initial offset of the legend.
   Offset _initialLegendOffset = Offset.zero;
+
+  /// The offset of the cursor.
   Offset _cursorOffset = Offset.zero;
+
   @override
   SelectionController? get selectionController => widget.selectionController;
   @override
@@ -555,9 +651,15 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   }
 }
 
+/// A layout for a chart.
 class ChartLayout {
+  /// The margin of the chart.
   final EdgeInsets margin;
+
+  /// The offsets of the components of the chart.
   final Map<ChartLayoutId, Offset> componentOffsets;
+
+  /// The sizes of the components of the chart.
   final Map<ChartLayoutId, Size> componentSizes;
 
   ChartLayout({
@@ -567,30 +669,37 @@ class ChartLayout {
   });
 }
 
+/// A mixin that lays out the components of a chart.
 mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
+  /// The layouts of the charts.
   Map<Object, ChartLayout> componentLayouts = {};
 
+  /// The components on the left of the chart.
   List<ChartComponent> get leftComponents => [
         ChartComponent.leftLegend,
         ChartComponent.leftAxis,
       ];
 
+  /// The components on the right of the chart.
   List<ChartComponent> get rightComponents => [
         ChartComponent.rightLegend,
         ChartComponent.rightAxis,
       ];
 
+  /// The components on the top of the chart.
   List<ChartComponent> get topComponents => [
         ChartComponent.title,
         ChartComponent.topLegend,
         ChartComponent.topAxis,
       ];
 
+  /// The components on the bottom of the chart.
   List<ChartComponent> get bottomComponents => [
         ChartComponent.bottomLegend,
         ChartComponent.bottomAxis,
       ];
 
+  /// The components that are legends.
   List<ChartComponent> get legendComponents => [
         ChartComponent.topLegend,
         ChartComponent.bottomLegend,
@@ -599,6 +708,8 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
         ChartComponent.floatingLegend,
       ];
 
+  /// Layout the components of a chart to calculate their sizes
+  /// (positions will be calculated later).
   Map<ChartLayoutId, Size> calcComponentSizes(Object chartId, Size size) {
     final Map<ChartLayoutId, Size> componentSizes = {};
 

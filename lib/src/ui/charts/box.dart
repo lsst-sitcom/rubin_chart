@@ -1,3 +1,24 @@
+/// This file is part of the rubin_chart package.
+///
+/// Developed for the LSST Data Management System.
+/// This product includes software developed by the LSST Project
+/// (https://www.lsst.org).
+/// See the COPYRIGHT file at the top-level directory of this distribution
+/// for details of code ownership.
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
@@ -11,6 +32,7 @@ import 'package:rubin_chart/src/utils/utils.dart';
 
 /// A single box in a [BoxChart], with whiskers for min/max and the mean and median.
 class BoxChartBox extends BinnedData {
+  /// The orientation of the main axis.
   AxisOrientation mainAxisAlignment;
 
   BoxChartBox({
@@ -170,6 +192,7 @@ class BoxChartInfo extends BinnedChartInfo {
   })  : assert(nBins != null || edges != null),
         super(builder: BoxChart.builder);
 
+  /// Initialize the axes for the chart.
   Map<Object, ChartAxes> initializeAxes({required Set<Object> drillDownDataPoints}) => initializeSimpleAxes(
         seriesList: allSeries,
         axisInfo: axisInfo,
@@ -179,6 +202,7 @@ class BoxChartInfo extends BinnedChartInfo {
       );
 }
 
+/// A box chart that displays a series of boxes with whiskers for min/max and the mean and median.
 class BoxChart extends BinnedChart {
   const BoxChart({
     super.key,
@@ -193,6 +217,7 @@ class BoxChart extends BinnedChart {
   @override
   BoxChartState createState() => BoxChartState();
 
+  /// A builder for the box chart.
   static Widget builder({
     required ChartInfo info,
     Map<AxisId, AxisController>? axisControllers,
@@ -211,6 +236,7 @@ class BoxChart extends BinnedChart {
   }
 }
 
+/// The state of a box chart.
 class BoxChartState extends BinnedChartState<BoxChart> {
   @override
   BoxChartInfo get info => widget.info as BoxChartInfo;
@@ -233,6 +259,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   @override
   void updateAxesAndBins() => _initBins();
 
+  /// Initialize the axes for the chart.
   void _initAxes() {
     // Populate the axis controllers
     axisControllers.addAll(widget.axisControllers.values);
@@ -266,6 +293,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
     }
   }
 
+  /// Initialize the bins for the chart.
   void _initBins() {
     // Clear the parameters
     binContainers.clear();
@@ -327,6 +355,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
     }
   }
 
+  /// Create the tool tip if the user is hovering over a box.
   @override
   Widget getTooltip({
     required PointerHoverEvent event,

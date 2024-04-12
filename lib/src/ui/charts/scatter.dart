@@ -359,8 +359,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
             },
             child: MouseRegion(
               onExit: (PointerExitEvent event) {
-                _clearHover();
-                onHoverEnd(event);
+                if (!_isHovering) {
+                  _clearHover();
+                  onHoverEnd(event);
+                }
               },
               onHover: (PointerHoverEvent event) {
                 // In Flutter web this is triggered when the mouse is moved,

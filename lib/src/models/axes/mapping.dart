@@ -20,6 +20,7 @@
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:math' as math;
+import 'dart:developer' as developer;
 
 import 'package:rubin_chart/src/models/axes/ticks.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
@@ -76,7 +77,7 @@ NiceNumber calculateLinearTickStepSize(
     }
     if (iterations++ > 5) {
       // Just use the original value
-      print("Warning: Could not find a nice number for the ticks");
+      developer.log("Warning: Could not find a nice number for the ticks", name: "rubin_chart.warning");
       return initialStepSize;
     }
   }

@@ -134,8 +134,6 @@ abstract class AxisPainter extends CustomPainter {
       }
     }
 
-    // TODO: draw the tick labels
-
     if (theme.frameColor != null) {
       // Draw the frame
       Paint framePaint = Paint()

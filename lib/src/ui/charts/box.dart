@@ -373,7 +373,7 @@ class BoxChartState extends BinnedChartState<BoxChart> {
       ),
       child: Column(
         children: [
-          Text("${mainAxis.info.label}"),
+          Text(mainAxis.info.label),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

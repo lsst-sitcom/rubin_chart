@@ -182,6 +182,7 @@ abstract class BinnedChart extends StatefulWidget {
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
   final AxisOrientation? mainAxisAlignment;
+  final CoordinateCallback? onCoordinateUpdate;
 
   const BinnedChart({
     super.key,
@@ -191,6 +192,7 @@ abstract class BinnedChart extends StatefulWidget {
     this.axisControllers = const {},
     this.hiddenAxes = const [],
     this.mainAxisAlignment,
+    this.onCoordinateUpdate,
   });
 
   @override

@@ -15,6 +15,7 @@ class CombinedChart extends StatefulWidget {
   final List<List<ChartInfo?>> children;
   final ChartTheme theme;
   final LegendSelectionCallback? legendSelectionCallback;
+  final CoordinateCallback? onCoordinateUpdate;
 
   const CombinedChart({
     Key? key,
@@ -24,6 +25,7 @@ class CombinedChart extends StatefulWidget {
     this.drillDownController,
     required this.children,
     this.legendSelectionCallback,
+    this.onCoordinateUpdate,
   }) : super(key: key);
 
   @override
@@ -44,6 +46,8 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
   Offset _cursorOffset = Offset.zero;
   @override
   LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
+  @override
+  CoordinateCallback? get onCoordinateUpdate => widget.onCoordinateUpdate;
 
   @override
   void initState() {

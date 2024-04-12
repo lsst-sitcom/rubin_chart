@@ -41,6 +41,7 @@ class ScatterPlot extends StatefulWidget {
   final SelectionController? drillDownController;
   final Map<AxisId, AxisController> axisControllers;
   final List<AxisId> hiddenAxes;
+  final CoordinateCallback? onCoordinateUpdate;
 
   const ScatterPlot({
     Key? key,
@@ -49,6 +50,7 @@ class ScatterPlot extends StatefulWidget {
     this.drillDownController,
     this.axisControllers = const {},
     this.hiddenAxes = const [],
+    this.onCoordinateUpdate,
   }) : super(key: key);
 
   static Widget builder({
@@ -57,6 +59,7 @@ class ScatterPlot extends StatefulWidget {
     SelectionController? selectionController,
     SelectionController? drillDownController,
     List<AxisId>? hiddenAxes,
+    CoordinateCallback? onCoordinateUpdate,
   }) {
     if (info is! ScatterPlotInfo) {
       throw ArgumentError("ScatterPlot.builder: info must be of type ScatterPlotInfo");
@@ -67,6 +70,7 @@ class ScatterPlot extends StatefulWidget {
       drillDownController: drillDownController,
       axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
+      onCoordinateUpdate: onCoordinateUpdate,
     );
   }
 
@@ -112,7 +116,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {});
   }
 
-  void onHoverEnd(PointerHoverEvent event) {}
+  void onHoverEnd(PointerExitEvent event) {
+    if (widget.onCoordinateUpdate != null) {
+      widget.onCoordinateUpdate!({});
+    }
+  }
 
   void onHoverStart({required PointerHoverEvent event, required Map<Object, dynamic> data}) {
     Widget tooltip = getTooltip(
@@ -350,6 +358,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
               }
             },
             child: MouseRegion(
+              onExit: (PointerExitEvent event) {
+                _clearHover();
+                onHoverEnd(event);
+              },
               onHover: (PointerHoverEvent event) {
                 // In Flutter web this is triggered when the mouse is moved,
                 // so we need to keep track of the hover timer manually.
@@ -393,9 +405,24 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
                 if (_isHovering) {
                   _clearHover();
-                  onHoverEnd(event);
                 }
                 _isHovering = false;
+
+                if (widget.onCoordinateUpdate != null) {
+                  Map<Object, dynamic> coordinates = {};
+                  for (ChartAxes axes in _axes.values) {
+                    Offset cursor = event.localPosition;
+                    cursor = Offset(cursor.dx - axisPainter.margin.left - axisPainter.tickPadding,
+                        cursor.dy - axisPainter.margin.top - axisPainter.tickPadding);
+                    List<dynamic> coords = axes.dataFromPixel(cursor, axisPainter.chartSize);
+                    for (int i = 0; i < axes.axes.length; i++) {
+                      ChartAxis axis = axes.axes.values.elementAt(i);
+                      coordinates[axis.info.label] = coords[i];
+                    }
+                  }
+                  widget.onCoordinateUpdate!(coordinates);
+                  setState(() {});
+                }
               },
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,

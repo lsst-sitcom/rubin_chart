@@ -10,6 +10,9 @@ import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
 
+/// Function called with the current coordinates of the pointer.
+typedef CoordinateCallback = void Function(Map<Object, dynamic> coordinates);
+
 /// The quadrant of a plot in cartesian coordinates.
 enum CartesianQuadrant {
   /// Top right quadrant.
@@ -283,6 +286,7 @@ typedef ChartBuilder = Widget Function({
   SelectionController? selectionController,
   SelectionController? drillDownController,
   List<AxisId>? hiddenAxes,
+  CoordinateCallback? onCoordinateUpdate,
 });
 
 /// Enum provinding the different components of a chart that might need to be laid out.
@@ -365,6 +369,7 @@ class RubinChart extends StatefulWidget {
   final SelectionController? drillDownController;
   final Map<AxisId, AxisController> axisControllers;
   final LegendSelectionCallback? legendSelectionCallback;
+  final CoordinateCallback? onCoordinateUpdate;
 
   const RubinChart({
     super.key,
@@ -374,6 +379,7 @@ class RubinChart extends StatefulWidget {
     this.drillDownController,
     this.axisControllers = const {},
     this.legendSelectionCallback,
+    this.onCoordinateUpdate,
   }) : chartId = chartId ?? "Chart-0";
 
   @override
@@ -384,6 +390,7 @@ mixin RubinChartMixin {
   SelectionController? get selectionController;
   SelectionController? get drillDownController;
   LegendSelectionCallback? get legendSelectionCallback;
+  CoordinateCallback? get onCoordinateUpdate;
 
   LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
     if (info.legend != null) {
@@ -480,6 +487,7 @@ mixin RubinChartMixin {
           drillDownController: drillDownController,
           axisControllers: axisControllers,
           hiddenAxes: hiddenAxes,
+          onCoordinateUpdate: onCoordinateUpdate,
         ),
       ),
     );
@@ -497,6 +505,8 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   SelectionController? get drillDownController => widget.drillDownController;
   @override
   LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
+  @override
+  CoordinateCallback? get onCoordinateUpdate => widget.onCoordinateUpdate;
 
   @override
   Widget build(BuildContext context) {

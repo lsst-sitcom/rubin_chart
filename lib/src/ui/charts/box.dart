@@ -187,6 +187,7 @@ class BoxChart extends BinnedChart {
     super.drillDownController,
     super.axisControllers = const {},
     super.hiddenAxes = const [],
+    super.onCoordinateUpdate,
   }) : super(info: info);
 
   @override
@@ -198,12 +199,14 @@ class BoxChart extends BinnedChart {
     SelectionController? selectionController,
     SelectionController? drillDownController,
     List<AxisId>? hiddenAxes,
+    CoordinateCallback? onCoordinateUpdate,
   }) {
     return BoxChart(
       info: info as BoxChartInfo,
       selectionController: selectionController,
       axisControllers: axisControllers ?? {},
       hiddenAxes: hiddenAxes ?? [],
+      onCoordinateUpdate: onCoordinateUpdate,
     );
   }
 }

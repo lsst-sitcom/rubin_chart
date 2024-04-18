@@ -356,7 +356,12 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
           top: globalPosition.dy,
           child: Material(
             color: Colors.transparent,
-            child: tooltip,
+            child: MouseRegion(
+              onHover: (PointerHoverEvent event) {
+                _clearHover();
+              },
+              child: tooltip,
+            ),
           ),
         );
       },
@@ -442,7 +447,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
                 // Restart the hover timer
                 _hoverTimer?.cancel();
-                _hoverTimer = Timer(const Duration(milliseconds: 500), () {
+                _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
                   SelectedBin? hoverBin = _getBinOnTap(event.localPosition, axisPainter);
                   if (hoverBin == null) {
                     _clearHover();

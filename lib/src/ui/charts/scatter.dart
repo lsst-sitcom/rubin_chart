@@ -187,7 +187,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
           top: globalPosition.dy,
           child: Material(
             color: Colors.transparent,
-            child: tooltip,
+            child: MouseRegion(
+              onHover: (PointerHoverEvent event) {
+                _clearHover();
+              },
+              child: tooltip,
+            ),
           ),
         );
       },
@@ -420,7 +425,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
                 // Restart the hover timer
                 _hoverTimer?.cancel();
-                _hoverTimer = Timer(const Duration(milliseconds: 500), () {
+                _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
                   // See if the cursoer is hovering over a point
                   HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
                   if (hoverDataPoint == null) {

@@ -48,14 +48,20 @@ class DataConversionException implements Exception {
   String toString() => "$runtimeType:\n\t$message";
 }
 
+BigInt _nextSeriesId = BigInt.zero;
+BigInt _getNextSeriesId() {
+  _nextSeriesId += BigInt.one;
+  return _nextSeriesId;
+}
+
 /// A series that is displayed in a chart.
 @immutable
 class Series {
   /// Each chart has a unqiue ID for each series in the chart.
-  final BigInt id;
+  final Object id;
 
   /// The name of the series.
-  final String? name;
+  final String? _name;
 
   /// Settings to draw markers for the series.
   final Marker? marker;
@@ -66,21 +72,21 @@ class Series {
   /// The data points in the series.
   final SeriesData data;
 
-  /// The data ids of selected data points.
-  final List<Object>? selectedDataPoints;
-
-  const Series({
-    required this.id,
-    this.name,
+  Series({
+    Object? id,
+    String? name,
     this.marker,
     this.errorBars,
     required this.data,
-    this.selectedDataPoints,
-  });
+  })  : id = id ?? _getNextSeriesId(),
+        _name = name;
+
+  static get nextId => _nextSeriesId;
+  String get name => _name ?? "Series-$id";
 
   /// Create a copy of the series with new values.
   Series copyWith({
-    BigInt? id,
+    Object? id,
     String? name,
     Marker? marker,
     ErrorBars? errorBars,
@@ -98,7 +104,7 @@ class Series {
   Series copy() => copyWith();
 
   @override
-  String toString() => "Series<${name ?? id}>";
+  String toString() => "Series<${_name ?? id}>";
 
   /// The number of data points in the series.
   int get length => data.length;

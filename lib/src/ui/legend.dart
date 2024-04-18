@@ -172,7 +172,7 @@ class VerticalLegendViewer extends LegendViewer {
     for (int i = 0; i < seriesList.length; i++) {
       LegendEntry entry = LegendEntry.init(
         marker: seriesList.getMarker(i),
-        label: seriesList.values[i].name ?? "Series $i",
+        label: seriesList.values[i].name,
         theme: theme,
         series: seriesList.values[i],
       );

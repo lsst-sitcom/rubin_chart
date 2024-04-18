@@ -113,7 +113,7 @@ class BinnedDataContainer {
 
 /// Represents a selected bin in a histogram chart.
 class SelectedBin {
-  final BigInt seriesIndex;
+  final Object seriesIndex;
   final int binIndex;
 
   SelectedBin(this.seriesIndex, this.binIndex);
@@ -121,14 +121,14 @@ class SelectedBin {
 
 /// Represents a selected range of bins in a histogram chart.
 class SelectedBinRange {
-  final BigInt seriesIndex;
+  final Object seriesIndex;
   int startBinIndex;
   int? endBinIndex;
 
   SelectedBinRange(this.seriesIndex, this.startBinIndex, this.endBinIndex);
 
   /// Returns a list of [HistogramBin] objects within the selected range of bins.
-  List<BinnedData> getBins(Map<BigInt, BinnedDataContainer> binContainers) {
+  List<BinnedData> getBins(Map<Object, BinnedDataContainer> binContainers) {
     if (endBinIndex == null) {
       return [binContainers[seriesIndex]!.bins[startBinIndex]];
     }
@@ -136,7 +136,7 @@ class SelectedBinRange {
   }
 
   /// Returns a list of selected data IDs within the selected range of bins.
-  Set<Object> getSelectedDataIds(Map<BigInt, BinnedDataContainer> binContainers) {
+  Set<Object> getSelectedDataIds(Map<Object, BinnedDataContainer> binContainers) {
     Set<Object> dataIds = {};
     for (BinnedData bin in getBins(binContainers)) {
       dataIds.addAll(bin.data.keys);
@@ -271,7 +271,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   final Map<Object, ChartAxes> _axes = {};
 
   /// The collection of bins.
-  final Map<BigInt, BinnedDataContainer> binContainers = {};
+  final Map<Object, BinnedDataContainer> binContainers = {};
 
   /// The selected bins.
   SelectedBinRange? selectedBins;
@@ -546,8 +546,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
     ChartAxes axes = _axes.values.first;
 
-    for (MapEntry<BigInt, BinnedDataContainer> entry in binContainers.entries) {
-      BigInt seriesIndex = entry.key;
+    for (MapEntry<Object, BinnedDataContainer> entry in binContainers.entries) {
+      Object seriesIndex = entry.key;
       BinnedDataContainer bins = entry.value;
       for (int i = 0; i < bins.bins.length; i++) {
         BinnedData bin = bins.bins[i];
@@ -572,7 +572,7 @@ class BinnedChartPainter extends CustomPainter {
   final ChartAxes axes;
 
   /// The bins to draw
-  final Map<BigInt, BinnedDataContainer> binContainers;
+  final Map<Object, BinnedDataContainer> binContainers;
 
   /// The error bar style used for the series.
   final ErrorBars? errorBars;

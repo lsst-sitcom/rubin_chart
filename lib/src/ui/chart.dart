@@ -482,7 +482,14 @@ mixin RubinChartMixin {
   CoordinateCallback? get onCoordinateUpdate;
 
   /// Build a [LegendViewer] for the chart.
-  LegendViewer? buildLegendViewer(ChartInfo info, List<ChartLayoutId> hidden, Object chartId) {
+  LegendViewer? buildLegendViewer(
+    ChartInfo info,
+    List<ChartLayoutId> hidden,
+    Object chartId,
+    LegendPanStartCallback onPanStart,
+    LegendPanUpdateCallback onPanUpdate,
+    LegendPanEndCallback onPanEnd,
+  ) {
     if (info.legend != null) {
       if (info.legend!.location == LegendLocation.left ||
           info.legend!.location == LegendLocation.right ||
@@ -496,6 +503,9 @@ mixin RubinChartMixin {
             seriesList: info.seriesList,
             layoutId: layoutId,
             selectionCallback: legendSelectionCallback,
+            onPanStart: onPanStart,
+            onPanUpdate: onPanUpdate,
+            onPanEnd: onPanEnd,
           );
           return viewer;
         }
@@ -604,6 +614,21 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   @override
   CoordinateCallback? get onCoordinateUpdate => widget.onCoordinateUpdate;
 
+  void _onPanStart(DragStartDetails details, LegendViewer legendViewer) {
+    _initialLegendOffset = legendViewer.legend.offset;
+    _cursorOffset = details.globalPosition;
+  }
+
+  void _onPanUpdate(DragUpdateDetails details, LegendViewer legendViewer) {
+    legendViewer.legend.offset = _initialLegendOffset + details.globalPosition - _cursorOffset;
+    setState(() {});
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    _initialLegendOffset = Offset.zero;
+    _cursorOffset = Offset.zero;
+  }
+
   @override
   Widget build(BuildContext context) {
     List<Widget> children = buildSingleChartChildren(
@@ -617,26 +642,11 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
     LegendViewer? legendViewer;
 
     if (widget.info.legend != null) {
-      legendViewer = buildLegendViewer(widget.info, [], widget.chartId);
+      legendViewer = buildLegendViewer(widget.info, [], widget.chartId, _onPanStart, _onPanUpdate, _onPanEnd);
       if (legendViewer != null) {
         children.add(LayoutId(
           id: legendViewer.layoutId,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onPanStart: (DragStartDetails details) {
-              _initialLegendOffset = legendViewer!.legend.offset;
-              _cursorOffset = details.globalPosition;
-            },
-            onPanUpdate: (DragUpdateDetails details) {
-              legendViewer!.legend.offset = _initialLegendOffset + details.globalPosition - _cursorOffset;
-              setState(() {});
-            },
-            onPanEnd: (DragEndDetails details) {
-              _initialLegendOffset = Offset.zero;
-              _cursorOffset = Offset.zero;
-            },
-            child: legendViewer,
-          ),
+          child: legendViewer,
         ));
       }
     }
@@ -801,12 +811,7 @@ mixin ChartLayoutMixin implements MultiChildLayoutDelegate {
           case ChartComponent.rightLegend:
             positionChild(
                 id,
-                Offset(
-                    offset.dx +
-                        chartSize.width +
-                        (leftLegendSize?.width ?? 0) +
-                        (leftAxisSize?.width ?? 0) +
-                        (rightAxisSize?.width ?? 0),
+                Offset(offset.dx + chartSize.width + (leftAxisSize?.width ?? 0) + (rightAxisSize?.width ?? 0),
                     offset.dy + chartSize.height / 2 - childSizes[id]!.height / 2));
             break;
           case ChartComponent.floatingLegend:
@@ -879,7 +884,11 @@ class ChartLayoutDelegate extends MultiChildLayoutDelegate with ChartLayoutMixin
         legendHeight = height;
       }
       layoutChild(legendViewer!.layoutId, BoxConstraints.tight(Size(legendWidth, legendHeight)));
-      width = width - legendWidth;
+      if (legendViewer!.layoutId.component == ChartComponent.leftLegend ||
+          legendViewer!.layoutId.component == ChartComponent.rightLegend) {
+        width = width - legendWidth;
+        fullWidth = fullWidth - legendWidth;
+      }
       componentSizes[legendViewer!.layoutId] = Size(legendWidth, legendHeight);
       legendOffset = legendViewer!.legend.offset;
     }

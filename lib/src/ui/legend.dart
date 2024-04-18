@@ -31,6 +31,12 @@ import 'package:rubin_chart/src/ui/chart.dart';
 /// A callback function that is called a [Series] in a [Legend] is selected.
 typedef LegendSelectionCallback = void Function({required Series series});
 
+typedef LegendPanStartCallback = void Function(DragStartDetails details, LegendViewer legendViewer);
+
+typedef LegendPanUpdateCallback = void Function(DragUpdateDetails details, LegendViewer legendViewer);
+
+typedef LegendPanEndCallback = void Function(DragEndDetails details);
+
 /// A widget that displays a single Series entry in a legend.
 class LegendEntry extends StatelessWidget {
   /// The marker for the series.
@@ -134,6 +140,10 @@ abstract class LegendViewer extends StatelessWidget {
   /// A callback function that is called when a series is selected.
   final LegendSelectionCallback? selectionCallback;
 
+  final LegendPanStartCallback onPanStart;
+  final LegendPanUpdateCallback onPanUpdate;
+  final LegendPanEndCallback onPanEnd;
+
   const LegendViewer({
     super.key,
     required this.legend,
@@ -141,6 +151,9 @@ abstract class LegendViewer extends StatelessWidget {
     required this.rows,
     required this.legendSize,
     required this.layoutId,
+    required this.onPanStart,
+    required this.onPanUpdate,
+    required this.onPanEnd,
     this.selectionCallback,
   });
 }
@@ -154,6 +167,9 @@ class VerticalLegendViewer extends LegendViewer {
     required super.rows,
     required super.legendSize,
     required super.layoutId,
+    required super.onPanStart,
+    required super.onPanUpdate,
+    required super.onPanEnd,
     super.selectionCallback,
   });
 
@@ -164,6 +180,9 @@ class VerticalLegendViewer extends LegendViewer {
     required ChartTheme theme,
     required SeriesList seriesList,
     required ChartLayoutId layoutId,
+    required LegendPanStartCallback onPanStart,
+    required LegendPanUpdateCallback onPanUpdate,
+    required LegendPanEndCallback onPanEnd,
     LegendSelectionCallback? selectionCallback,
   }) {
     List<LegendEntry> rows = [];
@@ -188,11 +207,18 @@ class VerticalLegendViewer extends LegendViewer {
       legendSize: Size(width, height),
       layoutId: layoutId,
       selectionCallback: selectionCallback,
+      onPanStart: onPanStart,
+      onPanUpdate: onPanUpdate,
+      onPanEnd: onPanEnd,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    int numEntries = rows.length;
+    if (legend.allowNewSeries) {
+      numEntries++;
+    }
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
@@ -201,16 +227,31 @@ class VerticalLegendViewer extends LegendViewer {
         ),
         borderRadius: BorderRadius.circular(theme.legendBorderRadius),
       ),
-      child: ListView.builder(
-        itemCount: rows.length,
-        itemBuilder: (BuildContext context, int index) {
-          return InkWell(
-            onTap: () {
-              selectionCallback?.call(series: rows[index].series);
-            },
-            child: rows[index],
-          );
-        },
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (DragStartDetails details) => onPanStart(details, this),
+        onPanUpdate: (DragUpdateDetails details) => onPanUpdate(details, this),
+        onPanEnd: onPanEnd,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: numEntries,
+          itemBuilder: (BuildContext context, int index) {
+            if (index == rows.length) {
+              return IconButton(
+                icon: const Icon(Icons.add_circle, color: Colors.green),
+                onPressed: () {
+                  legend.newSeriesCallback?.call();
+                },
+              );
+            }
+            return InkWell(
+              onTap: () {
+                selectionCallback?.call(series: rows[index].series);
+              },
+              child: rows[index],
+            );
+          },
+        ),
       ),
     );
   }

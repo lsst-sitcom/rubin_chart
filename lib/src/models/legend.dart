@@ -42,6 +42,8 @@ enum LegendLocation {
   none,
 }
 
+typedef NewSeriesCallback = void Function();
+
 /// The legend of a chart
 class Legend {
   /// The location of the legend.
@@ -49,9 +51,15 @@ class Legend {
   /// on the side of the chart specified by this value.
   final LegendLocation location;
 
+  /// Whether to include a widget to add new [Series] to the chart.
+  final NewSeriesCallback? newSeriesCallback;
+
   /// The offset of the legend from the top-left corner of the chart
   /// if [LegendLocation.floating] is used.
   Offset offset;
 
-  Legend({this.location = LegendLocation.right, this.offset = Offset.zero});
+  Legend({this.location = LegendLocation.right, this.offset = Offset.zero, this.newSeriesCallback});
+
+  /// Whether new [Series] can be added to the chart.
+  bool get allowNewSeries => newSeriesCallback != null;
 }

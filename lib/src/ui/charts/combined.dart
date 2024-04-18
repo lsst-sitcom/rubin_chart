@@ -21,6 +21,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/legend.dart';
@@ -282,28 +283,27 @@ class CombinedChartState extends State<CombinedChart> with RubinChartMixin {
               info,
               [],
               info.id,
+              (DragStartDetails details, LegendViewer legendViewer) {
+                _initialLegendOffsets[info] = legendViewers[info]!.legend.offset;
+                _cursorOffset = details.globalPosition;
+              },
+              (DragUpdateDetails details, LegendViewer legendViewer) {
+                Offset offset = details.globalPosition - _cursorOffset + _initialLegendOffsets[info]!;
+                legendViewers[info]!.legend.offset = offset;
+                setState(() {});
+              },
+              (DragEndDetails details) {
+                _initialLegendOffsets.remove(info);
+                _cursorOffset = Offset.zero;
+              },
             )!;
           } else {
             throw UnimplementedError("Only floating legends are supported for combined charts");
           }
           children.add(LayoutId(
-              id: legendViewers[info]!.layoutId,
-              child: GestureDetector(
-                onPanStart: (DragStartDetails details) {
-                  _initialLegendOffsets[info] = legendViewers[info]!.legend.offset;
-                  _cursorOffset = details.globalPosition;
-                },
-                onPanUpdate: (DragUpdateDetails details) {
-                  Offset offset = details.globalPosition - _cursorOffset + _initialLegendOffsets[info]!;
-                  legendViewers[info]!.legend.offset = offset;
-                  setState(() {});
-                },
-                onPanEnd: (DragEndDetails details) {
-                  _initialLegendOffsets.remove(info);
-                  _cursorOffset = Offset.zero;
-                },
-                child: legendViewers[info]!,
-              )));
+            id: legendViewers[info]!.layoutId,
+            child: legendViewers[info]!,
+          ));
         }
       }
     }

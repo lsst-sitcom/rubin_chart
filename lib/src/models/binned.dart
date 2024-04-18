@@ -23,6 +23,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 import 'package:rubin_chart/src/models/axes/axis.dart';
 import 'package:rubin_chart/src/models/marker.dart';
@@ -496,6 +497,10 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     focusNode.requestFocus();
     // Get the selected bin based on the tap location
     SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
+    _updatedBinSelection(selectedBin);
+  }
+
+  void _updatedBinSelection(SelectedBin? selectedBin) {
     selectedDataPoints = {};
     if (selectedBin != null) {
       if (selectedBins == null || selectedBins!.seriesIndex != selectedBin.seriesIndex || !isShifting) {
@@ -536,7 +541,6 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
       widget.info.onDrillDown!(
           details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
     }
-
     setState(() {});
   }
 
@@ -568,6 +572,49 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
       }
     }
     return null;
+  }
+
+  /// Handle a key event.
+  /// Override the default to allow arrow keys for navigation
+  @override
+  KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      setState(() {
+        if (event.logicalKey == LogicalKeyboardKey.keyX ||
+            event.logicalKey == LogicalKeyboardKey.keyY ||
+            isShiftKey(event.logicalKey)) {
+          scaleShiftKey = event.logicalKey;
+        }
+        if (isShiftKey(event.logicalKey)) {
+          scaleShiftKey = event.logicalKey;
+        }
+      });
+    } else if (event is KeyUpEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        if (selectedBins != null && selectedBins!.endBinIndex == null) {
+          int nextBin = selectedBins!.startBinIndex - 1;
+          if (nextBin < 0) {
+            nextBin = binContainers[selectedBins!.seriesIndex]!.bins.length - 1;
+          }
+          SelectedBin selectedBin = SelectedBin(selectedBins!.seriesIndex, nextBin);
+          _updatedBinSelection(selectedBin);
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (selectedBins != null && selectedBins!.endBinIndex == null) {
+          int nextBin = selectedBins!.startBinIndex + 1;
+          if (nextBin >= binContainers[selectedBins!.seriesIndex]!.bins.length) {
+            nextBin = 0;
+          }
+          SelectedBin selectedBin = SelectedBin(selectedBins!.seriesIndex, nextBin);
+          _updatedBinSelection(selectedBin);
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {}
+      setState(() {
+        scaleShiftKey = null;
+      });
+    }
+    return KeyEventResult.ignored;
   }
 }
 

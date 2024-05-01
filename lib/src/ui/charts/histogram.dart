@@ -203,7 +203,7 @@ class HistogramState extends BinnedChartState<Histogram> {
     AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
     ChartAxisInfo mainAxisInfo = widget.info.axisInfo[mainAxisId]!;
     if (allSeries.first.data.columnTypes[allSeries.first.data.plotColumns.values.first] ==
-        ColumnDataType.datetime) {
+        ColumnDataType.dateTime) {
       mainAxis = DateTimeChartAxis.fromBounds(
         boundsList: [Bounds(min, max)],
         axisInfo: mainAxisInfo,

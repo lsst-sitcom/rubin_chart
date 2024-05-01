@@ -35,7 +35,7 @@ enum ColumnDataType {
   string,
 
   /// The data is a date-time.
-  datetime,
+  dateTime,
 }
 
 /// An exception occured while converting data into dart types.
@@ -90,7 +90,6 @@ class Series {
     String? name,
     Marker? marker,
     ErrorBars? errorBars,
-    List<AxisId>? axisIds,
     SeriesData? data,
   }) =>
       Series(
@@ -132,7 +131,11 @@ class SeriesData {
   /// The data types of the columns.
   final Map<Object, ColumnDataType> columnTypes;
 
-  const SeriesData._(this.data, this.plotColumns, this.columnTypes);
+  const SeriesData({
+    required this.data,
+    required this.plotColumns,
+    required this.columnTypes,
+  });
 
   /// The number of data points in the series.
   int get length => data.values.first.length;
@@ -182,22 +185,22 @@ class SeriesData {
       } else if (data[plotColumn]!.first is String) {
         columnTypes[plotColumn] = ColumnDataType.string;
       } else if (data[plotColumn]!.first is DateTime) {
-        columnTypes[plotColumn] = ColumnDataType.datetime;
+        columnTypes[plotColumn] = ColumnDataType.dateTime;
       } else {
         throw DataConversionException("Unable to determine column type for $plotColumn");
       }
     }
-    return SeriesData._(dataColumns, plotColumns, columnTypes);
+    return SeriesData(data: dataColumns, plotColumns: plotColumns, columnTypes: columnTypes);
   }
 
   /// Calculate the dimensionality of the data.
   int get dimension => plotColumns.length;
 
   /// Get the data points for a row in the series in their native format.
-  List<dynamic> getRow(int index) {
+  List<dynamic> getRow(Object dataId) {
     List<dynamic> coordinates = [];
     for (Object column in plotColumns.values) {
-      coordinates.add(data[column]!.values.toList()[index]);
+      coordinates.add(data[column]![dataId]);
     }
     return coordinates;
   }

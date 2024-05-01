@@ -224,14 +224,16 @@ Map<Object, ChartAxes> initializeSimpleAxes({
       }
     }
     if (seriesForAxis.isEmpty) {
-      throw AxisUpdateException("Axis $axisId has no series linked to it.");
+      //throw AxisUpdateException("Axis $axisId has no series linked to it.");
+      print("Axis $axisId has no series linked to it.");
+    } else {
+      // Initialize the axis using the available series data.
+      axes[axisId] = initializeAxis(
+          allSeries: seriesForAxis,
+          theme: theme,
+          axisInfo: entry.value,
+          drillDownDataPoints: drillDownDataPoints);
     }
-    // Initialize the axis using the available series data.
-    axes[axisId] = initializeAxis(
-        allSeries: seriesForAxis,
-        theme: theme,
-        axisInfo: entry.value,
-        drillDownDataPoints: drillDownDataPoints);
   }
   // Create the [ChartAxes] from each set of axes that have been identified and initialized.
   final List<Object> axesIds = axes.keys.map((e) => e.axesId).toList();

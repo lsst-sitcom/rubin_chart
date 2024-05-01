@@ -58,7 +58,7 @@ class Legend {
   /// if [LegendLocation.floating] is used.
   Offset offset;
 
-  Legend({this.location = LegendLocation.right, this.offset = Offset.zero, this.newSeriesCallback});
+  Legend({this.location = LegendLocation.floating, this.offset = Offset.zero, this.newSeriesCallback});
 
   /// Whether new [Series] can be added to the chart.
   bool get allowNewSeries => newSeriesCallback != null;

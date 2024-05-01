@@ -336,6 +336,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   @override
+  void didUpdateWidget(ScatterPlot oldWidget) {
+    // Initialize the axes
+    _initializeAxes();
+  }
+
+  @override
   Widget build(BuildContext context) {
     List<Widget> children = [];
 
@@ -360,6 +366,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         colorIndex = 0;
       }
       Series series = seriesList[i];
+
+      print("series axesId: ${series.axesId}");
+      print("_axes: ${_axes.keys}");
+
       Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
       children.add(
         Positioned.fill(

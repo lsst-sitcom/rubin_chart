@@ -87,12 +87,13 @@ class SeriesPainter extends CustomPainter {
 
     Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
 
+    List<Object> dataIds = data.data.values.first.keys.toList();
     for (int i = 0; i < data.length; i++) {
-      if (drillDownDataPoints.isNotEmpty &&
-          !drillDownDataPoints.contains(data.data.values.first.keys.toList()[i])) {
+      Object dataId = dataIds[i];
+      if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
         continue;
       }
-      Offset point = axes.project(data: data.getRow(i), chartSize: plotSize) + offset;
+      Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
       if (plotWindow.contains(point)) {
         marker.paint(canvas, paintFill, paintEdge, point);
         //nDisplayed++;
@@ -106,8 +107,7 @@ class SeriesPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
-        int index = data.data.values.first.keys.toList().indexOf(dataId);
-        Offset point = axes.project(data: data.getRow(index), chartSize: plotSize) + offset;
+        Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
         if (plotWindow.contains(point)) {
           selectionMarker.paint(canvas, paintFill, paintEdge, point);
           //nDisplayed++;

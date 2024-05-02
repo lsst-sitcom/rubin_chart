@@ -173,7 +173,8 @@ class HistogramState extends BinnedChartState<Histogram> {
     // Get the actual bounds for the bins and main axis
     List<Series> allSeries = widget.info.allSeries;
     if (allSeries.isEmpty) {
-      throw UnimplementedError('Histograms must have at least one series for now');
+      //throw UnimplementedError('Histograms must have at least one series for now');
+      return;
     }
     Bounds<double> initBounds = allSeries.first.data.calculateBounds(
       allSeries.first.data.plotColumns.values.first,

@@ -229,6 +229,9 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
         for (Series series in allSeries) {
           seriesMap[series] = axisInfo.axisId;
         }
+        if (seriesMap.isEmpty) {
+          return {};
+        }
         radialAxis = initializeAxis(
           allSeries: seriesMap,
           theme: theme,

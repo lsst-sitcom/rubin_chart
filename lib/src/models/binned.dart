@@ -290,7 +290,16 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   @override
   void didUpdateWidget(T oldWidget) {
     super.didUpdateWidget(oldWidget);
-    updateAxesAndBins();
+    if (widget.info.allSeries.length == oldWidget.info.allSeries.length) {
+      for (int i = 0; i < widget.info.allSeries.length; i++) {
+        if (widget.info.allSeries[i].data != oldWidget.info.allSeries[i].data) {
+          updateAxesAndBins();
+          break;
+        }
+      }
+    } else {
+      updateAxesAndBins();
+    }
   }
 
   @override

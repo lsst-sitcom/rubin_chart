@@ -120,6 +120,8 @@ class SeriesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(SeriesPainter oldDelegate) {
+    return false;
+
     /// TODO: add checks for marker, errorbar, axes changes
     return oldDelegate.data != data ||
         oldDelegate.tickLabelMargin != tickLabelMargin ||

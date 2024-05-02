@@ -337,8 +337,20 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   @override
   void didUpdateWidget(ScatterPlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
     // Initialize the axes
-    _initializeAxes();
+    if (widget.info.allSeries.length == oldWidget.info.allSeries.length) {
+      for (int i = 0; i < widget.info.allSeries.length; i++) {
+        if (widget.info.allSeries[i].data != oldWidget.info.allSeries[i].data) {
+          _initializeAxes();
+          break;
+        }
+      }
+    } else {
+      _initializeAxes();
+    }
+    //_quadTrees.clear();
+    //_initializeQuadTree();
   }
 
   @override
@@ -366,9 +378,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         colorIndex = 0;
       }
       Series series = seriesList[i];
-
-      print("series axesId: ${series.axesId}");
-      print("_axes: ${_axes.keys}");
 
       Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
       children.add(

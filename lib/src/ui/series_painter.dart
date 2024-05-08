@@ -18,6 +18,7 @@
 ///
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
@@ -41,9 +42,13 @@ class SeriesPainter extends CustomPainter {
   /// Offset from the lower left to make room for labels.
   final EdgeInsets tickLabelMargin;
 
-  final Set<Object> selectedDataPoints;
+  Set<Object> selectedDataPoints;
 
-  final Set<Object> drillDownDataPoints;
+  Set<Object> drillDownDataPoints;
+
+  Rect _plotWindow = Rect.zero;
+
+  ui.Picture? cachedPicture;
 
   SeriesPainter({
     required this.axes,
@@ -53,16 +58,20 @@ class SeriesPainter extends CustomPainter {
     this.tickLabelMargin = EdgeInsets.zero,
     this.selectedDataPoints = const {},
     this.drillDownDataPoints = const {},
-  });
+  }) {
+    //print("Creating SeriesPainter");
+  }
 
   /// Paint the series on the [Canvas].
   @override
   void paint(Canvas canvas, Size size) {
+    //print("painting SERIES!");
     // Calculate the projection used for all points in the series
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
+    print("painting series");
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
@@ -80,31 +89,49 @@ class SeriesPainter extends CustomPainter {
         ..style = PaintingStyle.stroke;
     }
 
-    //print("${data.length} total sources");
-    //print("Window size: $plotWindow");
+    if (cachedPicture == null || plotWindow != _plotWindow) {
+      _plotWindow = plotWindow;
+      print("Redrawing series with $cachedPicture and $plotWindow");
+      // If the plot window has changed, we need to redraw the series
+      // Here we initialize the recorder to cache the data points as an image.
+      final recorder = ui.PictureRecorder();
+      final cachedCanvas = Canvas(recorder);
 
-    //int nDisplayed = 0;
+      //print("${data.length} total sources");
+      //print("Window size: $plotWindow");
 
-    Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
+      //int nDisplayed = 0;
 
-    List<Object> dataIds = data.data.values.first.keys.toList();
-    for (int i = 0; i < data.length; i++) {
-      Object dataId = dataIds[i];
-      if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
-        continue;
+      List<Object> dataIds = data.data.values.first.keys.toList();
+      for (int i = 0; i < data.length; i++) {
+        Object dataId = dataIds[i];
+        if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
+          continue;
+        }
+        Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
+        if (plotWindow.contains(point)) {
+          marker.paint(cachedCanvas, paintFill, paintEdge, point);
+          //nDisplayed++;
+          // TODO: draw error bars
+        }
       }
-      Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
-      if (plotWindow.contains(point)) {
-        marker.paint(canvas, paintFill, paintEdge, point);
-        //nDisplayed++;
-        // TODO: draw error bars
-      }
+      //print("Plotted $nDisplayed");
+
+      // Finish the recording and save the image
+      cachedPicture = recorder.endRecording();
+      canvas.drawPicture(cachedPicture!);
+      print("updated image");
+    } else if (cachedPicture != null) {
+      print("drawing image");
+      canvas.drawPicture(cachedPicture!);
     }
 
+    Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
     paintEdge = Paint()
       ..color = Colors.black
       ..strokeWidth = selectionMarker.size / 3
       ..style = PaintingStyle.stroke;
+    print("selected dart points: ${selectedDataPoints.length}");
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
@@ -114,14 +141,10 @@ class SeriesPainter extends CustomPainter {
         }
       }
     }
-
-    //print("Plotted $nDisplayed");
   }
 
   @override
   bool shouldRepaint(SeriesPainter oldDelegate) {
-    return false;
-
     /// TODO: add checks for marker, errorbar, axes changes
     return oldDelegate.data != data ||
         oldDelegate.tickLabelMargin != tickLabelMargin ||

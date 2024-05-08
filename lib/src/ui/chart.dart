@@ -192,6 +192,7 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
     }
 
     setState(() {});
+    onAxesUpdate();
   }
 
   /// Pan the chart.
@@ -210,9 +211,11 @@ mixin Scrollable2DChartMixin<T extends StatefulWidget> on ChartMixin<T> {
         axes.translate(event.scrollDelta, chartSize);
       }
     }
-
+    onAxesUpdate();
     setState(() {});
   }
+
+  void onAxesUpdate() {}
 
   /// Check if a key is the shift key.
   bool isShiftKey(LogicalKeyboardKey? key) {
@@ -613,6 +616,11 @@ class RubinChartState extends State<RubinChart> with RubinChartMixin {
   LegendSelectionCallback? get legendSelectionCallback => widget.legendSelectionCallback;
   @override
   CoordinateCallback? get onCoordinateUpdate => widget.onCoordinateUpdate;
+
+  void initState() {
+    super.initState();
+    print("Creating new Rubin Chart state");
+  }
 
   void _onPanStart(DragStartDetails details, LegendViewer legendViewer) {
     _initialLegendOffset = legendViewer.legend.offset;

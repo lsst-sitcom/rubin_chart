@@ -555,6 +555,9 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   /// Returns the selected bin based on the tap location.
   SelectedBin? _getBinOnTap(Offset location, AxisPainter axisPainter) {
+    if (_axes.isEmpty) {
+      return null;
+    }
     EdgeInsets tickLabelMargin = EdgeInsets.only(
       left: axisPainter.margin.left + axisPainter.tickPadding,
       right: axisPainter.margin.right + axisPainter.tickPadding,

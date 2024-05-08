@@ -24,6 +24,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
 
 import 'package:rubin_chart/src/models/axes/axis.dart';
@@ -154,6 +155,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Whether or not the cursor is hovering over a point.
   bool _isHovering = false;
 
+  final Map<Object, GlobalKey> _seriesKeys = {};
+  final Map<Object, SeriesPainter> _seriesPainters = {};
+
   /// Clear the timer and all other hover data.
   void _clearHover() {
     _hoverTimer?.cancel();
@@ -220,9 +224,33 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     );
   }
 
+  @override
+  void onAxesUpdate() {
+    for (GlobalKey key in _seriesKeys.values) {
+      RenderObject renderObject = key.currentContext!.findRenderObject()!;
+      if (renderObject is RenderRepaintBoundary) {
+        renderObject.markNeedsPaint();
+        for (SeriesPainter seriesPainter in _seriesPainters.values) {
+          print("Clearing cached image");
+          seriesPainter.cachedPicture = null;
+        }
+      }
+    }
+  }
+
+  void _markSeriesNeedsUpdate() {
+    for (GlobalKey key in _seriesKeys.values) {
+      RenderObject renderObject = key.currentContext!.findRenderObject()!;
+      if (renderObject is RenderRepaintBoundary) {
+        renderObject.markNeedsPaint();
+      }
+    }
+  }
+
   /// Initialize the axes based on the [Series] and potentially
   /// drilled down data points in the chart.
   void _initializeAxes() {
+    _seriesKeys.clear();
     // Initialize the axes
     _axes.addAll(widget.info.initializeAxes(drillDownDataPoints: drillDownDataPoints));
 
@@ -254,6 +282,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Initialize the quadtree used for selection.
   void _initializeQuadTree() {
+    _quadTrees.clear();
     List<Object> axesIndices = _axes.keys.toList();
     for (Object axesIndex in axesIndices) {
       ChartAxes axes = _axes[axesIndex]!;
@@ -278,6 +307,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
       dynamic columnX = series.data.data[series.data.plotColumns[axisId0]]!.values.toList();
       dynamic columnY = series.data.data[series.data.plotColumns[axisId1]]!.values.toList();
+      List<Object> dataIds = series.data.data[series.data.plotColumns.values.first]!.keys.toList();
 
       for (int i = 0; i < series.data.length; i++) {
         dynamic seriesX = columnX[i];
@@ -285,7 +315,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         Offset point = axes.dataToLinear([seriesX, seriesY]);
 
         _quadTrees[series.axesId]!.insert(
-          series.data.data[series.data.plotColumns.values.first]!.keys.toList()[i],
+          dataIds[i],
           point,
         );
       }
@@ -294,7 +324,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the selection data points.
   void _onSelectionUpdate(Set<Object> dataPoints) {
+    //print("selection update: ${dataPoints.length}");
     selectedDataPoints = dataPoints;
+    _markSeriesNeedsUpdate();
     setState(() {});
   }
 
@@ -343,14 +375,14 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       for (int i = 0; i < widget.info.allSeries.length; i++) {
         if (widget.info.allSeries[i].data != oldWidget.info.allSeries[i].data) {
           _initializeAxes();
+          _initializeQuadTree();
           break;
         }
       }
     } else {
       _initializeAxes();
+      _initializeQuadTree();
     }
-    //_quadTrees.clear();
-    //_initializeQuadTree();
   }
 
   @override
@@ -378,28 +410,39 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         colorIndex = 0;
       }
       Series series = seriesList[i];
+      GlobalKey? seriesKey = _seriesKeys[series.id];
 
-      Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
-      children.add(
-        Positioned.fill(
+      if (seriesKey == null) {
+        seriesKey = GlobalKey();
+        _seriesKeys[series.id] = seriesKey;
+        Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
+        SeriesPainter seriesPainter = SeriesPainter(
+          axes: _axes[series.axesId]!,
+          marker: marker,
+          errorBars: series.errorBars,
+          data: series.data,
+          tickLabelMargin: EdgeInsets.only(
+            left: axisPainter.margin.left + axisPainter.tickPadding,
+            right: axisPainter.margin.right + axisPainter.tickPadding,
+            top: axisPainter.margin.top + axisPainter.tickPadding,
+            bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
+          ),
+          selectedDataPoints: selectedDataPoints,
+          drillDownDataPoints: drillDownDataPoints,
+        );
+        _seriesPainters[seriesKey] = seriesPainter;
+      } else {
+        _seriesPainters[seriesKey]!.selectedDataPoints = selectedDataPoints;
+        _seriesPainters[seriesKey]!.drillDownDataPoints = drillDownDataPoints;
+      }
+      children.add(Positioned.fill(
+        child: RepaintBoundary(
+          key: seriesKey,
           child: CustomPaint(
-            painter: SeriesPainter(
-              axes: _axes[series.axesId]!,
-              marker: marker,
-              errorBars: series.errorBars,
-              data: series.data,
-              tickLabelMargin: EdgeInsets.only(
-                left: axisPainter.margin.left + axisPainter.tickPadding,
-                right: axisPainter.margin.right + axisPainter.tickPadding,
-                top: axisPainter.margin.top + axisPainter.tickPadding,
-                bottom: axisPainter.margin.bottom + axisPainter.tickPadding,
-              ),
-              selectedDataPoints: selectedDataPoints,
-              drillDownDataPoints: drillDownDataPoints,
-            ),
+            painter: _seriesPainters[seriesKey]!,
           ),
         ),
-      );
+      ));
     }
 
     // Add the selection box if the user is dragging
@@ -659,5 +702,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       widget.selectionController!.updateSelection(null, selectedDataPoints);
     }
     return null;
+  }
+
+  /// Pan the chart.
+  /// We override the default behavior in order to set a timer that
+  /// will update the series painters after the pan is complete.
+  @override
+  void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
+    super.onPan(event, axisPainter);
   }
 }

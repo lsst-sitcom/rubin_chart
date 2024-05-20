@@ -206,6 +206,7 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
   PolarScatterPlotInfo({
     required super.id,
     required super.allSeries,
+    required super.key,
     super.title,
     super.theme,
     super.legend,
@@ -214,6 +215,7 @@ class PolarScatterPlotInfo extends ScatterPlotInfo {
     super.interiorAxisLabelLocation,
     super.flexX,
     super.flexY,
+    super.cursorAction,
     this.units = PolarUnits.degrees,
   }) : super(xToYRatio: 1.0);
 

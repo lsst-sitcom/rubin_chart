@@ -97,6 +97,7 @@ class HistogramInfo extends BinnedChartInfo {
   HistogramInfo({
     required super.id,
     required super.allSeries,
+    required super.key,
     super.title,
     super.theme,
     super.legend,

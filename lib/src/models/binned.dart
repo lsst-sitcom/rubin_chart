@@ -191,6 +191,7 @@ class BinnedChartInfo extends ChartInfo {
     required super.id,
     required super.allSeries,
     required super.builder,
+    required super.key,
     super.title,
     super.theme,
     super.legend,

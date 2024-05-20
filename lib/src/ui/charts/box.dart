@@ -174,6 +174,7 @@ class BoxChartInfo extends BinnedChartInfo {
   BoxChartInfo({
     required super.id,
     required super.allSeries,
+    required super.key,
     super.title,
     super.theme,
     super.legend,

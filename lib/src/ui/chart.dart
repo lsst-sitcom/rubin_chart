@@ -310,7 +310,10 @@ class ChartInfo {
   /// Whether to zoom on drill down.
   final bool zoomOnDrillDown;
 
+  final GlobalKey key;
+
   ChartInfo({
+    required this.key,
     required this.id,
     required this.allSeries,
     this.title,

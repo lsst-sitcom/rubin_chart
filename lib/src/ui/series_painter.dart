@@ -50,6 +50,8 @@ class SeriesPainter extends CustomPainter {
 
   ui.Picture? cachedPicture;
 
+  Offset translationOffset;
+
   SeriesPainter({
     required this.axes,
     required this.marker,
@@ -58,6 +60,7 @@ class SeriesPainter extends CustomPainter {
     this.tickLabelMargin = EdgeInsets.zero,
     this.selectedDataPoints = const {},
     this.drillDownDataPoints = const {},
+    this.translationOffset = Offset.zero,
   }) {
     //print("Creating SeriesPainter");
   }
@@ -72,6 +75,12 @@ class SeriesPainter extends CustomPainter {
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
     print("painting series");
+    print("translation offset: $translationOffset");
+
+    canvas.clipRect(plotWindow);
+
+    // Shift the canvas if there is a translation
+    canvas.translate(translationOffset.dx, translationOffset.dy);
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.

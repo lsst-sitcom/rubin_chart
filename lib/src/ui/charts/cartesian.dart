@@ -192,6 +192,7 @@ class CartesianScatterPlotInfo extends ScatterPlotInfo {
   CartesianScatterPlotInfo({
     required super.id,
     required super.allSeries,
+    required super.key,
     super.title,
     super.theme,
     super.legend,
@@ -201,6 +202,7 @@ class CartesianScatterPlotInfo extends ScatterPlotInfo {
     super.flexX,
     super.flexY,
     super.xToYRatio,
+    super.cursorAction,
   });
 
   @override

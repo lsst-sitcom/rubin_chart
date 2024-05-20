@@ -38,11 +38,19 @@ import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 
+/// The action to take when the cursor is moved with the pointer button engaged.
+enum CursorAction {
+  select,
+  drillDown,
+}
+
 /// Information needed to build a scatter plot.
 abstract class ScatterPlotInfo extends ChartInfo {
+  final CursorAction cursorAction;
   ScatterPlotInfo({
     required super.id,
     required super.allSeries,
+    required super.key,
     super.title,
     super.theme,
     super.legend,
@@ -52,6 +60,7 @@ abstract class ScatterPlotInfo extends ChartInfo {
     super.flexX,
     super.flexY,
     super.xToYRatio,
+    this.cursorAction = CursorAction.select,
   }) : super(builder: ScatterPlot.builder);
 
   /// Function to initialize the axes of the chart.
@@ -158,6 +167,16 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   final Map<Object, GlobalKey> _seriesKeys = {};
   final Map<Object, SeriesPainter> _seriesPainters = {};
 
+  /// Whether to select points of zoom in.
+  CursorAction get cursorAction => widget.info.cursorAction;
+
+  /// Offset due to a user translation.
+  /// This is used when the user is panning with a large number of data points to plot.
+  Offset translationOffset = Offset.zero;
+
+  /// Number of points to be plotted.
+  int nPoints = 0;
+
   /// Clear the timer and all other hover data.
   void _clearHover() {
     _hoverTimer?.cancel();
@@ -231,8 +250,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       if (renderObject is RenderRepaintBoundary) {
         renderObject.markNeedsPaint();
         for (SeriesPainter seriesPainter in _seriesPainters.values) {
-          print("Clearing cached image");
-          seriesPainter.cachedPicture = null;
+          seriesPainter.translationOffset = translationOffset;
+          if (translationOffset == Offset.zero) {
+            seriesPainter.cachedPicture = null;
+          }
         }
       }
     }
@@ -278,6 +299,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         }
       }
     }
+    translationOffset = Offset.zero;
   }
 
   /// Initialize the quadtree used for selection.
@@ -300,6 +322,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
 
     // Populate the quadtrees
+    nPoints = 0;
     for (Series series in widget.info.allSeries) {
       ChartAxes axes = _axes[series.axesId]!;
       AxisId axisId0 = axes.axes.keys.first;
@@ -318,6 +341,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
           dataIds[i],
           point,
         );
+        nPoints++;
       }
     }
   }
@@ -590,6 +614,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     dragEnd = details.localPosition;
     Size chartSize = axisPainter.chartSize;
 
+    if (cursorAction == CursorAction.drillDown) {
+      setState(() {});
+      return;
+    }
+
     selectedDataPoints = {};
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
@@ -616,7 +645,33 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   /// Clear the drag parameters when the user stops dragging.
-  void _onDragEnd(DragEndDetails details, AxisPainter axisPainter) => _cleanDrag();
+  void _onDragEnd(DragEndDetails details, AxisPainter axisPainter) {
+    if (cursorAction == CursorAction.drillDown) {
+      for (ChartAxes axes in _axes.values) {
+        // Convert the zoom area to cartesian coordinates
+        double xStart = dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding;
+        double yStart = dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding;
+        List<double> startCoord = axes.doubleFromPixel(Offset(xStart, yStart), axisPainter.chartSize);
+        double xEnd = dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding;
+        double yEnd = dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding;
+        List<double> endCoord = axes.doubleFromPixel(Offset(xEnd, yEnd), axisPainter.chartSize);
+        for (int n = 0; n < axes.axes.length; n++) {
+          ChartAxis axis = axes.axes.values.elementAt(n);
+          double min = startCoord[n];
+          double max = endCoord[n];
+          if (min > max) {
+            double temp = min;
+            min = max;
+            max = temp;
+          }
+          axis.updateTicksAndBounds(Bounds(min, max));
+        }
+      }
+    }
+    _cleanDrag();
+    onAxesUpdate();
+    setState(() {});
+  }
 
   /// Clear the drag parameters when the user cancels dragging.
   void _onDragCancel() => _cleanDrag();
@@ -709,6 +764,32 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// will update the series painters after the pan is complete.
   @override
   void onPan(PointerScrollEvent event, AxisPainter axisPainter) {
-    super.onPan(event, axisPainter);
+    Size chartSize = axisPainter.chartSize;
+    if (isShiftKey(scaleShiftKey)) {
+      for (ChartAxes axes in allAxes.values) {
+        axes.scale(
+          1 - event.scrollDelta.dx / chartSize.width,
+          1 + event.scrollDelta.dy / chartSize.height,
+          chartSize,
+        );
+      }
+    } else {
+      for (ChartAxes axes in allAxes.values) {
+        axes.translate(event.scrollDelta, chartSize);
+      }
+    }
+    if (nPoints > 1000) {
+      translationOffset = translationOffset - event.scrollDelta;
+      panTimer?.cancel();
+      panTimer = Timer(const Duration(milliseconds: 100), () {
+        print("timer expired");
+        translationOffset = Offset.zero;
+        onAxesUpdate();
+      });
+    }
+    onAxesUpdate();
+    setState(() {});
   }
+
+  Timer? panTimer;
 }

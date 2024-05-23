@@ -74,8 +74,6 @@ class SeriesPainter extends CustomPainter {
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
     Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
     Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
-    print("painting series");
-    print("translation offset: $translationOffset");
 
     canvas.clipRect(plotWindow);
 
@@ -100,7 +98,6 @@ class SeriesPainter extends CustomPainter {
 
     if (cachedPicture == null || plotWindow != _plotWindow) {
       _plotWindow = plotWindow;
-      print("Redrawing series with $cachedPicture and $plotWindow");
       // If the plot window has changed, we need to redraw the series
       // Here we initialize the recorder to cache the data points as an image.
       final recorder = ui.PictureRecorder();
@@ -129,9 +126,7 @@ class SeriesPainter extends CustomPainter {
       // Finish the recording and save the image
       cachedPicture = recorder.endRecording();
       canvas.drawPicture(cachedPicture!);
-      print("updated image");
     } else if (cachedPicture != null) {
-      print("drawing image");
       canvas.drawPicture(cachedPicture!);
     }
 
@@ -140,10 +135,10 @@ class SeriesPainter extends CustomPainter {
       ..color = Colors.black
       ..strokeWidth = selectionMarker.size / 3
       ..style = PaintingStyle.stroke;
-    print("selected dart points: ${selectedDataPoints.length}");
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         Offset point = axes.project(data: data.getRow(dataId), chartSize: plotSize) + offset;
+        point -= translationOffset;
         if (plotWindow.contains(point)) {
           selectionMarker.paint(canvas, paintFill, paintEdge, point);
           //nDisplayed++;

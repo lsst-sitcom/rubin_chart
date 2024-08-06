@@ -62,4 +62,23 @@ class Legend {
 
   /// Whether new [Series] can be added to the chart.
   bool get allowNewSeries => newSeriesCallback != null;
+
+  /// Convert the [Legend] to a JSON object.
+  Map<String, dynamic> toJson() {
+    return {
+      'location': location.name,
+      'offset': {
+        'dx': offset.dx,
+        'dy': offset.dy,
+      },
+    };
+  }
+
+  /// Create a [Legend] from a JSON object.
+  factory Legend.fromJson(Map<String, dynamic> json) {
+    return Legend(
+      location: LegendLocation.values.firstWhere((e) => e.name == json['location']),
+      offset: Offset(json['offset']['dx'], json['offset']['dy']),
+    );
+  }
 }

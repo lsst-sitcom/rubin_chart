@@ -187,6 +187,44 @@ class Bounds<T extends Comparable> {
     }
     return Bounds<T>(min, max);
   }
+
+  /// Convert the Bounds object to a JSON representation.
+  Map<String, dynamic> toJson() {
+    return {
+      'min': min.toString(),
+      'max': max.toString(),
+      'type': T.toString(),
+    };
+  }
+
+  /// Create a Bounds object from a JSON representation.
+  static Bounds<T> fromJson<T extends Comparable>(Map<String, dynamic> json) {
+    // This function needs to handle different Comparable types
+    switch (json['type']) {
+      case 'int':
+        return Bounds<int>(
+          int.parse(json['min'] as String),
+          int.parse(json['max'] as String),
+        ) as Bounds<T>;
+      case 'double':
+        return Bounds<double>(
+          double.parse(json['min'] as String),
+          double.parse(json['max'] as String),
+        ) as Bounds<T>;
+      case 'String':
+        return Bounds<String>(
+          json['min'] as String,
+          json['max'] as String,
+        ) as Bounds<T>;
+      case 'DateTime':
+        return Bounds<DateTime>(
+          DateTime.parse(json['min'] as String),
+          DateTime.parse(json['max'] as String),
+        ) as Bounds<T>;
+      default:
+        throw ArgumentError('Unsupported type: ${json['type']}');
+    }
+  }
 }
 
 /// Different comparison operators.

@@ -564,7 +564,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
                 // Restart the hover timer
                 _hoverTimer?.cancel();
                 _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
-                  // See if the cursoer is hovering over a point
+                  // See if the cursor is hovering over a point
                   HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
                   if (hoverDataPoint == null) {
                     _clearHover();

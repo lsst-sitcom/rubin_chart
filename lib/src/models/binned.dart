@@ -78,6 +78,11 @@ abstract class BinnedData {
 
   /// The number of data points in the bin.
   int get count => data.length;
+
+  @override
+  String toString() {
+    return "BinnedData($mainStart-$mainEnd: ${data.length})";
+  }
 }
 
 /// A class that represents a container for binned data.
@@ -109,6 +114,11 @@ class BinnedDataContainer {
       insert(entry.key, entry.value);
     }
     return missingData;
+  }
+
+  @override
+  String toString() {
+    return "BinnedDataContainer($bins)";
   }
 }
 

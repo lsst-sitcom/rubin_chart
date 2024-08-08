@@ -174,9 +174,13 @@ class HistogramState extends BinnedChartState<Histogram> {
     // Add the axis controllers
     axisControllers.addAll(widget.axisControllers.values);
 
-    // Get the actual bounds for the bins and main axis
+    // Check if any series have been added to the chart
     List<Series> allSeries = widget.info.allSeries;
-    if (allSeries.isEmpty || allSeries.first.data.data.values.first.isEmpty) {
+    if (allSeries.isEmpty) {
+      return;
+    }
+    // Check to see if the Series has no data
+    if (allSeries.first.data.data.values.first.isEmpty) {
       // Set the default main axis
       AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
       ChartAxis mainAxis = NumericalChartAxis.fromBounds(

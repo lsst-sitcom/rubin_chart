@@ -130,6 +130,10 @@ class BoxChartBox extends BinnedData {
   /// Insert a key-value pair to the sorted data list.
   @override
   void insert(Object key, List<double> value) {
+    // Update the data for the entire bin
+    data[key] = value;
+
+    // Insert the data into the sorted list used to create the box and whiskers
     MapEntry<Object, double> entry = MapEntry(key, getCrossEntry(value));
     int index = _findInsertionIndex(entry.value);
     _sortedCrossAxisData.insert(index, entry);

@@ -131,6 +131,9 @@ class SelectedBin {
   final int binIndex;
 
   SelectedBin(this.seriesIndex, this.binIndex);
+
+  @override
+  String toString() => "SelectedBin($seriesIndex-$binIndex)";
 }
 
 /// Represents a selected range of bins in a histogram chart.
@@ -170,6 +173,9 @@ class SelectedBinRange {
     }
     return startBinIndex <= binIndex && binIndex <= endBinIndex!;
   }
+
+  @override
+  String toString() => "SelectedBinRange($seriesIndex-$startBinIndex-${endBinIndex ?? ""})";
 }
 
 /// Represents the details of a selection in a binned chart.

@@ -382,6 +382,29 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   @override
+  void dispose() {
+    // Remove the key detector
+    focusNode.removeListener(focusNodeListener);
+
+    // Remove the selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.unsubscribe(_onSelectionUpdate);
+    }
+
+    // Remove the drill down controller
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.unsubscribe(_onDrillDownUpdate);
+    }
+
+    // Remove the reset controller
+    if (widget.resetController != null) {
+      widget.resetController!.close();
+    }
+
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     // Add key detector

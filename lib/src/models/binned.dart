@@ -332,6 +332,23 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
   }
 
+  void _selectDatapoints(Set<Object> dataPoints) {
+    selectedDataPoints = dataPoints;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    focusNode.removeListener(focusNodeListener);
+    if (widget.selectionController != null) {
+      widget.selectionController!.unsubscribe(_selectDatapoints);
+    }
+    if (widget.resetController != null) {
+      widget.resetController!.close();
+    }
+    super.dispose();
+  }
+
   /// Initialize the state by initializing the controllers, axes, and bins.
   @override
   void initState() {
@@ -341,10 +358,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     // Subscribe to the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe((Set<Object> dataPoints) {
-        selectedDataPoints = dataPoints;
-        setState(() {});
-      });
+      widget.selectionController!.subscribe(_selectDatapoints);
     }
 
     // Initialize the reset controller

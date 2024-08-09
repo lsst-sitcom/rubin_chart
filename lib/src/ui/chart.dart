@@ -122,6 +122,17 @@ class SelectionController {
     }
     _notifyObservers();
   }
+
+  void reset() {
+    _selectionByChartId.clear();
+    _notifyObservers();
+    _observers.clear();
+  }
+
+  /// Clear all of the observers on dispose.
+  void dispose() {
+    reset();
+  }
 }
 
 /// A mixin that provides access to the series, axes, and legend of a chart.

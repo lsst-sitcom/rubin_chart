@@ -78,6 +78,11 @@ abstract class BinnedData {
 
   /// The number of data points in the bin.
   int get count => data.length;
+
+  @override
+  String toString() {
+    return "BinnedData($mainStart-$mainEnd: ${data.length})";
+  }
 }
 
 /// A class that represents a container for binned data.
@@ -110,6 +115,11 @@ class BinnedDataContainer {
     }
     return missingData;
   }
+
+  @override
+  String toString() {
+    return "BinnedDataContainer($bins)";
+  }
 }
 
 /// Represents a selected bin in a histogram chart.
@@ -121,6 +131,9 @@ class SelectedBin {
   final int binIndex;
 
   SelectedBin(this.seriesIndex, this.binIndex);
+
+  @override
+  String toString() => "SelectedBin($seriesIndex-$binIndex)";
 }
 
 /// Represents a selected range of bins in a histogram chart.
@@ -160,6 +173,9 @@ class SelectedBinRange {
     }
     return startBinIndex <= binIndex && binIndex <= endBinIndex!;
   }
+
+  @override
+  String toString() => "SelectedBinRange($seriesIndex-$startBinIndex-${endBinIndex ?? ""})";
 }
 
 /// Represents the details of a selection in a binned chart.
@@ -316,6 +332,23 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
   }
 
+  void _selectDatapoints(Set<Object> dataPoints) {
+    selectedDataPoints = dataPoints;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    focusNode.removeListener(focusNodeListener);
+    if (widget.selectionController != null) {
+      widget.selectionController!.unsubscribe(_selectDatapoints);
+    }
+    if (widget.resetController != null) {
+      widget.resetController!.close();
+    }
+    super.dispose();
+  }
+
   /// Initialize the state by initializing the controllers, axes, and bins.
   @override
   void initState() {
@@ -325,10 +358,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     // Subscribe to the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe((Set<Object> dataPoints) {
-        selectedDataPoints = dataPoints;
-        setState(() {});
-      });
+      widget.selectionController!.subscribe(_selectDatapoints);
     }
 
     // Initialize the reset controller

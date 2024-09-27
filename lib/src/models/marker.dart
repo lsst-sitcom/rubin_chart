@@ -85,6 +85,24 @@ class Marker {
       throw UnimplementedError("Only circle markers are supported at this time");
     }
   }
+
+  /// Convert the marker to a JSON object.
+  Map<String, dynamic> toJson() => {
+        "size": size,
+        "type": type.name,
+        "color": color?.value,
+        "edgeColor": edgeColor?.value,
+      };
+
+  /// Create a marker from a JSON object.
+  factory Marker.fromJson(Map<String, dynamic> json) {
+    return Marker(
+      size: json["size"],
+      type: MarkerTypes.values.firstWhere((e) => e.toString().split(".").last == json["type"]),
+      color: json["color"] != null ? Color(json["color"]) : null,
+      edgeColor: json["edgeColor"] != null ? Color(json["edgeColor"]) : null,
+    );
+  }
 }
 
 /// A class for drawing error bars on a chart.
@@ -115,4 +133,20 @@ class ErrorBars {
         color: color ?? this.color,
         headSize: headSize ?? this.headSize,
       );
+
+  /// Convert the error bars to a JSON object.
+  Map<String, dynamic> toJson() => {
+        "width": width,
+        "color": color.value,
+        "headSize": headSize,
+      };
+
+  /// Create error bars from a JSON object.
+  static ErrorBars fromJson(Map<String, dynamic> json) {
+    return ErrorBars(
+      width: json["width"],
+      color: Color(json["color"]),
+      headSize: json["headSize"],
+    );
+  }
 }

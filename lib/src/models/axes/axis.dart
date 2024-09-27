@@ -126,6 +126,22 @@ class AxisId {
 
   @override
   String toString() => "AxisId($location, $axesId)";
+
+  /// Convert the [AxisId] to a JSON object.
+  Map<String, dynamic> toJson() {
+    return {
+      "location": location.name,
+      "axesId": axesId,
+    };
+  }
+
+  /// Create an [AxisId] from a JSON object.
+  factory AxisId.fromJson(Map<String, dynamic> json) {
+    return AxisId(
+      AxisLocation.values.firstWhere((e) => e.toString().split(".").last == json["location"]),
+      json["axesId"],
+    );
+  }
 }
 
 /// The orientation of a chart axis
@@ -238,6 +254,30 @@ class ChartAxisInfo {
 
   /// Whether the axis has fixed bounds.
   bool get isFixed => fixedBounds != null;
+
+  /// Convert the [ChartAxisInfo] to a JSON object.
+  Map<String, dynamic> toJson() {
+    return {
+      "label": label,
+      "mapping": mapping.toJson(),
+      "isInverted": isInverted,
+      "axisId": axisId.toJson(),
+      "isBounded": isBounded,
+      "fixedBounds": fixedBounds?.toJson(),
+    };
+  }
+
+  /// Create a [ChartAxisInfo] from a JSON object.
+  factory ChartAxisInfo.fromJson(Map<String, dynamic> json) {
+    return ChartAxisInfo(
+      label: json["label"],
+      mapping: Mapping.fromJson(json["mapping"]),
+      isInverted: json["isInverted"],
+      axisId: AxisId.fromJson(json["axisId"]),
+      isBounded: json["isBounded"],
+      fixedBounds: json["fixedBounds"] != null ? Bounds.fromJson<double>(json["fixedBounds"]) : null,
+    );
+  }
 }
 
 /// Parameters needed to define an axis.
@@ -718,6 +758,14 @@ ChartAxis initializeAxis({
   MapEntry<Series, AxisId> entry = allSeries.entries.first;
 
   Series series = entry.key;
+  List allData = series.data.data[series.data.plotColumns[entry.value]]!.values.toList();
+  if (allData.isEmpty) {
+    return NumericalChartAxis.fromFixedBounds(
+      axisInfo: axisInfo,
+      bounds: const Bounds(0, 1),
+      theme: theme,
+    );
+  }
   dynamic data = series.data.data[series.data.plotColumns[entry.value]]!.values.toList().first;
   if (data is double) {
     return NumericalChartAxis.fromBounds(

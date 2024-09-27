@@ -52,6 +52,23 @@ abstract class Mapping {
     required int maxTicks,
     required bool encloseBounds,
   });
+
+  /// Convert the mapping to a JSON object.
+  Map<String, dynamic> toJson();
+
+  /// Create a mapping from a JSON object.
+  factory Mapping.fromJson(Map<String, dynamic> json) {
+    switch (json["type"]) {
+      case "linear":
+        return const LinearMapping();
+      case "log":
+        return const LogMapping();
+      case "log10":
+        return const Log10Mapping();
+      default:
+        throw MappingError("Unknown mapping type: ${json['type']}");
+    }
+  }
 }
 
 /// Calculate the step size to generate ticks in [range].
@@ -184,6 +201,10 @@ class LinearMapping extends Mapping {
       tickLabels: tickLabels,
     );
   }
+
+  /// Convert a [LinearMapping] to a JSON object.
+  @override
+  Map<String, dynamic> toJson() => {"type": "linear"};
 }
 
 /// A mapping between numerical strings and their unicode superscript values.
@@ -306,6 +327,10 @@ class LogMapping extends Mapping {
       base: math.e,
     );
   }
+
+  /// Convert a [LogMapping] to a JSON object.
+  @override
+  Map<String, dynamic> toJson() => {"type": "log"};
 }
 
 /// A mapping between data values and base 10 logarithmic x-y values.
@@ -333,4 +358,8 @@ class Log10Mapping extends Mapping {
       base: 10,
     );
   }
+
+  /// Convert a [Log10Mapping] to a JSON object.
+  @override
+  Map<String, dynamic> toJson() => {"type": "log10"};
 }

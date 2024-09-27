@@ -382,6 +382,29 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   @override
+  void dispose() {
+    // Remove the key detector
+    focusNode.removeListener(focusNodeListener);
+
+    // Remove the selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.unsubscribe(_onSelectionUpdate);
+    }
+
+    // Remove the drill down controller
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.unsubscribe(_onDrillDownUpdate);
+    }
+
+    // Remove the reset controller
+    if (widget.resetController != null) {
+      widget.resetController!.close();
+    }
+
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     // Add key detector
@@ -564,7 +587,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
                 // Restart the hover timer
                 _hoverTimer?.cancel();
                 _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
-                  // See if the cursoer is hovering over a point
+                  // See if the cursor is hovering over a point
                   HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
                   if (hoverDataPoint == null) {
                     _clearHover();

@@ -130,6 +130,10 @@ class BoxChartBox extends BinnedData {
   /// Insert a key-value pair to the sorted data list.
   @override
   void insert(Object key, List<double> value) {
+    // Update the data for the entire bin
+    data[key] = value;
+
+    // Insert the data into the sorted list used to create the box and whiskers
     MapEntry<Object, double> entry = MapEntry(key, getCrossEntry(value));
     int index = _findInsertionIndex(entry.value);
     _sortedCrossAxisData.insert(index, entry);
@@ -305,6 +309,14 @@ class BoxChartState extends BinnedChartState<BoxChart> {
 
   /// Initialize the bins for the chart.
   void _initBins() {
+    // Check if any series have been added to the chart
+    List<Series> allSeries = widget.info.allSeries;
+    if (allSeries.isEmpty) {
+      return;
+    }
+
+    _initAxes();
+
     // Clear the parameters
     binContainers.clear();
 
@@ -356,7 +368,8 @@ class BoxChartState extends BinnedChartState<BoxChart> {
       Map<Object, List<dynamic>> data = {};
       List<Object> dataIds = series.data.data.values.first.keys.toList();
       for (int i = 0; i < series.data.length; i++) {
-        data[dataIds[i]] = series.data.getRow(i, allAxes.values.first.axes.keys);
+        Object dataId = dataIds[i];
+        data[dataId] = series.data.getRow(dataId, allAxes.values.first.axes.keys);
       }
       for (MapEntry<Object, dynamic> entry in data.entries) {
         List<double> coords = axes.dataToDouble(entry.value);

@@ -174,10 +174,55 @@ class HistogramState extends BinnedChartState<Histogram> {
     // Add the axis controllers
     axisControllers.addAll(widget.axisControllers.values);
 
-    // Get the actual bounds for the bins and main axis
+    // Check if any series have been added to the chart
     List<Series> allSeries = widget.info.allSeries;
     if (allSeries.isEmpty) {
-      //throw UnimplementedError('Histograms must have at least one series for now');
+      return;
+    }
+    // Check to see if the Series has no data
+    if (allSeries.first.data.data.values.first.isEmpty) {
+      // Set the default main axis
+      AxisId mainAxisId = allSeries.first.data.plotColumns.keys.first;
+      ChartAxis mainAxis = NumericalChartAxis.fromBounds(
+        boundsList: [const Bounds(0, 1)],
+        axisInfo: widget.info.axisInfo[mainAxisId]!,
+        theme: widget.info.theme,
+      );
+      AxisId crossAxisId;
+
+      if (mainAxisId.location == AxisLocation.bottom || mainAxisId.location == AxisLocation.top) {
+        mainAxisAlignment = AxisOrientation.horizontal;
+      } else {
+        mainAxisAlignment = AxisOrientation.vertical;
+      }
+
+      // Set the default cross axis
+      if (mainAxisAlignment == AxisOrientation.vertical) {
+        crossAxisId = AxisId(AxisLocation.bottom, mainAxis.info.axisId.axesId);
+      } else if (mainAxisAlignment == AxisOrientation.horizontal) {
+        crossAxisId = AxisId(AxisLocation.left, mainAxis.info.axisId.axesId);
+      } else {
+        throw UnimplementedError('Polar histograms are not yet supported');
+      }
+      ChartAxisInfo crossAxisInfo = ChartAxisInfo(
+        label: "count",
+        axisId: crossAxisId,
+        isInverted: mainAxisAlignment == AxisOrientation.horizontal,
+      );
+      NumericalChartAxis crossAxis = NumericalChartAxis.fromBounds(
+        boundsList: [const Bounds(0, 1)],
+        axisInfo: crossAxisInfo,
+        theme: widget.info.theme,
+      );
+
+      // Create the empty ChartAxes
+      if (mainAxisAlignment == AxisOrientation.vertical) {
+        allAxes[crossAxis.info.axisId.axesId] =
+            CartesianChartAxes(axes: {mainAxis.info.axisId: mainAxis, crossAxis.info.axisId: crossAxis});
+      } else {
+        allAxes[crossAxis.info.axisId.axesId] =
+            CartesianChartAxes(axes: {crossAxis.info.axisId: crossAxis, mainAxis.info.axisId: mainAxis});
+      }
       return;
     }
     Bounds<double> initBounds = allSeries.first.data.calculateBounds(

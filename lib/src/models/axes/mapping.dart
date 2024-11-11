@@ -173,6 +173,11 @@ class LinearMapping extends Mapping {
     double min = bounds.min.toDouble();
     double max = bounds.max.toDouble();
 
+    // What if max == min (e.g. there's only one point)
+    if (max == min) {
+      max += 1;
+      min -= 1;
+    }
     assert(max > min, "max must be greater than min");
 
     // Set the ticks based on the step size and whether or not the axis bounds should be included.
@@ -243,6 +248,11 @@ AxisTicks getLogTicks({
 }) {
   double min = bounds.min.toDouble();
   double max = bounds.max.toDouble();
+
+  if (max == min) {
+    max += 1;
+    min -= 1;
+  }
   assert(max > min, "max must be greater than min");
 
   // Map the bounds to the log scale

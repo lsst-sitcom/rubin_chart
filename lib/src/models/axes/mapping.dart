@@ -174,9 +174,8 @@ class LinearMapping extends Mapping {
     double max = bounds.max.toDouble();
 
     // What if max == min (e.g. there's only one point)
-    if (max == min) {
-      max += 1;
-      min -= 1;
+    if (min == max) {
+      [min, max] = calculateCenteredBounds(max);
     }
     assert(max > min, "max must be greater than min");
 
@@ -249,9 +248,8 @@ AxisTicks getLogTicks({
   double min = bounds.min.toDouble();
   double max = bounds.max.toDouble();
 
-  if (max == min) {
-    max += 1;
-    min -= 1;
+  if (min == max) {
+    [min, max] = calculateCenteredBounds(max);
   }
   assert(max > min, "max must be greater than min");
 
@@ -372,4 +370,9 @@ class Log10Mapping extends Mapping {
   /// Convert a [Log10Mapping] to a JSON object.
   @override
   Map<String, dynamic> toJson() => {"type": "log10"};
+}
+
+List<double> calculateCenteredBounds(number) {
+  final double radius = number / 2;
+  return [number - radius, number + radius];
 }

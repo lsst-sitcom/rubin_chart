@@ -20,7 +20,7 @@
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
-
+import 'dart:developer' as developer;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -302,6 +302,14 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   /// The collection of bins.
   final Map<Object, BinnedDataContainer> binContainers = {};
 
+  // Track if cmd/ctrl key is pressed.
+  bool isCmdCtrlPressed = false;
+  // Tracks if Shift is pressed
+  bool isShiftKeyPressed = false;
+
+  // Tracks selected bins (non-contiguous or contiguous)
+  Set<SelectedBin> selectedBinsSet = {};
+
   /// The selected bins.
   SelectedBinRange? selectedBins;
 
@@ -557,46 +565,54 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   /// Update the selected bins based on the currently selected bin.
   void _updatedBinSelection(SelectedBin? selectedBin) {
-    selectedDataPoints = {};
-    if (selectedBin != null) {
-      if (selectedBins == null || selectedBins!.seriesIndex != selectedBin.seriesIndex || !isShifting) {
-        selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
-      } else {
-        if (selectedBins!.startBinIndex == selectedBin.binIndex) {
-          selectedBins = null;
-        } else if (selectedBins!.startBinIndex < selectedBin.binIndex) {
-          selectedBins!.endBinIndex = selectedBin.binIndex;
-        } else {
-          selectedBins!.endBinIndex = selectedBins!.startBinIndex;
-          selectedBins!.startBinIndex = selectedBin.binIndex;
-        }
-      }
-      if (selectedBins != null) {
-        selectedDataPoints = selectedBins!.getSelectedDataIds(binContainers);
-      }
-    } else {
+    if (selectedBin == null) {
+      // Clear selection if no bin is selected
+      selectedBinsSet.clear();
       selectedBins = null;
+      _notifySelectionChange();
+      return;
     }
 
-    // Update the selection controller if available
-    if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
-    }
-    if (widget.drillDownController != null) {
-      widget.drillDownController!.updateSelection(widget.info.id, selectedDataPoints);
+    if (isShiftKeyPressed && selectedBins != null) {
+      // Range selection (Shift)
+      if (selectedBins!.seriesIndex == selectedBin.seriesIndex) {
+        final startBinIndex = selectedBins!.startBinIndex;
+        final endBinIndex = selectedBin.binIndex;
+
+        selectedBins = SelectedBinRange(
+          selectedBin.seriesIndex,
+          startBinIndex < endBinIndex ? startBinIndex : endBinIndex,
+          startBinIndex > endBinIndex ? startBinIndex : endBinIndex,
+        );
+
+        // Add all bins in the range to the selection set
+        final binRange = selectedBins!.getBins(binContainers);
+        selectedBinsSet.clear();
+        for (int i = 0; i < binRange.length; i++) {
+          selectedBinsSet.add(SelectedBin(selectedBin.seriesIndex, selectedBins!.startBinIndex + i));
+        }
+      } else {
+        // Series mismatch: reset range and select only the current bin
+        selectedBinsSet.clear();
+        selectedBinsSet.add(selectedBin);
+        selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
+      }
+    } else if (isCmdCtrlPressed) {
+      // Non-contiguous selection (Cmd/Ctrl)
+      if (selectedBinsSet.contains(selectedBin)) {
+        selectedBinsSet.remove(selectedBin);
+      } else {
+        selectedBinsSet.add(selectedBin);
+      }
+      selectedBins = null; // Reset contiguous selection since it's non-contiguous
+    } else {
+      // Default single selection (no modifiers)
+      selectedBinsSet.clear();
+      selectedBinsSet.add(selectedBin);
+      selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
     }
 
-    // Call the selection callback if available
-    if (widget.info.onSelection != null) {
-      widget.info.onSelection!(
-          details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
-    }
-
-    // Call the drill down callback if available
-    if (widget.info.onDrillDown != null) {
-      widget.info.onDrillDown!(
-          details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
-    }
+    _notifySelectionChange();
     setState(() {});
   }
 
@@ -639,41 +655,122 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent) {
       setState(() {
-        if (event.logicalKey == LogicalKeyboardKey.keyX ||
-            event.logicalKey == LogicalKeyboardKey.keyY ||
-            isShiftKey(event.logicalKey)) {
-          scaleShiftKey = event.logicalKey;
+        // Detect Cmd (Mac) or Ctrl (Windows/Linux) key press
+        if (event.logicalKey == LogicalKeyboardKey.meta || // Cmd on Mac
+            event.logicalKey == LogicalKeyboardKey.control) {
+          // Ctrl on Windows/Linux
+          developer.log("Cmd/Ctrl key pressed");
+          isCmdCtrlPressed = true;
         }
+
+        // Detect Shift key press
         if (isShiftKey(event.logicalKey)) {
-          scaleShiftKey = event.logicalKey;
+          developer.log("Shift key pressed");
+          isShiftKeyPressed = true;
+        }
+
+        // Handle Arrow Keys for Bin Navigation
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+            event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          _navigateBins(event.logicalKey);
         }
       });
     } else if (event is KeyUpEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        if (selectedBins != null && selectedBins!.endBinIndex == null) {
-          int nextBin = selectedBins!.startBinIndex - 1;
-          if (nextBin < 0) {
-            nextBin = binContainers[selectedBins!.seriesIndex]!.bins.length - 1;
-          }
-          SelectedBin selectedBin = SelectedBin(selectedBins!.seriesIndex, nextBin);
-          _updatedBinSelection(selectedBin);
-        }
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        if (selectedBins != null && selectedBins!.endBinIndex == null) {
-          int nextBin = selectedBins!.startBinIndex + 1;
-          if (nextBin >= binContainers[selectedBins!.seriesIndex]!.bins.length) {
-            nextBin = 0;
-          }
-          SelectedBin selectedBin = SelectedBin(selectedBins!.seriesIndex, nextBin);
-          _updatedBinSelection(selectedBin);
-        }
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {}
       setState(() {
-        scaleShiftKey = null;
+        // Detect Cmd (Mac) or Ctrl (Windows/Linux) key release
+        if (event.logicalKey == LogicalKeyboardKey.meta || // Cmd on Mac
+            event.logicalKey == LogicalKeyboardKey.control) {
+          // Ctrl on Windows/Linux
+          isCmdCtrlPressed = false;
+        }
+
+        // Detect Shift key release
+        if (isShiftKey(event.logicalKey)) {
+          isShiftKeyPressed = false;
+        }
       });
     }
-    return KeyEventResult.ignored;
+    return KeyEventResult.handled; // Indicate the event was handled
+  }
+
+  void _navigateBins(LogicalKeyboardKey key) {
+    if (selectedBinsSet.isEmpty) {
+      // If no bin is currently selected, select the first bin in the first series
+      if (binContainers.isNotEmpty) {
+        final firstSeriesIndex = binContainers.keys.first;
+        if (binContainers[firstSeriesIndex]!.bins.isNotEmpty) {
+          final firstBin = SelectedBin(firstSeriesIndex, 0);
+          _updatedBinSelection(firstBin);
+        }
+      }
+      return;
+    }
+
+    // Get the last selected bin for navigation
+    final lastSelectedBin = selectedBinsSet.last;
+    final currentSeries = binContainers[lastSelectedBin.seriesIndex]!;
+    int newBinIndex = lastSelectedBin.binIndex;
+
+    // Update the bin index based on the arrow key pressed
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      newBinIndex = (newBinIndex - 1 + currentSeries.bins.length) %
+          currentSeries.bins.length; // Wrap around to the last bin
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      newBinIndex = (newBinIndex + 1) % currentSeries.bins.length; // Wrap around to the first bin
+    }
+
+    final newSelectedBin = SelectedBin(lastSelectedBin.seriesIndex, newBinIndex);
+
+    // Apply modifier logic
+    if (isCmdCtrlPressed) {
+      // Non-contiguous selection: Toggle the new bin
+      if (selectedBinsSet.contains(newSelectedBin)) {
+        selectedBinsSet.remove(newSelectedBin);
+      } else {
+        selectedBinsSet.add(newSelectedBin);
+      }
+    } else if (isShiftKeyPressed) {
+      // Contiguous range selection
+      if (selectedBins == null) {
+        selectedBins = SelectedBinRange(newSelectedBin.seriesIndex, newBinIndex, newBinIndex);
+      } else {
+        selectedBins!.endBinIndex = newBinIndex;
+        final binRange = selectedBins!.getBins(binContainers);
+        selectedBinsSet.clear();
+        for (int i = 0; i < binRange.length; i++) {
+          selectedBinsSet.add(SelectedBin(newSelectedBin.seriesIndex, selectedBins!.startBinIndex + i));
+        }
+      }
+    } else {
+      // Default single-bin selection
+      selectedBinsSet.clear();
+      selectedBinsSet.add(newSelectedBin);
+      selectedBins = SelectedBinRange(newSelectedBin.seriesIndex, newBinIndex, null);
+    }
+
+    _notifySelectionChange();
+    setState(() {});
+  }
+
+  void _notifySelectionChange() {
+    final selectedDataPoints = <Object>{};
+    for (final selectedBin in selectedBinsSet) {
+      selectedDataPoints.addAll(binContainers[selectedBin.seriesIndex]!.bins[selectedBin.binIndex].data.keys);
+    }
+
+    // Notify selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
+
+    // Notify callbacks
+    if (widget.info.onSelection != null) {
+      final selectedBinsList =
+          selectedBinsSet.map((bin) => binContainers[bin.seriesIndex]!.bins[bin.binIndex]).toList();
+      widget.info.onSelection!(
+        details: BinnedSelectionDetails(selectedBinsList, selectedDataPoints),
+      );
+    }
   }
 }
 

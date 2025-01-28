@@ -435,23 +435,25 @@ class HistogramState extends BinnedChartState<Histogram> {
   }) {
     HistogramBin histogramBin = bin as HistogramBin;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey[200]!),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Column(children: [
-        Text("${mainAxis.info.label}: "),
-        Column(
+    return AbsorbPointer(
+      absorbing: false, // Allows pointer events to pass through
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(250),
+          border: Border.all(color: Colors.grey[200]!),
+          borderRadius: BorderRadius.circular(5),
+        ),
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text("${mainAxis.info.label}: ", style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(
                 "Range: ${histogramBin.mainStart.toStringAsFixed(3)} - ${histogramBin.mainEnd.toStringAsFixed(3)}"),
             Text("Count: ${histogramBin.count}"),
           ],
         ),
-      ]),
+      ),
     );
   }
 }

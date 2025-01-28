@@ -26,7 +26,7 @@ class DebugHistogramApp extends StatelessWidget {
     final histogramInfo = HistogramInfo(
       id: "Mock Histogram",
       allSeries: mockSeries,
-      nBins: 10,
+      nBins: 50,
       axisInfo: [
         ChartAxisInfo(
           label: "Mock Axis",
@@ -73,6 +73,12 @@ Map<int, double> generateRandomData({required int numberOfPoints}) {
   for (int x = 1; x <= numberOfPoints; x++) {
     values[x] = min + random.nextDouble() * (max - min);
   }
+  // Ensure at least one bin is empty
+  final int binToEmpty = random.nextInt(10);
+  const double binSize = (max - min) / 10;
+  final double binStart = min + binToEmpty * binSize;
+  final double binEnd = binStart + binSize;
 
+  values.removeWhere((key, value) => value >= binStart && value < binEnd);
   return values;
 }

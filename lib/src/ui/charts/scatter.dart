@@ -190,8 +190,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Number of points to be plotted.
   int nPoints = 0;
 
-  /// Whether or not the user is dragging
+  /// Whether or not the user is currently dragging
   bool _isDragging = false;
+
+  /// Whether or not the user is using a drag gesture.
+  bool _isDragGesture = false;
 
   /// Clear the timer and all other hover data.
   void _clearHover() {
@@ -363,7 +366,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   /// Update the selection data points.
-  void _onSelectionUpdate(Set<Object> dataPoints) {
+  void _onSelectionUpdate(Object? origin, Set<Object> dataPoints) {
     //print("selection update: ${dataPoints.length}");
     selectedDataPoints = dataPoints;
     _markSeriesNeedsUpdate();
@@ -372,7 +375,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// If drill down is enabled, zoom in to the selected data points
   /// from another chart.
-  void _onDrillDownUpdate(Set<Object> dataPoints) {
+  void _onDrillDownUpdate(Object? origin, Set<Object> dataPoints) {
     drillDownDataPoints = dataPoints;
     if (widget.info.zoomOnDrillDown) {
       _axes.clear();
@@ -383,17 +386,18 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   @override
   void dispose() {
+    final chartId = widget.info.id;
     // Remove the key detector
     focusNode.removeListener(focusNodeListener);
 
     // Remove the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.unsubscribe(_onSelectionUpdate);
+      widget.selectionController!.unsubscribe(chartId);
     }
 
     // Remove the drill down controller
     if (widget.drillDownController != null) {
-      widget.drillDownController!.unsubscribe(_onDrillDownUpdate);
+      widget.drillDownController!.unsubscribe(chartId);
     }
 
     // Remove the reset controller
@@ -415,12 +419,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
     // Initialize selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe(_onSelectionUpdate);
+      widget.selectionController!.subscribe(widget.info.id, _onSelectionUpdate);
     }
 
     //Initialize drill down controller
     if (widget.drillDownController != null) {
-      widget.drillDownController!.subscribe(_onDrillDownUpdate);
+      widget.drillDownController!.subscribe(widget.info.id, _onDrillDownUpdate);
     }
 
     // Initialize the reset controller
@@ -675,6 +679,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     selectedDataPoints.clear();
     setState(() {
       _isDragging = true;
+      _isDragGesture = true;
     });
   }
 
@@ -711,9 +716,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         Rect.fromPoints(projectedStart, projectedEnd),
       ));
     }
-
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(null, selectedDataPoints);
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 
     setState(() {});
@@ -750,10 +754,17 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     setState(() {
       _isDragging = false;
     });
+
+    if (widget.selectionController != null) {
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
   }
 
   /// Clear the drag parameters when the user cancels dragging.
-  void _onDragCancel() => _cleanDrag();
+  void _onDragCancel() {
+    _isDragGesture = false;
+    _cleanDrag();
+  }
 
   /// Clear the drag parameters.
   void _cleanDrag() {
@@ -797,6 +808,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     if (_isDragging) {
       return null;
     }
+    if (_isDragGesture) {
+      _isDragGesture = false;
+      return null;
+    }
+
     focusNode.requestFocus();
     Size chartSize = axisPainter.chartSize;
 
@@ -836,7 +852,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       selectedDataPoints = {nearest.element};
     }
     if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(null, selectedDataPoints);
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
     return null;
   }

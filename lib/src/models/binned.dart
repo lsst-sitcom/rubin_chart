@@ -20,7 +20,6 @@
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,46 +135,95 @@ class SelectedBin {
   String toString() => "SelectedBin($seriesIndex-$binIndex)";
 }
 
-/// Represents a selected range of bins in a histogram chart.
-class SelectedBinRange {
-  /// Index of the [Series] that the bins belong to.
-  final Object seriesIndex;
+/// Represents selected bins in a histogram chart, supporting both contiguous
+/// and non-contiguous ranges.
+class SelectedBins {
+  /// A map where the key is the series index and the value is a set of selected bin indices.
+  final Map<Object, Set<int>> selectedBins = {};
 
-  /// First bin index in the range.
-  int startBinIndex;
-
-  /// Last bin index in the range.
-  int? endBinIndex;
-
-  SelectedBinRange(this.seriesIndex, this.startBinIndex, this.endBinIndex);
-
-  /// Returns a list of [HistogramBin] objects within the selected range of bins.
-  List<BinnedData> getBins(Map<Object, BinnedDataContainer> binContainers) {
-    if (endBinIndex == null) {
-      return [binContainers[seriesIndex]!.bins[startBinIndex]];
+  /// Adds a bin to the selection.
+  void addBin(Object seriesIndex, int binIndex) {
+    if (containsBin(seriesIndex, binIndex)) {
+      removeBin(seriesIndex, binIndex);
     }
-    return binContainers[seriesIndex]!.bins.sublist(startBinIndex, endBinIndex);
+    selectedBins.putIfAbsent(seriesIndex, () => <int>{}).add(binIndex);
   }
 
-  /// Returns a list of selected data IDs within the selected range of bins.
-  Set<Object> getSelectedDataIds(Map<Object, BinnedDataContainer> binContainers) {
-    Set<Object> dataIds = {};
-    for (BinnedData bin in getBins(binContainers)) {
-      dataIds.addAll(bin.data.keys);
+  /// Adds a range of bins to the selection.
+  void addRange(Object seriesIndex, int startBinIndex, int endBinIndex) {
+    selectedBins.putIfAbsent(seriesIndex, () => {});
+    for (int i = startBinIndex; i <= endBinIndex; i++) {
+      selectedBins[seriesIndex]!.add(i);
     }
+  }
+
+  /// Removes a bin from the selection.
+  void removeBin(Object seriesIndex, int binIndex) {
+    if (selectedBins.containsKey(seriesIndex)) {
+      selectedBins[seriesIndex]!.remove(binIndex);
+      if (selectedBins[seriesIndex]!.isEmpty) {
+        selectedBins.remove(seriesIndex);
+      }
+    }
+  }
+
+  void selectAll(seriesIndex) {
+    for (int i = 0; i < selectedBins[seriesIndex]!.length; i++) {
+      selectedBins[seriesIndex]!.add(i);
+    }
+  }
+
+  /// Clears all selections.
+  void clear() {
+    selectedBins.clear();
+  }
+
+  /// Checks if a bin is selected.
+  bool containsBin(Object seriesIndex, int binIndex) {
+    return selectedBins[seriesIndex]?.contains(binIndex) ?? false;
+  }
+
+  /// Gets all selected bins as a list of [SelectedBin] objects.
+  List<SelectedBin> getSelectedBins() {
+    final List<SelectedBin> bins = [];
+    selectedBins.forEach((seriesIndex, binIndices) {
+      for (final binIndex in binIndices) {
+        bins.add(SelectedBin(seriesIndex, binIndex));
+      }
+    });
+    return bins;
+  }
+
+  /// Retrieves all bins as a list of [BinnedData] objects within the selected ranges.
+  List<BinnedData> getBins(Map<Object, BinnedDataContainer> binContainers) {
+    final List<BinnedData> bins = [];
+    selectedBins.forEach((seriesIndex, binIndices) {
+      if (binContainers.containsKey(seriesIndex)) {
+        for (final binIndex in binIndices) {
+          bins.add(binContainers[seriesIndex]!.bins[binIndex]);
+        }
+      }
+    });
+    return bins;
+  }
+
+  /// Retrieves all selected data IDs within the selected bins.
+  Set<Object> getSelectedDataIds(Map<Object, BinnedDataContainer> binContainers) {
+    final Set<Object> dataIds = {};
+    selectedBins.forEach((seriesIndex, binIndices) {
+      if (binContainers.containsKey(seriesIndex)) {
+        for (final binIndex in binIndices) {
+          dataIds.addAll(binContainers[seriesIndex]!.bins[binIndex].data.keys);
+        }
+      }
+    });
     return dataIds;
   }
 
-  /// Returns true if the given bin index is within the selected range of bins.
-  bool containsBin(int binIndex) {
-    if (endBinIndex == null) {
-      return startBinIndex == binIndex;
-    }
-    return startBinIndex <= binIndex && binIndex <= endBinIndex!;
-  }
-
   @override
-  String toString() => "SelectedBinRange($seriesIndex-$startBinIndex-${endBinIndex ?? ""})";
+  String toString() {
+    return selectedBins.entries.map((e) => '${e.key}: ${e.value.toList()}').join(', ');
+  }
 }
 
 /// Represents the details of a selection in a binned chart.
@@ -307,11 +355,13 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   // Tracks if Shift is pressed
   bool isShiftKeyPressed = false;
 
-  // Tracks selected bins (non-contiguous or contiguous)
-  Set<SelectedBin> selectedBinsSet = {};
-
   /// The selected bins.
-  SelectedBinRange? selectedBins;
+  SelectedBins? selectedBins;
+
+  // First selected bin
+  SelectedBin? firstSelectedBin;
+
+  SelectedBin? lastRangeEnd;
 
   /// A timer used to determine if the user is hovering over a bin.
   Timer? _hoverTimer;
@@ -340,8 +390,32 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
   }
 
-  void _selectDatapoints(Set<Object> dataPoints) {
-    selectedDataPoints = dataPoints;
+  void _selectDatapoints(Object? origin, Set<Object> dataPoints) {
+    if (origin == widget.info.id) {
+      return;
+    }
+    if (selectedBins == null) {
+      selectedBins = SelectedBins();
+    } else {
+      selectedBins!.clear();
+    }
+
+    firstSelectedBin = null;
+
+    for (var entry in binContainers.entries) {
+      Object seriesIndex = entry.key;
+      BinnedDataContainer container = entry.value;
+
+      for (int binIndex = 0; binIndex < container.bins.length; binIndex++) {
+        BinnedData bin = container.bins[binIndex];
+
+        if (bin.data.keys.any((key) => dataPoints.contains(key))) {
+          selectedBins!.addBin(seriesIndex, binIndex);
+          firstSelectedBin ?? SelectedBin(seriesIndex, binIndex);
+        }
+      }
+    }
+    lastRangeEnd = null;
     setState(() {});
   }
 
@@ -349,7 +423,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   void dispose() {
     focusNode.removeListener(focusNodeListener);
     if (widget.selectionController != null) {
-      widget.selectionController!.unsubscribe(_selectDatapoints);
+      widget.selectionController!.unsubscribe(widget.info.id);
     }
     if (widget.resetController != null) {
       widget.resetController!.close();
@@ -366,7 +440,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     // Subscribe to the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe(_selectDatapoints);
+      widget.selectionController!.subscribe(widget.info.id, _selectDatapoints);
     }
 
     // Initialize the reset controller
@@ -398,8 +472,12 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   });
 
   /// Create the tooltip if the user is hovering over a bin
-  void onHoverStart({required PointerHoverEvent event, BinnedData? bin}) {
+  void onHoverStart({
+    required PointerHoverEvent event,
+    required BinnedData? bin,
+  }) {
     if (bin == null) return;
+
     ChartAxis mainAxis;
     ChartAxis crossAxis;
     if (mainAxisAlignment == AxisOrientation.horizontal) {
@@ -410,48 +488,44 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
       crossAxis = allAxes.values.first.axes.values.first;
     }
 
-    Widget tooltip = getTooltip(
-      event: event,
-      bin: bin,
-      mainAxis: mainAxis,
-      crossAxis: crossAxis,
-    );
-
+    // Convert local position to global
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
 
+    // Build your tooltip widget
+    Widget tooltip = IgnorePointer(
+      // Tooltip won't block interactions with the chart
+      ignoring: true,
+      child: Material(
+        color: Colors.transparent,
+        child: getTooltip(
+          event: event,
+          bin: bin,
+          mainAxis: mainAxis,
+          crossAxis: crossAxis,
+        ),
+      ),
+    );
+
+    // Create the OverlayEntry
     hoverOverlay = OverlayEntry(
       builder: (context) {
         return Positioned(
           left: globalPosition.dx,
           top: globalPosition.dy,
-          child: Material(
-            color: Colors.transparent,
-            child: MouseRegion(
-              onHover: (PointerHoverEvent event) {
-                _clearHover();
-              },
-              child: tooltip,
-            ),
-          ),
+          child: tooltip,
         );
       },
     );
 
+    // Insert the tooltip overlay
     Overlay.of(context).insert(hoverOverlay!);
   }
 
-  /// Callback for when the user stops hovering over a bin.
-  void onHoverEnd(PointerHoverEvent event) {}
-
-  /// Clear the hover overlay and other properties related to hovering
-  /// if the user is no longer hovering over a bin.
   void _clearHover() {
-    _hoverTimer?.cancel();
-    _hoverTimer = null;
-    _isHovering = false;
     hoverOverlay?.remove();
     hoverOverlay = null;
+    // Ensure UI updates
     setState(() {});
   }
 
@@ -534,7 +608,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
                 if (_isHovering) {
                   _clearHover();
-                  onHoverEnd(event);
+                  // onHoverEnd(event);
                 }
                 _isHovering = false;
               },
@@ -558,62 +632,165 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   /// and updates the selection controller if available.
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
+    // Always remove the tooltip first
+    _clearHover();
     // Get the selected bin based on the tap location
     SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
     _updatedBinSelection(selectedBin);
+  }
+
+  void _selectRangeWithClick(SelectedBin selectedBin) {
+    final seriesIndex = selectedBin.seriesIndex;
+    if (selectedBins!.selectedBins.containsKey(seriesIndex)) {
+      int rangePivot = firstSelectedBin!.binIndex;
+      int endIndex = selectedBin.binIndex;
+
+      if (rangePivot == endIndex) {
+        return;
+      }
+
+      if (lastRangeEnd != null) {
+        if (rangePivot < lastRangeEnd!.binIndex) {
+          for (int i = rangePivot; i <= lastRangeEnd!.binIndex; i++) {
+            selectedBins!.removeBin(seriesIndex, i);
+          }
+        } else {
+          for (int i = lastRangeEnd!.binIndex; i <= rangePivot; i++) {
+            selectedBins!.removeBin(seriesIndex, i);
+          }
+        }
+      }
+      lastRangeEnd = selectedBin;
+
+      if (rangePivot < endIndex) {
+        _selectRange(seriesIndex, rangePivot, endIndex, forward: true);
+      } else {
+        _selectRange(seriesIndex, rangePivot, endIndex, forward: false);
+      }
+    } else {
+      selectedBins!.addBin(seriesIndex, selectedBin.binIndex);
+    }
+  }
+
+  /// Helper method to select a range of bins
+  void _selectRange(Object seriesIndex, int start, int end, {required bool forward}) {
+    if (forward) {
+      for (int i = start; i <= end; i++) {
+        selectedBins!.addBin(seriesIndex, i);
+      }
+    } else {
+      for (int i = start; i >= end; i--) {
+        selectedBins!.addBin(seriesIndex, i);
+      }
+    }
   }
 
   /// Update the selected bins based on the currently selected bin.
   void _updatedBinSelection(SelectedBin? selectedBin) {
     if (selectedBin == null) {
       // Clear selection if no bin is selected
-      selectedBinsSet.clear();
-      selectedBins = null;
+      selectedBins?.clear();
       _notifySelectionChange();
+      setState(() {});
       return;
     }
 
-    if (isShiftKeyPressed && selectedBins != null) {
-      // Range selection (Shift)
-      if (selectedBins!.seriesIndex == selectedBin.seriesIndex) {
-        final startBinIndex = selectedBins!.startBinIndex;
-        final endBinIndex = selectedBin.binIndex;
-
-        selectedBins = SelectedBinRange(
-          selectedBin.seriesIndex,
-          startBinIndex < endBinIndex ? startBinIndex : endBinIndex,
-          startBinIndex > endBinIndex ? startBinIndex : endBinIndex,
-        );
-
-        // Add all bins in the range to the selection set
-        final binRange = selectedBins!.getBins(binContainers);
-        selectedBinsSet.clear();
-        for (int i = 0; i < binRange.length; i++) {
-          selectedBinsSet.add(SelectedBin(selectedBin.seriesIndex, selectedBins!.startBinIndex + i));
-        }
-      } else {
-        // Series mismatch: reset range and select only the current bin
-        selectedBinsSet.clear();
-        selectedBinsSet.add(selectedBin);
-        selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
-      }
+    selectedBins ??= SelectedBins();
+    final seriesIndex = selectedBin.seriesIndex;
+    if (isShiftKeyPressed) {
+      _selectRangeWithClick(selectedBin);
     } else if (isCmdCtrlPressed) {
       // Non-contiguous selection (Cmd/Ctrl)
-      if (selectedBinsSet.contains(selectedBin)) {
-        selectedBinsSet.remove(selectedBin);
+      if (selectedBins!.containsBin(seriesIndex, selectedBin.binIndex)) {
+        selectedBins!.removeBin(seriesIndex, selectedBin.binIndex);
       } else {
-        selectedBinsSet.add(selectedBin);
+        selectedBins!.addBin(seriesIndex, selectedBin.binIndex);
+        firstSelectedBin = selectedBin;
+        lastRangeEnd = null;
       }
-      selectedBins = null; // Reset contiguous selection since it's non-contiguous
     } else {
       // Default single selection (no modifiers)
-      selectedBinsSet.clear();
-      selectedBinsSet.add(selectedBin);
-      selectedBins = SelectedBinRange(selectedBin.seriesIndex, selectedBin.binIndex, null);
+      selectedBins!.clear();
+      selectedBins!.addBin(seriesIndex, selectedBin.binIndex);
+      firstSelectedBin = selectedBin;
+      lastRangeEnd = null;
     }
-
     _notifySelectionChange();
     setState(() {});
+  }
+
+  void _navigateBins(LogicalKeyboardKey key) {
+    if (selectedBins!.selectedBins.isEmpty) {
+      return;
+    }
+    final seriesIndex = selectedBins!.selectedBins.keys.last;
+    final lastSelectedBinIndex = selectedBins!.selectedBins[seriesIndex]!.last;
+
+    final currentSeries = binContainers[seriesIndex]!;
+    final int numBins = currentSeries.bins.length;
+    int newBinIndex = lastSelectedBinIndex;
+
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      newBinIndex--;
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      newBinIndex++;
+    }
+    if (isShiftKeyPressed) {
+      if (newBinIndex < 0 || newBinIndex > numBins - 1) {
+        return;
+      }
+    } else {
+      // Wrap around to start/end of bins
+      newBinIndex = newBinIndex % numBins;
+      lastRangeEnd = null;
+    }
+
+    final selectedBin = SelectedBin(seriesIndex, newBinIndex);
+    if (isShiftKeyPressed) {
+      int rangePivot = firstSelectedBin!.binIndex;
+      if (newBinIndex == rangePivot) {
+        selectedBins!.removeBin(seriesIndex, lastSelectedBinIndex);
+      }
+      if (newBinIndex != rangePivot) {
+        bool movingRight = newBinIndex > rangePivot;
+        bool arrowKeyMatchesDirection = (movingRight && key == LogicalKeyboardKey.arrowRight) ||
+            (!movingRight && key == LogicalKeyboardKey.arrowLeft);
+
+        if (arrowKeyMatchesDirection) {
+          int nextBinIndex = _findNextEmptyBin(seriesIndex, numBins, newBinIndex, left: !movingRight);
+          _selectRange(seriesIndex, newBinIndex, nextBinIndex, forward: movingRight);
+          lastRangeEnd = SelectedBin(seriesIndex, nextBinIndex);
+        } else {
+          selectedBins!.removeBin(seriesIndex, lastSelectedBinIndex);
+        }
+      }
+    } else {
+      selectedBins!.clear();
+      selectedBins!.addBin(seriesIndex, selectedBin.binIndex);
+      firstSelectedBin = selectedBin;
+    }
+    _notifySelectionChange();
+    setState(() {});
+  }
+
+  /// Finds the next available empty bin in the given direction,
+  /// ensuring that it joins two non-contiguous selected areas if possible.
+  int _findNextEmptyBin(Object currentSeries, int numBins, int index, {required bool left}) {
+    int step = left ? -1 : 1;
+    int nearestSelectedBin = -1;
+
+    index += step;
+    // Move in the given direction to find the first selected bin
+    while (index >= 0 && index < numBins) {
+      if (selectedBins!.containsBin(currentSeries, index)) {
+        nearestSelectedBin = index;
+        index += step; // Continue moving to check for a contiguous block
+      } else {
+        break; // Stop at the first gap (unselected bin)
+      }
+    }
+
+    return nearestSelectedBin != -1 ? nearestSelectedBin : index - step; // Return last found selected bin
   }
 
   /// Returns the selected bin based on the tap location.
@@ -656,19 +833,25 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     if (event is KeyDownEvent) {
       setState(() {
         // Detect Cmd (Mac) or Ctrl (Windows/Linux) key press
-        if (event.logicalKey == LogicalKeyboardKey.meta || // Cmd on Mac
+        // LogicalKeyboardKey.meta has a bug on Mac, so we need to check both
+        // metaLeft and metaRight.
+        if (event.logicalKey == LogicalKeyboardKey.metaLeft || // Cmd on Mac
+            event.logicalKey == LogicalKeyboardKey.metaRight ||
             event.logicalKey == LogicalKeyboardKey.control) {
           // Ctrl on Windows/Linux
-          developer.log("Cmd/Ctrl key pressed");
           isCmdCtrlPressed = true;
+        }
+
+        // Detect X or Y key press for scaling
+        if (event.logicalKey == LogicalKeyboardKey.keyX || event.logicalKey == LogicalKeyboardKey.keyY) {
+          scaleShiftKey = event.logicalKey;
         }
 
         // Detect Shift key press
         if (isShiftKey(event.logicalKey)) {
-          developer.log("Shift key pressed");
           isShiftKeyPressed = true;
+          scaleShiftKey = event.logicalKey;
         }
-
         // Handle Arrow Keys for Bin Navigation
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
             event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -678,98 +861,51 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     } else if (event is KeyUpEvent) {
       setState(() {
         // Detect Cmd (Mac) or Ctrl (Windows/Linux) key release
-        if (event.logicalKey == LogicalKeyboardKey.meta || // Cmd on Mac
+        if (event.logicalKey == LogicalKeyboardKey.metaLeft || // Cmd on Mac
+            event.logicalKey == LogicalKeyboardKey.metaRight ||
             event.logicalKey == LogicalKeyboardKey.control) {
           // Ctrl on Windows/Linux
           isCmdCtrlPressed = false;
         }
-
         // Detect Shift key release
         if (isShiftKey(event.logicalKey)) {
           isShiftKeyPressed = false;
+          scaleShiftKey = null;
         }
       });
     }
-    return KeyEventResult.handled; // Indicate the event was handled
-  }
-
-  void _navigateBins(LogicalKeyboardKey key) {
-    if (selectedBinsSet.isEmpty) {
-      // If no bin is currently selected, select the first bin in the first series
-      if (binContainers.isNotEmpty) {
-        final firstSeriesIndex = binContainers.keys.first;
-        if (binContainers[firstSeriesIndex]!.bins.isNotEmpty) {
-          final firstBin = SelectedBin(firstSeriesIndex, 0);
-          _updatedBinSelection(firstBin);
-        }
-      }
-      return;
-    }
-
-    // Get the last selected bin for navigation
-    final lastSelectedBin = selectedBinsSet.last;
-    final currentSeries = binContainers[lastSelectedBin.seriesIndex]!;
-    int newBinIndex = lastSelectedBin.binIndex;
-
-    // Update the bin index based on the arrow key pressed
-    if (key == LogicalKeyboardKey.arrowLeft) {
-      newBinIndex = (newBinIndex - 1 + currentSeries.bins.length) %
-          currentSeries.bins.length; // Wrap around to the last bin
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      newBinIndex = (newBinIndex + 1) % currentSeries.bins.length; // Wrap around to the first bin
-    }
-
-    final newSelectedBin = SelectedBin(lastSelectedBin.seriesIndex, newBinIndex);
-
-    // Apply modifier logic
-    if (isCmdCtrlPressed) {
-      // Non-contiguous selection: Toggle the new bin
-      if (selectedBinsSet.contains(newSelectedBin)) {
-        selectedBinsSet.remove(newSelectedBin);
-      } else {
-        selectedBinsSet.add(newSelectedBin);
-      }
-    } else if (isShiftKeyPressed) {
-      // Contiguous range selection
-      if (selectedBins == null) {
-        selectedBins = SelectedBinRange(newSelectedBin.seriesIndex, newBinIndex, newBinIndex);
-      } else {
-        selectedBins!.endBinIndex = newBinIndex;
-        final binRange = selectedBins!.getBins(binContainers);
-        selectedBinsSet.clear();
-        for (int i = 0; i < binRange.length; i++) {
-          selectedBinsSet.add(SelectedBin(newSelectedBin.seriesIndex, selectedBins!.startBinIndex + i));
-        }
-      }
-    } else {
-      // Default single-bin selection
-      selectedBinsSet.clear();
-      selectedBinsSet.add(newSelectedBin);
-      selectedBins = SelectedBinRange(newSelectedBin.seriesIndex, newBinIndex, null);
-    }
-
-    _notifySelectionChange();
-    setState(() {});
+    // Return ignored to allow the event to propagate
+    return KeyEventResult.ignored;
   }
 
   void _notifySelectionChange() {
-    final selectedDataPoints = <Object>{};
-    for (final selectedBin in selectedBinsSet) {
-      selectedDataPoints.addAll(binContainers[selectedBin.seriesIndex]!.bins[selectedBin.binIndex].data.keys);
+    if (selectedBins == null) {
+      return;
     }
 
-    // Notify selection controller
+    final selectedDataPoints = selectedBins!.getSelectedDataIds(binContainers);
+
+    // Update the selection controller if available
     if (widget.selectionController != null) {
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 
-    // Notify callbacks
+    // Update the drill down controller if available
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
+
+    // Call the selection callback if available
     if (widget.info.onSelection != null) {
-      final selectedBinsList =
-          selectedBinsSet.map((bin) => binContainers[bin.seriesIndex]!.bins[bin.binIndex]).toList();
+      final selectedBinsList = selectedBins!.getBins(binContainers);
       widget.info.onSelection!(
         details: BinnedSelectionDetails(selectedBinsList, selectedDataPoints),
       );
+    }
+    // Call the drill down callback if available
+    if (widget.info.onDrillDown != null) {
+      widget.info.onDrillDown!(
+          details: BinnedSelectionDetails(selectedBins?.getBins(binContainers) ?? [], selectedDataPoints));
     }
   }
 }
@@ -789,7 +925,7 @@ class BinnedChartPainter extends CustomPainter {
   final EdgeInsets tickLabelMargin;
 
   /// (Optional) selected bin
-  final SelectedBinRange? selectedBins;
+  final SelectedBins? selectedBins;
 
   /// Orientation of the main axis
   final AxisOrientation mainAxisAlignment;
@@ -806,16 +942,18 @@ class BinnedChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Calculate the projection used for all points in the series
-    Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
+    final Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
-    Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
-    Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
+    final Rect plotWindow = Offset(tickLabelMargin.left, tickLabelMargin.top) & plotSize;
+    final Offset offset = Offset(tickLabelMargin.left, tickLabelMargin.top);
 
     // Since all of the objects in the series use the same marker style,
     // we can calculate the [Paint] objects once and reuse them.
-    for (BinnedDataContainer bins in binContainers.values) {
-      for (int i = 0; i < bins.bins.length; i++) {
-        BinnedData bin = bins.bins[i];
+    for (var entry in binContainers.entries) {
+      Object seriesIndex = entry.key;
+      BinnedDataContainer container = entry.value;
+      for (int i = 0; i < container.bins.length; i++) {
+        BinnedData bin = container.bins[i];
         Rect binRect = bin.rectToPixel(
           axes: axes,
           chartSize: plotSize,
@@ -833,8 +971,8 @@ class BinnedChartPainter extends CustomPainter {
           ..strokeWidth = 2;
 
         if (fillColor != null) {
-          if (selectedBins != null && !selectedBins!.containsBin(i)) {
-            fillColor = fillColor.withOpacity(0.5);
+          if (selectedBins != null && !selectedBins!.containsBin(seriesIndex, i)) {
+            fillColor = fillColor.withAlpha(128);
           }
           paintFill = Paint()..color = fillColor;
         }
@@ -845,8 +983,8 @@ class BinnedChartPainter extends CustomPainter {
             ..style = PaintingStyle.stroke;
         }
 
-        if (selectedBins != null && !selectedBins!.containsBin(i)) {
-          paintWhisker.color = paintWhisker.color.withOpacity(0.5);
+        if (selectedBins != null && !selectedBins!.containsBin(seriesIndex, i)) {
+          paintWhisker.color = paintWhisker.color.withAlpha(128);
         }
 
         if (binRect.overlaps(plotWindow)) {
@@ -860,59 +998,9 @@ class BinnedChartPainter extends CustomPainter {
           }
           // Paint the outline
           if (paintEdge != null) {
-            /*AxisAlignedRect alignedPlotWindow = AxisAlignedRect.fromRect(plotWindow, mainAxisAlignment);
-            double bin0 = crossTransform.map(0) + crossOffset;
-            double clippedBin0 = math.max(bin0, plotWindow.top);
-
-            // Calculate the pixel coordinates of the bin
-            double mainStart = mainTransform.map(bin.start) + mainOffset;
-            double mainEnd = mainTransform.map(bin.end) + mainOffset;
-            double lastCrossEnd = crossTransform.map(lastCount) + crossOffset;
-            double crossEnd = crossTransform.map(bin.count) + crossOffset;
-
-            // Clip the outline to the plot window
-            double clippedMainStart = math.max(mainStart, alignedPlotWindow.mainStart);
-            double clippedMainEnd = math.min(mainEnd, alignedPlotWindow.mainEnd);
-            double clippedLastCrossEnd = math.max(lastCrossEnd, alignedPlotWindow.crossStart);
-            double clippedCrossEnd = math.min(crossEnd, alignedPlotWindow.crossEnd);
-            // Draw the minimum bin side
-            if (alignedPlotWindow.inMain(mainStart)) {
-              canvas.drawLine(
-                alignedPlotWindow.getOffset(mainStart, clippedLastCrossEnd),
-                alignedPlotWindow.getOffset(mainStart, clippedCrossEnd),
-                paintEdge,
-              );
-            }
-            // Draw the top/bottom
-            if (alignedPlotWindow.inCross(crossEnd)) {
-              canvas.drawLine(
-                alignedPlotWindow.getOffset(clippedMainStart, crossEnd),
-                alignedPlotWindow.getOffset(clippedMainEnd, crossEnd),
-                paintEdge,
-              );
-            }
-
-            // Draw the maximum bin side
-            double nextCount = i < bins.bins.length - 1 ? bins.bins[i + 1].count.toDouble() : 0;
-            if (i == bins.bins.length - 1 && alignedPlotWindow.inMain(mainEnd) || nextCount == 0) {
-              canvas.drawLine(
-                alignedPlotWindow.getOffset(mainEnd, clippedCrossEnd),
-                alignedPlotWindow.getOffset(mainEnd, clippedBin0),
-                paintEdge,
-              );
-            }*/
+            // Add your custom painting logic here
           }
         }
-        // Draw the bottom of the bins
-        /*if (alignedPlotWindow.inCross(bin0) && paintEdge != null) {
-          double clippedMin = math.max(mainMin, alignedPlotWindow.mainStart);
-          double clippedMax = math.min(mainMax, alignedPlotWindow.mainEnd);
-          canvas.drawLine(
-            alignedPlotWindow.getOffset(clippedMin, bin0),
-            alignedPlotWindow.getOffset(clippedMax, bin0),
-            paintEdge,
-          );
-        }*/
 
         if (bin is BoxChartBox) {
           if (bin.count == 0) {
@@ -974,8 +1062,9 @@ class BinnedChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    // TODO: imporve repaint logic
-    return true;
+  bool shouldRepaint(covariant BinnedChartPainter oldDelegate) {
+    final willRepaint = oldDelegate.selectedBins?.selectedBins != selectedBins?.selectedBins ||
+        oldDelegate.binContainers != binContainers;
+    return willRepaint;
   }
 }

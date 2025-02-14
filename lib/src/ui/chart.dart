@@ -24,14 +24,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:rubin_chart/src/models/axes/axes.dart';
-
-import 'package:rubin_chart/src/models/axes/axis.dart';
-import 'package:rubin_chart/src/models/legend.dart';
-import 'package:rubin_chart/src/models/series.dart';
-import 'package:rubin_chart/src/theme/theme.dart';
-import 'package:rubin_chart/src/ui/axis_painter.dart';
-import 'package:rubin_chart/src/ui/legend.dart';
+import 'package:rubin_chart/rubin_chart.dart';
 
 /// Function called with the current coordinates of the pointer.
 typedef CoordinateCallback = void Function(Map<Object, dynamic> coordinates);
@@ -78,7 +71,7 @@ class ChartInitializationException implements Exception {
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
 /// Callback when a data point is, or set of data points are, selected.
-typedef SelectionUpdate = void Function(Set<Object> dataPoints);
+typedef SelectionUpdate = void Function(Object? originChartId, Set<Object> dataPoints);
 
 /// A controller to manage the selection of data points across multiple series.
 class SelectionController {
@@ -88,44 +81,46 @@ class SelectionController {
   SelectionController();
 
   /// Get the selected data points.
-  Set<Object> get selectedDataPoints =>
-      _selectionByChartId.isEmpty ? {} : _selectionByChartId.values.reduce((a, b) => a.intersection(b));
+  Set<Object> get selectedDataPoints {
+    if (_selectionByChartId.isEmpty) return {};
+    return _selectionByChartId.values.reduce((a, b) => a.intersection(b));
+  }
 
   /// List of observers that are notified when the selection changes.
-  final List<SelectionUpdate> _observers = [];
+  final Map<Object, SelectionUpdate> _observers = {};
 
-  /// Subscribe to the selection controller.
-  void subscribe(SelectionUpdate observer) {
-    _observers.add(observer);
+  // Subscribe by providing a chartId and the callback
+  void subscribe(Object chartId, SelectionUpdate observer) {
+    _observers[chartId] = observer;
   }
 
   /// Unsubscribe from the selection controller.
-  void unsubscribe(SelectionUpdate observer) {
-    _observers.remove(observer);
+  void unsubscribe(Object chartId) {
+    _observers.remove(chartId);
   }
 
   /// Notify all observers that the selection has changed.
-  void _notifyObservers() {
-    for (SelectionUpdate observer in _observers) {
-      observer(selectedDataPoints);
+  void _notifyObservers(Object? originChartId) {
+    for (var entry in _observers.entries) {
+      // Pass along the originChartId so that observers know where the update came from.
+      entry.value(originChartId, selectedDataPoints);
     }
   }
 
   /// Update the selected datapoints.
-  void updateSelection(Object? chartId, Set<Object> dataPoints) {
+  void updateSelection(Object chartId, Set<Object> dataPoints) {
+    if (dataPoints == _selectionByChartId[chartId]) return;
     if (dataPoints.isEmpty) {
-      if (_selectionByChartId.containsKey(chartId)) {
-        _selectionByChartId.remove(chartId);
-      }
+      _selectionByChartId.remove(chartId);
     } else {
       _selectionByChartId[chartId] = dataPoints;
     }
-    _notifyObservers();
+    _notifyObservers(chartId);
   }
 
   void reset() {
     _selectionByChartId.clear();
-    _notifyObservers();
+    _notifyObservers(null);
     _observers.clear();
   }
 

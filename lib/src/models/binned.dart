@@ -421,6 +421,13 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   @override
   void dispose() {
+    try {
+      hoverOverlay?.remove();
+    } catch (e) {
+      // Log the error if necessary, but avoid crashing.
+      throw StateError("Failed to clear hoverOverlay during dispose: $e");
+    }
+    hoverOverlay = null;
     focusNode.removeListener(focusNodeListener);
     if (widget.selectionController != null) {
       widget.selectionController!.unsubscribe(widget.info.id);
@@ -506,6 +513,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         ),
       ),
     );
+    // );
 
     // Create the OverlayEntry
     hoverOverlay = OverlayEntry(
@@ -513,7 +521,15 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         return Positioned(
           left: globalPosition.dx,
           top: globalPosition.dy,
-          child: tooltip,
+          child: Material(
+            color: Colors.transparent,
+            child: MouseRegion(
+              onExit: (PointerExitEvent event) {
+                _clearHover();
+              },
+              child: tooltip,
+            ),
+          ),
         );
       },
     );

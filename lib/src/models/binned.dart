@@ -499,7 +499,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
 
-    // Build your tooltip widget
+    // Build tooltip widget
     Widget tooltip = IgnorePointer(
       // Tooltip won't block interactions with the chart
       ignoring: true,
@@ -521,15 +521,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         return Positioned(
           left: globalPosition.dx,
           top: globalPosition.dy,
-          child: Material(
-            color: Colors.transparent,
-            child: MouseRegion(
-              onExit: (PointerExitEvent event) {
-                _clearHover();
-              },
-              child: tooltip,
-            ),
-          ),
+          child: tooltip,
         );
       },
     );

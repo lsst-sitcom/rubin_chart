@@ -421,6 +421,13 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   @override
   void dispose() {
+    try {
+      hoverOverlay?.remove();
+    } catch (e) {
+      // Log the error if necessary, but avoid crashing.
+      throw StateError("Failed to clear hoverOverlay during dispose: $e");
+    }
+    hoverOverlay = null;
     focusNode.removeListener(focusNodeListener);
     if (widget.selectionController != null) {
       widget.selectionController!.unsubscribe(widget.info.id);
@@ -492,7 +499,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
 
-    // Build your tooltip widget
+    // Build tooltip widget
     Widget tooltip = IgnorePointer(
       // Tooltip won't block interactions with the chart
       ignoring: true,
@@ -506,6 +513,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         ),
       ),
     );
+    // );
 
     // Create the OverlayEntry
     hoverOverlay = OverlayEntry(

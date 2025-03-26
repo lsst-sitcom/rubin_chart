@@ -220,9 +220,9 @@ class SeriesData {
           .toList();
     }
 
-    if (values.first is num) {
+    if (values.isNotEmpty && values.first is num) {
       return Bounds.fromList(values.map((e) => (e as num).toDouble()).toList());
-    } else if (values.first is DateTime) {
+    } else if (values.isNotEmpty && values.first is DateTime) {
       // TODO: replace the code below with a simple conversion to unix time,
       // but for now axis does not support [DateTime] tick labels.
       return Bounds.fromList(values.map((e) => dateTimeToMjd(e as DateTime)).toList());

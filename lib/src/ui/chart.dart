@@ -110,9 +110,20 @@ class SelectionController {
 
   /// Update the selected datapoints.
   void updateSelection(Object chartId, Set<Object> dataPoints) {
+    // Check if the selection for this chart has actually changed
+    if (_selectionByChartId[chartId] == dataPoints) return;
+
+    // Check if the sets have the same elements (handles the case where the sets
+    // are different instances but contain the same elements)
+    if (_selectionByChartId[chartId] != null &&
+        _selectionByChartId[chartId]!.length == dataPoints.length &&
+        _selectionByChartId[chartId]!.containsAll(dataPoints)) {
+      return;
+    }
+
     developer.log('SelectionController.updateSelection: chartId=$chartId, dataPoints=$dataPoints',
         name: 'rubin_chart');
-    if (dataPoints == _selectionByChartId[chartId]) return;
+
     if (dataPoints.isEmpty) {
       _selectionByChartId.remove(chartId);
     } else {

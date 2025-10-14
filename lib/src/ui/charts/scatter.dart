@@ -716,7 +716,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       return;
     }
 
-    selectedDataPoints = {};
+    // Calculate the new selection
+    Set<Object> newSelectedDataPoints = {};
     for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
       Object axesId = entry.key;
       ChartAxes axes = _axes[axesId]!;
@@ -729,12 +730,19 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       Offset projectedStart = axes.linearFromPixel(pixel: Offset(xStart, yStart), chartSize: chartSize);
       Offset projectedEnd = axes.linearFromPixel(pixel: Offset(xEnd, yEnd), chartSize: chartSize);
       // Select all points in the quadtree that are within the selection area
-      selectedDataPoints.addAll(quadTree.queryRect(
+      newSelectedDataPoints.addAll(quadTree.queryRect(
         Rect.fromPoints(projectedStart, projectedEnd),
       ));
     }
-    if (widget.selectionController != null) {
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+
+    // Check if selection has actually changed before updating
+    if (!areSelectionsEqual(selectedDataPoints, newSelectedDataPoints)) {
+      selectedDataPoints = newSelectedDataPoints;
+      if (widget.selectionController != null) {
+        developer.log("Updating selection from drag with ${selectedDataPoints.length} points",
+            name: "rubin_chart.ui.charts.scatter");
+        widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+      }
     }
 
     setState(() {});

@@ -19,6 +19,7 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer' as developer;
 import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -892,6 +893,11 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
 
     final selectedDataPoints = selectedBins!.getSelectedDataIds(binContainers);
+
+    developer.log("Histogram notifying selection change with ${selectedDataPoints.length} points",
+        name: "rubin_chart.chart.binned");
+    developer.log("Selected data point types: ${selectedDataPoints.map((p) => p.runtimeType).toSet()}",
+        name: "rubin_chart.chart.binned");
 
     // Update the selection controller if available
     if (widget.selectionController != null) {

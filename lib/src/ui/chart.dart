@@ -19,6 +19,7 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer' as developer;
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
@@ -109,6 +110,8 @@ class SelectionController {
 
   /// Update the selected datapoints.
   void updateSelection(Object chartId, Set<Object> dataPoints) {
+    developer.log('SelectionController.updateSelection: chartId=$chartId, dataPoints=$dataPoints',
+        name: 'rubin_chart');
     if (dataPoints == _selectionByChartId[chartId]) return;
     if (dataPoints.isEmpty) {
       _selectionByChartId.remove(chartId);

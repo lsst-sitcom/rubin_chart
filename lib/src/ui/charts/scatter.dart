@@ -367,8 +367,19 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the selection data points.
   void _onSelectionUpdate(Object? origin, Set<Object> dataPoints) {
-    //print("selection update: ${dataPoints.length}");
+    developer.log("ScatterPlot received selection update from $origin with ${dataPoints.length} points",
+        name: "rubin_chart.ui.charts.scatter");
+    developer.log("Selection dataPoint types: ${dataPoints.map((p) => p.runtimeType).toSet()}",
+        name: "rubin_chart.ui.charts.scatter");
+    Set<Object> previousSelection = selectedDataPoints;
     selectedDataPoints = dataPoints;
+
+    // Log selection changes
+    if (previousSelection.length != selectedDataPoints.length) {
+      developer.log(
+          "Selection changed from ${previousSelection.length} to ${selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+    }
     _markSeriesNeedsUpdate();
     setState(() {});
   }
@@ -419,6 +430,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
     // Initialize selection controller
     if (widget.selectionController != null) {
+      developer.log("Subscribing to selection controller", name: "rubin_chart.ui.charts.scatter");
       widget.selectionController!.subscribe(widget.info.id, _onSelectionUpdate);
     }
 
@@ -685,6 +697,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the drag region size and select data points within the drag region.
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
+    if (widget.selectionController != null) {
+      developer.log("Updating selection from drag with ${selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
     focusNode.requestFocus();
     dragEnd = details.localPosition;
     Size chartSize = axisPainter.chartSize;
@@ -805,6 +822,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// If [isHover] then the function will return the nearest data point without
   /// updating the selection.
   HoverDataPoint? _onTapUp(Offset localPosition, AxisPainter axisPainter, [bool isHover = false]) {
+    if (widget.selectionController != null) {
+      developer.log("Updating selection from tap with ${selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+      developer.log("Selected point types: ${selectedDataPoints.map((p) => p.runtimeType).toSet()}",
+          name: "rubin_chart.ui.charts.scatter");
+      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+    }
     if (_isDragging) {
       return null;
     }
@@ -828,8 +852,10 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       QuadTreeElement? localNearest = _getSelectedPoint(Offset(x, y), axisPainter, axes, chartSize, quadTree);
       if (localNearest != null) {
         if (nearest != null) {
-          if ((localNearest.center - Offset(x, y)).distanceSquared <
-              (nearest.center - Offset(x, y)).distanceSquared) {
+          if ((localNearest.center - axes.linearFromPixel(pixel: Offset(x, y), chartSize: chartSize))
+                  .distanceSquared <
+              (nearest.center - axes.linearFromPixel(pixel: Offset(x, y), chartSize: chartSize))
+                  .distanceSquared) {
             nearest = localNearest;
             nearestChartAxesId = axesId;
           }
@@ -846,14 +872,25 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       }
     }
 
+    // Debug what's being selected
+    developer.log("Selecting point: ${nearest?.element}", name: "rubin_chart.ui.charts.scatter");
+
     if (nearest == null) {
       selectedDataPoints = {};
     } else {
       selectedDataPoints = {nearest.element};
     }
+
+    // Update the UI with the selection regardless of controller
+    _markSeriesNeedsUpdate();
+
     if (widget.selectionController != null) {
+      // Updated to use the controller's update method that won't trigger a callback to this chart
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
+
+    // Force a repaint to show the selection
+    setState(() {});
     return null;
   }
 

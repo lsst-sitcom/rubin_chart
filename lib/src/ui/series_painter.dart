@@ -71,7 +71,6 @@ class SeriesPainter extends CustomPainter {
   /// Paint the series on the [Canvas].
   @override
   void paint(Canvas canvas, Size size) {
-    //developer.log("painting SERIES!", name: "rubin_chart.ui.series_painter");
     // Calculate the projection used for all points in the series
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
@@ -122,7 +121,6 @@ class SeriesPainter extends CustomPainter {
       final Canvas cachedCanvas = _dataLength < kMaxScatterPoints ? canvas : Canvas(recorder);
 
       List<Object> dataIds = data.data.values.first.keys.toList();
-      //developer.log("drawing ${dataIds.length} data points");
       for (int i = 0; i < data.length; i++) {
         Object dataId = dataIds[i];
         if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
@@ -149,13 +147,13 @@ class SeriesPainter extends CustomPainter {
       ..color = Colors.black
       ..strokeWidth = selectionMarker.size / 3
       ..style = PaintingStyle.stroke;
+
     for (dynamic dataId in selectedDataPoints) {
       if (data.data.values.first.containsKey(dataId)) {
         Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
-        point -= translationOffset;
+
         if (plotWindow.contains(point)) {
           selectionMarker.paint(canvas, paintFill, paintEdge, point);
-          //nDisplayed++;
         }
       }
     }
@@ -164,11 +162,10 @@ class SeriesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(SeriesPainter oldDelegate) {
-    return true;
-
     /// TODO: add checks for marker, errorbar, axes changes
     return oldDelegate.data != data ||
         oldDelegate.tickLabelMargin != tickLabelMargin ||
-        oldDelegate.selectedDataPoints != selectedDataPoints;
+        oldDelegate.selectedDataPoints != selectedDataPoints ||
+        oldDelegate.translationOffset != translationOffset;
   }
 }

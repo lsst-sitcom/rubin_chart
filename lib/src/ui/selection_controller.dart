@@ -19,7 +19,6 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 
 /// Callback when a data point is, or set of data points are, selected.
@@ -57,36 +56,18 @@ class SelectionController {
 
   /// Notify all observers that the selection has changed.
   void _notifyObservers(Object? originChartId) {
-    developer.log(
-        'SELECTION CONTROLLER - Notifying ${_observers.length} observers of selection change from chartId=$originChartId with ${_selectedDataPoints.length} points',
-        name: 'rubin_chart');
-
     for (var entry in _observers.entries) {
       // Skip notifying the chart that originated this selection update
       if (entry.key == originChartId) {
-        developer.log('SELECTION CONTROLLER - Skipping notification to originating chart $originChartId',
-            name: 'rubin_chart');
         continue;
       }
-
-      developer.log('SELECTION CONTROLLER - Notifying observer ${entry.key} of selection change',
-          name: 'rubin_chart');
       // Pass along the originChartId so that observers know where the update came from.
       entry.value(originChartId, _selectedDataPoints);
     }
-
-    developer.log('SELECTION CONTROLLER - Finished notifying observers', name: 'rubin_chart');
   }
 
   /// Update the selected datapoints.
   void updateSelection(Object chartId, Set<Object> dataPoints) {
-    developer.log(
-        'SELECTION CONTROLLER - BEFORE UPDATE: Selected points=${_selectedDataPoints.length}, Last origin=$_lastSelectionOrigin',
-        name: 'rubin_chart');
-    developer.log(
-        'SELECTION CONTROLLER - Updating selection for chartId=$chartId with ${dataPoints.length} points',
-        name: 'rubin_chart');
-
     // Check if this is actually a change
     bool hasChanges = false;
 
@@ -99,7 +80,6 @@ class SelectionController {
     }
 
     if (!hasChanges) {
-      developer.log('SELECTION CONTROLLER - No change in selection, skipping update', name: 'rubin_chart');
       return;
     }
 
@@ -108,15 +88,7 @@ class SelectionController {
     _lastSelectionOrigin = chartId;
 
     if (dataPoints.isEmpty) {
-      developer.log('SELECTION CONTROLLER - Chart $chartId cleared selection', name: 'rubin_chart');
-    } else {
-      developer.log('SELECTION CONTROLLER - Chart $chartId made selection with ${dataPoints.length} points',
-          name: 'rubin_chart');
-    }
-
-    developer.log(
-        'SELECTION CONTROLLER - AFTER UPDATE: Selected points=${_selectedDataPoints.length}, Origin=$chartId',
-        name: 'rubin_chart');
+    } else {}
 
     _notifyObservers(chartId);
   }
@@ -155,5 +127,28 @@ class SelectionController {
   @visibleForTesting
   bool containsDataPoint(Object dataPoint) {
     return _selectedDataPoints.contains(dataPoint);
+  }
+
+  /// Update with a temporary selection during drag operations.
+  /// This differs from a normal selection update in that it marks the selection
+  /// as temporary, allowing charts to decide how to visualize it.
+  ///
+  /// @param chartId The ID of the chart that originated the drag selection
+  /// @param dataPoints The set of data points that are temporarily selected during drag
+  void updateTemporarySelection(Object chartId, Set<Object> dataPoints) {
+    // Record the last origin but DON'T update _selectedDataPoints since this is temporary
+    _lastSelectionOrigin = chartId;
+
+    // Notify observers about the temporary selection
+    for (var entry in _observers.entries) {
+      // Skip notifying the chart that originated this drag selection
+      if (entry.key == chartId) {
+        continue;
+      }
+
+      // Pass the chartId and temporary data points to the observer
+      // Other charts can then decide how to visualize this temporary selection
+      entry.value(chartId, dataPoints);
+    }
   }
 }

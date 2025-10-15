@@ -393,41 +393,17 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   }
 
   void _selectDatapoints(Object? origin, Set<Object> dataPoints) {
-    developer.log(
-        "BINNED CHART RECEIVE - Chart ID ${widget.info.id} received selection update from $origin with ${dataPoints.length} points",
-        name: "rubin_chart.chart.binned");
-
     if (origin == widget.info.id) {
-      developer.log("BINNED CHART RECEIVE - Ignoring our own update from ${widget.info.id}",
-          name: "rubin_chart.chart.binned");
       return;
-    }
-
-    developer.log("BINNED CHART RECEIVE - Accepting update from $origin, my ID is ${widget.info.id}",
-        name: "rubin_chart.chart.binned");
-
-    bool hadSelection = false;
-    if (selectedBins != null) {
-      // Check if we have any selected bins
-      for (var seriesBins in selectedBins!.selectedBins.values) {
-        if (seriesBins.isNotEmpty) {
-          hadSelection = true;
-          break;
-        }
-      }
     }
 
     if (selectedBins == null) {
       selectedBins = SelectedBins();
-      developer.log("BINNED CHART RECEIVE - Created new SelectedBins", name: "rubin_chart.chart.binned");
     } else {
       selectedBins!.clear();
-      developer.log("BINNED CHART RECEIVE - Cleared existing SelectedBins", name: "rubin_chart.chart.binned");
     }
 
     firstSelectedBin = null;
-    int binsSelected = 0;
-
     for (var entry in binContainers.entries) {
       Object seriesIndex = entry.key;
       BinnedDataContainer container = entry.value;
@@ -438,21 +414,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         if (bin.data.keys.any((key) => dataPoints.contains(key))) {
           selectedBins!.addBin(seriesIndex, binIndex);
           firstSelectedBin ??= SelectedBin(seriesIndex, binIndex);
-          binsSelected++;
         }
       }
-    }
-
-    developer.log(
-        "BINNED CHART RECEIVE - Selected $binsSelected bins based on ${dataPoints.length} data points",
-        name: "rubin_chart.chart.binned");
-
-    bool hasSelection = binsSelected > 0;
-
-    if (!hadSelection && hasSelection) {
-      developer.log("BINNED CHART RECEIVE - Selection was created!", name: "rubin_chart.chart.binned");
-    } else if (hadSelection && !hasSelection) {
-      developer.log("BINNED CHART RECEIVE - Selection was cleared!", name: "rubin_chart.chart.binned");
     }
 
     lastRangeEnd = null;
@@ -935,24 +898,12 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     developer.log("Histogram notifying selection change with ${selectedDataPoints.length} points",
         name: "rubin_chart.chart.binned");
-    developer.log("Selected data point types: ${selectedDataPoints.map((p) => p.runtimeType).toSet()}",
-        name: "rubin_chart.chart.binned");
+    developer.log("Selected data point types: $selectedDataPoints", name: "rubin_chart.chart.binned");
 
     // Update the selection controller if available
     if (widget.selectionController != null &&
         (selectedDataPoints.isNotEmpty || widget.selectionController!.selectedDataPoints.isNotEmpty)) {
-      developer.log(
-          "BINNED CHART - BEFORE UPDATE: SelectionController has ${widget.selectionController!.selectedDataPoints.length} points",
-          name: "rubin_chart.chart.binned");
-      developer.log(
-          "BINNED CHART - Updating selection for chart ID ${widget.info.id} with ${selectedDataPoints.length} points",
-          name: "rubin_chart.chart.binned");
-
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
-
-      developer.log(
-          "BINNED CHART - AFTER UPDATE: SelectionController now has ${widget.selectionController!.selectedDataPoints.length} points",
-          name: "rubin_chart.chart.binned");
     }
 
     // Update the drill down controller if available

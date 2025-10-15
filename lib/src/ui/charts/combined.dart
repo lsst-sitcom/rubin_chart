@@ -29,6 +29,7 @@ import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/legend.dart';
+import 'package:rubin_chart/src/ui/selection_controller.dart';
 
 /// A chart that combines multiple charts linked by shared axes
 class CombinedChart extends StatefulWidget {

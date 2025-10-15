@@ -39,6 +39,7 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
+import 'package:rubin_chart/src/ui/selection_controller.dart';
 
 /// Maximum number of scatter points before switching to image caching mode in [SeriesPainter].
 const int kMaxScatterPoints = 100000;
@@ -367,18 +368,37 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the selection data points.
   void _onSelectionUpdate(Object? origin, Set<Object> dataPoints) {
-    developer.log("ScatterPlot received selection update from $origin with ${dataPoints.length} points",
+    developer.log(
+        "SCATTER RECEIVE - Chart ID ${widget.info.id} received selection update from $origin with ${dataPoints.length} points",
         name: "rubin_chart.ui.charts.scatter");
-    developer.log("Selection dataPoint types: ${dataPoints.map((p) => p.runtimeType).toSet()}",
+    developer.log(
+        "SCATTER RECEIVE - Selection dataPoint types: ${dataPoints.map((p) => p.runtimeType).toSet()}",
         name: "rubin_chart.ui.charts.scatter");
+
     Set<Object> previousSelection = selectedDataPoints;
+
+    // Check if we're receiving our own update
+    if (origin == widget.info.id) {
+      developer.log("SCATTER RECEIVE - Ignoring our own update from ${widget.info.id}",
+          name: "rubin_chart.ui.charts.scatter");
+    } else {
+      developer.log("SCATTER RECEIVE - Accepting update from $origin, my ID is ${widget.info.id}",
+          name: "rubin_chart.ui.charts.scatter");
+    }
+
     selectedDataPoints = dataPoints;
 
     // Log selection changes
     if (previousSelection.length != selectedDataPoints.length) {
       developer.log(
-          "Selection changed from ${previousSelection.length} to ${selectedDataPoints.length} points",
+          "SCATTER RECEIVE - Selection changed from ${previousSelection.length} to ${selectedDataPoints.length} points",
           name: "rubin_chart.ui.charts.scatter");
+
+      if (previousSelection.isNotEmpty && selectedDataPoints.isEmpty) {
+        developer.log("SCATTER RECEIVE - Selection was cleared!", name: "rubin_chart.ui.charts.scatter");
+      } else if (previousSelection.isEmpty && selectedDataPoints.isNotEmpty) {
+        developer.log("SCATTER RECEIVE - Selection was created!", name: "rubin_chart.ui.charts.scatter");
+      }
     }
     _markSeriesNeedsUpdate();
     setState(() {});
@@ -697,21 +717,11 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the drag region size and select data points within the drag region.
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
-    if (widget.selectionController != null) {
-      developer.log("Updating selection from drag with ${selectedDataPoints.length} points",
-          name: "rubin_chart.ui.charts.scatter");
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
-    }
     focusNode.requestFocus();
     dragEnd = details.localPosition;
     Size chartSize = axisPainter.chartSize;
 
-    if (cursorAction == CursorAction.drillDown) {
-      setState(() {});
-      return;
-    }
-
-    if (cursorAction == CursorAction.dateTimeSelect) {
+    if (cursorAction == CursorAction.drillDown || cursorAction == CursorAction.dateTimeSelect) {
       setState(() {});
       return;
     }
@@ -738,10 +748,21 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     // Check if selection has actually changed before updating
     if (!areSelectionsEqual(selectedDataPoints, newSelectedDataPoints)) {
       selectedDataPoints = newSelectedDataPoints;
-      if (widget.selectionController != null) {
-        developer.log("Updating selection from drag with ${selectedDataPoints.length} points",
+      // Only update the selection controller if we have points or if we're clearing a previous selection
+      if (widget.selectionController != null &&
+          (newSelectedDataPoints.isNotEmpty || widget.selectionController!.selectedDataPoints.isNotEmpty)) {
+        developer.log(
+            "SCATTER DRAG - BEFORE UPDATE: SelectionController has ${widget.selectionController!.selectedDataPoints.length} points",
             name: "rubin_chart.ui.charts.scatter");
+        developer.log(
+            "SCATTER DRAG - Updating selection for chart ID ${widget.info.id} with ${selectedDataPoints.length} points",
+            name: "rubin_chart.ui.charts.scatter");
+
         widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+
+        developer.log(
+            "SCATTER DRAG - AFTER UPDATE: SelectionController now has ${widget.selectionController!.selectedDataPoints.length} points",
+            name: "rubin_chart.ui.charts.scatter");
       }
     }
 
@@ -780,8 +801,21 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       _isDragging = false;
     });
 
-    if (widget.selectionController != null) {
+    // Only send selection update if we have points or if we're clearing a previous selection
+    if (widget.selectionController != null &&
+        (selectedDataPoints.isNotEmpty || widget.selectionController!.selectedDataPoints.isNotEmpty)) {
+      developer.log(
+          "SCATTER DRAG END - BEFORE UPDATE: SelectionController has ${widget.selectionController!.selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+      developer.log(
+          "SCATTER DRAG END - Updating selection for chart ID ${widget.info.id} with ${selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+
+      developer.log(
+          "SCATTER DRAG END - AFTER UPDATE: SelectionController now has ${widget.selectionController!.selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
     }
   }
 
@@ -830,17 +864,7 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// If [isHover] then the function will return the nearest data point without
   /// updating the selection.
   HoverDataPoint? _onTapUp(Offset localPosition, AxisPainter axisPainter, [bool isHover = false]) {
-    if (widget.selectionController != null) {
-      developer.log("Updating selection from tap with ${selectedDataPoints.length} points",
-          name: "rubin_chart.ui.charts.scatter");
-      developer.log("Selected point types: ${selectedDataPoints.map((p) => p.runtimeType).toSet()}",
-          name: "rubin_chart.ui.charts.scatter");
-      widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
-    }
-    if (_isDragging) {
-      return null;
-    }
-    if (_isDragGesture) {
+    if (_isDragging || (_isDragGesture && !isHover)) {
       _isDragGesture = false;
       return null;
     }
@@ -878,23 +902,35 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       if (nearest != null) {
         return HoverDataPoint(nearestChartAxesId!, nearest.element);
       }
+      return null;
     }
 
-    // Debug what's being selected
-    developer.log("Selecting point: ${nearest?.element}", name: "rubin_chart.ui.charts.scatter");
+    // Set the local selection
+    Set<Object> newSelection = nearest == null ? {} : {nearest.element};
+    bool selectionChanged = !areSelectionsEqual(selectedDataPoints, newSelection);
+    selectedDataPoints = newSelection;
 
-    if (nearest == null) {
-      selectedDataPoints = {};
-    } else {
-      selectedDataPoints = {nearest.element};
-    }
-
-    // Update the UI with the selection regardless of controller
+    // Update the UI with the selection
     _markSeriesNeedsUpdate();
 
-    if (widget.selectionController != null) {
-      // Updated to use the controller's update method that won't trigger a callback to this chart
+    // Only notify the controller if selection changed and either:
+    // 1. We have points OR
+    // 2. We're clearing a previous non-empty selection
+    if (widget.selectionController != null &&
+        selectionChanged &&
+        (selectedDataPoints.isNotEmpty || widget.selectionController!.selectedDataPoints.isNotEmpty)) {
+      developer.log(
+          "SCATTER TAP - BEFORE UPDATE: SelectionController has ${widget.selectionController!.selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+      developer.log(
+          "SCATTER TAP - Updating selection for chart ID ${widget.info.id} with ${selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
+
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
+
+      developer.log(
+          "SCATTER TAP - AFTER UPDATE: SelectionController now has ${widget.selectionController!.selectedDataPoints.length} points",
+          name: "rubin_chart.ui.charts.scatter");
     }
 
     // Force a repaint to show the selection

@@ -19,7 +19,6 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:developer' as developer;
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
@@ -70,79 +69,6 @@ class ChartInitializationException implements Exception {
 
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
-
-/// Callback when a data point is, or set of data points are, selected.
-typedef SelectionUpdate = void Function(Object? originChartId, Set<Object> dataPoints);
-
-/// A controller to manage the selection of data points across multiple series.
-class SelectionController {
-  /// The selected data points.
-  final Map<Object?, Set<Object>> _selectionByChartId = {};
-
-  SelectionController();
-
-  /// Get the selected data points.
-  Set<Object> get selectedDataPoints {
-    if (_selectionByChartId.isEmpty) return {};
-    return _selectionByChartId.values.reduce((a, b) => a.intersection(b));
-  }
-
-  /// List of observers that are notified when the selection changes.
-  final Map<Object, SelectionUpdate> _observers = {};
-
-  // Subscribe by providing a chartId and the callback
-  void subscribe(Object chartId, SelectionUpdate observer) {
-    _observers[chartId] = observer;
-  }
-
-  /// Unsubscribe from the selection controller.
-  void unsubscribe(Object chartId) {
-    _observers.remove(chartId);
-  }
-
-  /// Notify all observers that the selection has changed.
-  void _notifyObservers(Object? originChartId) {
-    for (var entry in _observers.entries) {
-      // Pass along the originChartId so that observers know where the update came from.
-      entry.value(originChartId, selectedDataPoints);
-    }
-  }
-
-  /// Update the selected datapoints.
-  void updateSelection(Object chartId, Set<Object> dataPoints) {
-    // Check if the selection for this chart has actually changed
-    if (_selectionByChartId[chartId] == dataPoints) return;
-
-    // Check if the sets have the same elements (handles the case where the sets
-    // are different instances but contain the same elements)
-    if (_selectionByChartId[chartId] != null &&
-        _selectionByChartId[chartId]!.length == dataPoints.length &&
-        _selectionByChartId[chartId]!.containsAll(dataPoints)) {
-      return;
-    }
-
-    developer.log('SelectionController.updateSelection: chartId=$chartId, dataPoints=$dataPoints',
-        name: 'rubin_chart');
-
-    if (dataPoints.isEmpty) {
-      _selectionByChartId.remove(chartId);
-    } else {
-      _selectionByChartId[chartId] = dataPoints;
-    }
-    _notifyObservers(chartId);
-  }
-
-  void reset() {
-    _selectionByChartId.clear();
-    _notifyObservers(null);
-    _observers.clear();
-  }
-
-  /// Clear all of the observers on dispose.
-  void dispose() {
-    reset();
-  }
-}
 
 /// A mixin that provides access to the series, axes, and legend of a chart.
 /// This is made so that a state with a global key can have access to

@@ -18,6 +18,7 @@
 ///
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -121,15 +122,43 @@ class SeriesPainter extends CustomPainter {
       final Canvas cachedCanvas = _dataLength < kMaxScatterPoints ? canvas : Canvas(recorder);
 
       List<Object> dataIds = data.data.values.first.keys.toList();
+
+      // Count how many points will be drawn vs filtered
+      int filteredPoints = 0;
+      int renderedPoints = 0;
+
       for (int i = 0; i < data.length; i++) {
         Object dataId = dataIds[i];
+
+        // Skip points not in the drill down selection
         if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
+          filteredPoints++;
           continue;
         }
+
         Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
         if (plotWindow.contains(point)) {
           marker.paint(cachedCanvas, paintFill, paintEdge, point);
+          renderedPoints++;
           // TODO: draw error bars
+        }
+      }
+
+      // Log if drill down has filtered most/all points
+      if (drillDownDataPoints.isNotEmpty) {
+        developer.log(
+            "SeriesPainter: Drill down filter - Rendered $renderedPoints points, filtered out $filteredPoints points",
+            name: "rubin_chart.chart.series_painter");
+
+        // If all or most points were filtered out, log a warning
+        if (renderedPoints == 0) {
+          developer.log(
+              "⚠️ WARNING: All points were filtered out by drill down. The selected drill down points don't exist in this scatter chart.",
+              name: "rubin_chart.chart.series_painter");
+        } else if (renderedPoints < 5 && filteredPoints > 20) {
+          developer.log(
+              "⚠️ WARNING: Most points were filtered out by drill down. Only $renderedPoints points remain visible.",
+              name: "rubin_chart.chart.series_painter");
         }
       }
 

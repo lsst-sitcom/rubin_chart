@@ -19,6 +19,7 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:rubin_chart/src/models/axes/axes.dart';
@@ -220,14 +221,37 @@ class SeriesData {
           .toList();
     }
 
-    if (values.isNotEmpty && values.first is num) {
+    developer.log("Calculating bounds for column $column with ${values.length} values",
+        name: "rubin_chart.chart.series");
+
+    if (values.isEmpty) {
+      // Handle empty values - return a default bounds
+      return const Bounds<double>(0, 1);
+    } else if (values.first is num) {
       return Bounds.fromList(values.map((e) => (e as num).toDouble()).toList());
-    } else if (values.isNotEmpty && values.first is DateTime) {
+    } else if (values.first is DateTime) {
       // TODO: replace the code below with a simple conversion to unix time,
       // but for now axis does not support [DateTime] tick labels.
       return Bounds.fromList(values.map((e) => dateTimeToMjd(e as DateTime)).toList());
+    } else if (values.first is String) {
+      // For string values, we need to create numeric mapping
+      // Each unique string gets assigned an index
+      final uniqueValues = <String>{};
+      for (final value in values) {
+        uniqueValues.add(value as String);
+      }
+
+      final sortedUniqueValues = uniqueValues.toList()..sort();
+      final valueToIndex = <String, double>{};
+
+      for (int i = 0; i < sortedUniqueValues.length; i++) {
+        valueToIndex[sortedUniqueValues[i]] = i.toDouble();
+      }
+
+      return Bounds.fromList(values.map((e) => valueToIndex[e as String]!).toList());
     } else {
-      throw DataConversionException("Unable to calculate bounds for column $column");
+      throw DataConversionException(
+          "Unable to calculate bounds for column $column with value type ${values.first.runtimeType}");
     }
   }
 }

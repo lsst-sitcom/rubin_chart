@@ -19,6 +19,7 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer' as developer;
 import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/box.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
+import 'package:rubin_chart/src/ui/selection_controller.dart';
 
 /// A class that represents binned data.
 abstract class BinnedData {
@@ -394,6 +396,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     if (origin == widget.info.id) {
       return;
     }
+
     if (selectedBins == null) {
       selectedBins = SelectedBins();
     } else {
@@ -401,7 +404,6 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
 
     firstSelectedBin = null;
-
     for (var entry in binContainers.entries) {
       Object seriesIndex = entry.key;
       BinnedDataContainer container = entry.value;
@@ -411,10 +413,11 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
         if (bin.data.keys.any((key) => dataPoints.contains(key))) {
           selectedBins!.addBin(seriesIndex, binIndex);
-          firstSelectedBin ?? SelectedBin(seriesIndex, binIndex);
+          firstSelectedBin ??= SelectedBin(seriesIndex, binIndex);
         }
       }
     }
+
     lastRangeEnd = null;
     setState(() {});
   }
@@ -893,8 +896,13 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     final selectedDataPoints = selectedBins!.getSelectedDataIds(binContainers);
 
+    developer.log("Histogram notifying selection change with ${selectedDataPoints.length} points",
+        name: "rubin_chart.chart.binned");
+    developer.log("Selected data point types: $selectedDataPoints", name: "rubin_chart.chart.binned");
+
     // Update the selection controller if available
-    if (widget.selectionController != null) {
+    if (widget.selectionController != null &&
+        (selectedDataPoints.isNotEmpty || widget.selectionController!.selectedDataPoints.isNotEmpty)) {
       widget.selectionController!.updateSelection(widget.info.id, selectedDataPoints);
     }
 

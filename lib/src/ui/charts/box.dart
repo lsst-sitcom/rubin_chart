@@ -31,6 +31,7 @@ import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
+import 'package:rubin_chart/src/ui/selection_controller.dart';
 
 /// A single box in a [BoxChart], with whiskers for min/max and the mean and median.
 class BoxChartBox extends BinnedData {

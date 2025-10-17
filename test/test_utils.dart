@@ -19,32 +19,21 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-library rubin_chart;
+/// A simple data ID for testing
+class TestDataId {
+  final int id;
+  final int groupId;
 
-export 'src/models/axes/axes.dart';
-export 'src/models/axes/axis.dart';
-export 'src/models/axes/mapping.dart';
-export 'src/models/axes/ticks.dart';
+  const TestDataId(this.id, this.groupId);
 
-export 'src/models/binned.dart';
-export 'src/models/legend.dart';
-export 'src/models/marker.dart';
-export 'src/models/series.dart';
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TestDataId && runtimeType == other.runtimeType && id == other.id && groupId == other.groupId;
 
-export 'src/theme/theme.dart';
+  @override
+  int get hashCode => id.hashCode ^ groupId.hashCode;
 
-export 'src/ui/charts/box.dart';
-export 'src/ui/charts/cartesian.dart';
-export 'src/ui/charts/combined.dart';
-export 'src/ui/charts/histogram.dart';
-export 'src/ui/charts/polar.dart';
-export 'src/ui/charts/scatter.dart';
-
-export 'src/ui/axis_painter.dart';
-export 'src/ui/chart.dart';
-export 'src/ui/legend.dart';
-export 'src/ui/selection_controller.dart';
-export 'src/ui/series_painter.dart';
-
-export 'src/utils/quadtree.dart';
-export 'src/utils/utils.dart';
+  @override
+  String toString() => 'TestDataId($id, $groupId)';
+}

@@ -70,66 +70,6 @@ class ChartInitializationException implements Exception {
 /// Callback when sources are selected or deselected.
 typedef SelectDatapointsCallback = void Function(List<Object> dataIds);
 
-/// Callback when a data point is, or set of data points are, selected.
-typedef SelectionUpdate = void Function(Object? originChartId, Set<Object> dataPoints);
-
-/// A controller to manage the selection of data points across multiple series.
-class SelectionController {
-  /// The selected data points.
-  final Map<Object?, Set<Object>> _selectionByChartId = {};
-
-  SelectionController();
-
-  /// Get the selected data points.
-  Set<Object> get selectedDataPoints {
-    if (_selectionByChartId.isEmpty) return {};
-    return _selectionByChartId.values.reduce((a, b) => a.intersection(b));
-  }
-
-  /// List of observers that are notified when the selection changes.
-  final Map<Object, SelectionUpdate> _observers = {};
-
-  // Subscribe by providing a chartId and the callback
-  void subscribe(Object chartId, SelectionUpdate observer) {
-    _observers[chartId] = observer;
-  }
-
-  /// Unsubscribe from the selection controller.
-  void unsubscribe(Object chartId) {
-    _observers.remove(chartId);
-  }
-
-  /// Notify all observers that the selection has changed.
-  void _notifyObservers(Object? originChartId) {
-    for (var entry in _observers.entries) {
-      // Pass along the originChartId so that observers know where the update came from.
-      entry.value(originChartId, selectedDataPoints);
-    }
-  }
-
-  /// Update the selected datapoints.
-  void updateSelection(Object chartId, Set<Object> dataPoints) {
-    if (dataPoints == _selectionByChartId[chartId]) return;
-    if (dataPoints.isEmpty) {
-      _selectionByChartId.remove(chartId);
-    } else {
-      _selectionByChartId[chartId] = dataPoints;
-    }
-    _notifyObservers(chartId);
-  }
-
-  void reset() {
-    _selectionByChartId.clear();
-    _notifyObservers(null);
-    _observers.clear();
-  }
-
-  /// Clear all of the observers on dispose.
-  void dispose() {
-    reset();
-  }
-}
-
 /// A mixin that provides access to the series, axes, and legend of a chart.
 /// This is made so that a state with a global key can have access to
 /// its properties in other widgets.

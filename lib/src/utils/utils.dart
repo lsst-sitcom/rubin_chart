@@ -265,3 +265,9 @@ bool compare<T extends Comparable<T>>(T x, T y, ComparisonOperators op) {
       return x.compareTo(y) >= 0;
   }
 }
+
+/// Helper method to compare two selections for equality
+bool areSelectionsEqual(Set<Object> a, Set<Object> b) {
+  if (a.length != b.length) return false;
+  return a.containsAll(b);
+}

@@ -397,12 +397,51 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// If drill down is enabled, zoom in to the selected data points
   /// from another chart.
   void _onDrillDownUpdate(Object? origin, Set<Object> dataPoints) {
+    // Check if any of the data points actually exist in this chart
+    bool anyPointsExist = false;
+    for (final series in widget.info.allSeries) {
+      if (series.data.data.isNotEmpty) {
+        final firstColumn = series.data.data.values.first;
+        for (final dataId in dataPoints) {
+          if (firstColumn.containsKey(dataId)) {
+            anyPointsExist = true;
+            break;
+          }
+        }
+      }
+      if (anyPointsExist) break;
+    }
+
+    // If none of the points exist, log a warning
+    if (!anyPointsExist && dataPoints.isNotEmpty) {
+      developer.log(
+          "WARNING: None of the drill down data points exist in this scatter plot. "
+          "The points selected in the histogram (${dataPoints.length} points) don't match any points in this chart.",
+          name: "rubin_chart.chart.scatter");
+      throw Exception("Drill down data points do not exist in this scatter plot");
+      // We still apply the filter to maintain consistent behavior
+    }
+
     drillDownDataPoints = dataPoints;
     if (widget.info.zoomOnDrillDown) {
       _axes.clear();
       _initializeAxes();
     }
     setState(() {});
+  }
+
+  /// Clear any active drill down selections.
+  /// This can be used to reset the chart when no points match a drill down.
+  void clearDrillDown() {
+    if (drillDownDataPoints.isNotEmpty) {
+      drillDownDataPoints = {};
+      if (widget.info.zoomOnDrillDown) {
+        _axes.clear();
+        _initializeAxes();
+      }
+      setState(() {});
+      developer.log("Drill down selection cleared", name: "rubin_chart.chart.scatter");
+    }
   }
 
   @override
@@ -607,6 +646,18 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     return Focus(
         focusNode: focusNode,
         //autofocus: true,
+        onKeyEvent: (node, event) {
+          // Handle Escape key to clear drill down
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.escape) {
+              if (drillDownDataPoints.isNotEmpty) {
+                clearDrillDown();
+                return KeyEventResult.handled;
+              }
+            }
+          }
+          return KeyEventResult.ignored;
+        },
         child: Listener(
             onPointerSignal: (PointerSignalEvent event) {
               if (event is PointerScrollEvent) {

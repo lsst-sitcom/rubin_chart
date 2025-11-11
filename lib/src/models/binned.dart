@@ -431,6 +431,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
       throw StateError("Failed to clear hoverOverlay during dispose: $e");
     }
     hoverOverlay = null;
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
     focusNode.removeListener(focusNodeListener);
     if (widget.selectionController != null) {
       widget.selectionController!.unsubscribe(widget.info.id);
@@ -536,8 +538,10 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   void _clearHover() {
     hoverOverlay?.remove();
     hoverOverlay = null;
-    // Ensure UI updates
-    setState(() {});
+    // Ensure UI updates only if the widget is still mounted
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override

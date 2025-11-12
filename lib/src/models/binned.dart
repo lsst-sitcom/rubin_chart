@@ -392,7 +392,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     }
   }
 
-  void _selectDatapoints(Object? origin, Set<Object> dataPoints) {
+  void selectDatapoints(Object? origin, Set<Object> dataPoints) {
     if (origin == widget.info.id) {
       return;
     }
@@ -411,7 +411,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
       for (int binIndex = 0; binIndex < container.bins.length; binIndex++) {
         BinnedData bin = container.bins[binIndex];
 
-        if (bin.data.keys.any((key) => dataPoints.contains(key))) {
+        bool binHasSelectedData = bin.data.keys.any((key) => dataPoints.contains(key));
+        if (binHasSelectedData) {
           selectedBins!.addBin(seriesIndex, binIndex);
           firstSelectedBin ??= SelectedBin(seriesIndex, binIndex);
         }
@@ -447,24 +448,14 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   @override
   void initState() {
     super.initState();
+
     // Add key detector
     focusNode.addListener(focusNodeListener);
 
     // Subscribe to the selection controller
     if (widget.selectionController != null) {
-      widget.selectionController!.subscribe(widget.info.id, _selectDatapoints);
+      widget.selectionController!.subscribe(widget.info.id, selectDatapoints);
     }
-
-    // Initialize the reset controller
-    if (widget.resetController != null) {
-      widget.resetController!.stream.listen((event) {
-        initAxesAndBins();
-        setState(() {});
-      });
-    }
-
-    // Initialize the axes and bins
-    initAxesAndBins();
   }
 
   /// Initialize the axes and bins for the chart.

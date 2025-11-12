@@ -480,6 +480,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     // Initialize selection controller
     if (widget.selectionController != null) {
       widget.selectionController!.subscribe(widget.info.id, _onSelectionUpdate);
+
+      // Check for existing selection
+      final existingSelection = widget.selectionController!.selectedDataPoints;
+
+      if (existingSelection.isNotEmpty) {
+        selectedDataPoints = Set<Object>.from(existingSelection);
+      }
     }
 
     //Initialize drill down controller

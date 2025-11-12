@@ -456,6 +456,21 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     if (widget.selectionController != null) {
       widget.selectionController!.subscribe(widget.info.id, selectDatapoints);
     }
+
+    // Initialize the reset controller
+    if (widget.resetController != null) {
+      widget.resetController!.stream.listen((event) {
+        if (event.type == ChartResetTypes.full) {
+          developer.log("Resetting chart ${widget.info.id}", name: "BinnedChart");
+          _axes.clear();
+          initAxesAndBins();
+          onAxesUpdate();
+        } else if (event.type == ChartResetTypes.repaint) {
+          onAxesUpdate();
+        }
+        setState(() {});
+      });
+    }
   }
 
   /// Initialize the axes and bins for the chart.
@@ -893,7 +908,6 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
     developer.log("Histogram notifying selection change with ${selectedDataPoints.length} points",
         name: "rubin_chart.chart.binned");
-    developer.log("Selected data point types: $selectedDataPoints", name: "rubin_chart.chart.binned");
 
     // Update the selection controller if available
     if (widget.selectionController != null &&

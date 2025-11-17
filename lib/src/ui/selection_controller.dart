@@ -87,9 +87,6 @@ class SelectionController {
     _selectedDataPoints = Set.from(dataPoints);
     _lastSelectionOrigin = chartId;
 
-    if (dataPoints.isEmpty) {
-    } else {}
-
     _notifyObservers(chartId);
   }
 

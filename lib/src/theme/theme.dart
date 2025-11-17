@@ -25,7 +25,6 @@ import 'package:flutter/material.dart';
 /// This is a list of 21 colors that can be distinguished from one another
 /// for maximum visibility.
 const List<Color> _defaultColorCycle = [
-  Color(0xFFE6194B),
   Color(0xFF3CB44B),
   Color(0xFFFFE119),
   Color(0xFF0082C8),
@@ -43,6 +42,7 @@ const List<Color> _defaultColorCycle = [
   Color(0xFFAAFFC3),
   Color(0xFF808000),
   Color(0xFFFFD8B1),
+  Color(0xFFE6194B),
   Color(0xFF000080),
   Color(0xFF808080),
   Color(0xFFFFFFFF),

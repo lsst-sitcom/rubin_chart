@@ -19,6 +19,7 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer' as developer;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -423,6 +424,13 @@ class HistogramState extends BinnedChartState<Histogram> {
             setState(() {});
           });
         }
+      }
+    }
+
+    if (widget.selectionController != null) {
+      final existingSelection = widget.selectionController!.selectedDataPoints;
+      if (existingSelection.isNotEmpty) {
+        selectDatapoints(null, existingSelection);
       }
     }
   }

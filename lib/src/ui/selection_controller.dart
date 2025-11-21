@@ -20,6 +20,7 @@
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 
 /// Callback when a data point is, or set of data points are, selected.
 typedef SelectionUpdate = void Function(Object? originChartId, Set<Object> dataPoints);
@@ -42,50 +43,85 @@ class SelectionController {
   Set<Object> get selectedDataPoints => Set.from(_selectedDataPoints);
 
   /// List of observers that are notified when the selection changes.
-  final Map<Object, SelectionUpdate> _observers = {};
+  final Map<Object, SelectionUpdate> observers = {};
 
   // Subscribe by providing a chartId and the callback
   void subscribe(Object chartId, SelectionUpdate observer) {
-    _observers[chartId] = observer;
+    developer.log("=== SUBSCRIBING TO SELECTION ===", name: "rubin_chart.selection_controller");
+    developer.log("Chart $chartId subscribing to selection updates",
+        name: "rubin_chart.selection_controller");
+    developer.log("Subscribers before: ${observers.keys}", name: "rubin_chart.selection_controller");
+    observers[chartId] = observer;
+    developer.log("Subscribers after: ${observers.keys}", name: "rubin_chart.selection_controller");
   }
 
   /// Unsubscribe from the selection controller.
   void unsubscribe(Object chartId) {
-    _observers.remove(chartId);
+    developer.log("=== UNSUBSCRIBING FROM SELECTION ===", name: "rubin_chart.selection_controller");
+    developer.log("Chart $chartId unsubscribing from selection updates",
+        name: "rubin_chart.selection_controller");
+    developer.log("Subscribers before: ${observers.keys}", name: "rubin_chart.selection_controller");
+    observers.remove(chartId);
+    developer.log("Subscribers after: ${observers.keys}", name: "rubin_chart.selection_controller");
   }
 
   /// Notify all observers that the selection has changed.
   void _notifyObservers(Object? originChartId) {
-    for (var entry in _observers.entries) {
+    developer.log("=== NOTIFYING SELECTION OBSERVERS ===", name: "rubin_chart.selection_controller");
+    developer.log("Origin: $originChartId, Selection size: ${_selectedDataPoints.length}",
+        name: "rubin_chart.selection_controller");
+    developer.log("Total observers: ${observers.length}", name: "rubin_chart.selection_controller");
+    developer.log("Observer chart IDs: ${observers.keys}", name: "rubin_chart.selection_controller");
+
+    for (var entry in observers.entries) {
       // Skip notifying the chart that originated this selection update
       if (entry.key == originChartId) {
+        developer.log("Skipping notification to origin chart ${entry.key}",
+            name: "rubin_chart.selection_controller");
         continue;
       }
+      developer.log("Notifying chart ${entry.key} of selection update",
+          name: "rubin_chart.selection_controller");
       // Pass along the originChartId so that observers know where the update came from.
       entry.value(originChartId, _selectedDataPoints);
     }
+    developer.log("All observers notified", name: "rubin_chart.selection_controller");
   }
 
   /// Update the selected datapoints.
   void updateSelection(Object chartId, Set<Object> dataPoints) {
+    developer.log("=== UPDATING SELECTION DATA ===", name: "rubin_chart.selection_controller");
+    developer.log("Chart $chartId updating selection: ${dataPoints.length} points",
+        name: "rubin_chart.selection_controller");
+    developer.log("Current selection size: ${_selectedDataPoints.length}",
+        name: "rubin_chart.selection_controller");
+    developer.log("Last selection origin: $_lastSelectionOrigin", name: "rubin_chart.selection_controller");
+
     // Check if this is actually a change
     bool hasChanges = false;
 
     if (_selectedDataPoints.length != dataPoints.length) {
+      developer.log("Selection size changed: ${_selectedDataPoints.length} -> ${dataPoints.length}",
+          name: "rubin_chart.selection_controller");
       hasChanges = true;
     } else if (_lastSelectionOrigin != chartId) {
+      developer.log("Selection origin changed: $_lastSelectionOrigin -> $chartId",
+          name: "rubin_chart.selection_controller");
       hasChanges = true;
     } else if (!dataPoints.every((element) => _selectedDataPoints.contains(element))) {
+      developer.log("Selection content changed", name: "rubin_chart.selection_controller");
       hasChanges = true;
     }
 
     if (!hasChanges) {
+      developer.log("No changes detected, skipping update", name: "rubin_chart.selection_controller");
       return;
     }
 
     // Record the new selection and origin
     _selectedDataPoints = Set.from(dataPoints);
     _lastSelectionOrigin = chartId;
+    developer.log("Selection updated successfully", name: "rubin_chart.selection_controller");
 
     _notifyObservers(chartId);
   }
@@ -98,10 +134,15 @@ class SelectionController {
   }
 
   void reset() {
+    developer.log("=== RESETTING SELECTION CONTROLLER ===", name: "rubin_chart.selection_controller");
+    developer.log("Clearing ${_selectedDataPoints.length} selected points",
+        name: "rubin_chart.selection_controller");
+    developer.log("Clearing ${observers.length} observers", name: "rubin_chart.selection_controller");
     _selectedDataPoints.clear();
     _lastSelectionOrigin = null;
     _notifyObservers(null);
-    _observers.clear();
+    observers.clear();
+    developer.log("Selection controller reset complete", name: "rubin_chart.selection_controller");
   }
 
   /// Clear all of the observers on dispose.
@@ -137,7 +178,7 @@ class SelectionController {
     _lastSelectionOrigin = chartId;
 
     // Notify observers about the temporary selection
-    for (var entry in _observers.entries) {
+    for (var entry in observers.entries) {
       // Skip notifying the chart that originated this drag selection
       if (entry.key == chartId) {
         continue;

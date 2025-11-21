@@ -128,19 +128,44 @@ class AxisId {
   String toString() => "AxisId($location, $axesId)";
 
   /// Convert the [AxisId] to a JSON object.
-  Map<String, dynamic> toJson() {
-    return {
-      "location": location.name,
-      "axesId": axesId,
-    };
+  String toJson() {
+    // Use string format for simplicity when used as map keys
+    return "${location.toString().split('.').last},$axesId";
   }
 
   /// Create an [AxisId] from a JSON object.
-  factory AxisId.fromJson(Map<String, dynamic> json) {
-    return AxisId(
-      AxisLocation.values.firstWhere((e) => e.toString().split(".").last == json["location"]),
-      json["axesId"],
-    );
+  factory AxisId.fromJson(dynamic json) {
+    if (json is String) {
+      // Handle string format for backwards compatibility or simple serialization
+      // Expected format: "AxisLocation.locationName,axesId"
+      List<String> parts = json.split(',');
+      if (parts.length != 2) {
+        throw ArgumentError("Invalid AxisId string format: $json");
+      }
+
+      AxisLocation location = AxisLocation.values.firstWhere(
+        (e) => e.toString() == parts[0] || e.toString().split('.').last == parts[0],
+        orElse: () => throw ArgumentError("Unknown AxisLocation: ${parts[0]}"),
+      );
+
+      Object axesId;
+      // Try to parse as int first, fallback to string
+      try {
+        axesId = int.parse(parts[1]);
+      } catch (e) {
+        axesId = parts[1];
+      }
+
+      return AxisId(location, axesId);
+    } else if (json is Map<String, dynamic>) {
+      // Handle map format
+      return AxisId(
+        AxisLocation.values.firstWhere((e) => e.toString().split(".").last == json["location"]),
+        json["axesId"],
+      );
+    } else {
+      throw ArgumentError("AxisId.fromJson expects String or Map<String, dynamic>, got ${json.runtimeType}");
+    }
   }
 }
 

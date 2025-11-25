@@ -33,6 +33,7 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/box.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 import 'package:rubin_chart/src/ui/selection_controller.dart';
+import 'package:rubin_chart/src/ui/chart_tooltip.dart';
 
 /// A class that represents binned data.
 abstract class BinnedData {
@@ -333,14 +334,8 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   /// The [BinnedChartInfo] for the chart.
   BinnedChartInfo get info;
 
-  /// The tooltip if the user is hovering over a bin.
-  OverlayEntry? hoverOverlay;
-
-  @override
-  SeriesList get seriesList => SeriesList(
-        widget.info.allSeries,
-        widget.info.colorCycle ?? widget.info.theme.colorCycle,
-      );
+  /// Manager for chart tooltips
+  late ChartTooltipManager tooltipManager;
 
   /// The axes of the chart.
   @override
@@ -364,12 +359,6 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   SelectedBin? firstSelectedBin;
 
   SelectedBin? lastRangeEnd;
-
-  /// A timer used to determine if the user is hovering over a bin.
-  Timer? _hoverTimer;
-
-  /// Whether the user is currently hovering over a bin.
-  bool _isHovering = false;
 
   /// The location of the base of the histogram bins.
   /// This is used to determine the orientation and layout of the histogram.
@@ -425,15 +414,7 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
 
   @override
   void dispose() {
-    try {
-      hoverOverlay?.remove();
-    } catch (e) {
-      // Log the error if necessary, but avoid crashing.
-      throw StateError("Failed to clear hoverOverlay during dispose: $e");
-    }
-    hoverOverlay = null;
-    _hoverTimer?.cancel();
-    _hoverTimer = null;
+    tooltipManager.dispose();
     focusNode.removeListener(focusNodeListener);
     if (widget.selectionController != null) {
       widget.selectionController!.unsubscribe(widget.info.id);
@@ -448,6 +429,11 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   @override
   void initState() {
     super.initState();
+
+    // Initialize tooltip manager
+    tooltipManager = ChartTooltipManager(
+      getOverlay: () => Overlay.of(context),
+    );
 
     // Add key detector
     focusNode.addListener(focusNodeListener);
@@ -480,8 +466,6 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
   void updateAxesAndBins();
 
   /// Get the tooltip widget for the given bin.
-  /// This is not implemented in the base class because
-  /// histograms and box charts have different tooltips.
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
@@ -489,65 +473,15 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
     required BinnedData bin,
   });
 
-  /// Create the tooltip if the user is hovering over a bin
-  void onHoverStart({
+  /// Called to show a tooltip. Subclasses implement this using their tooltip manager.
+  void showTooltip({
     required PointerHoverEvent event,
-    required BinnedData? bin,
-  }) {
-    if (bin == null) return;
+    required BinnedData bin,
+  });
 
-    ChartAxis mainAxis;
-    ChartAxis crossAxis;
-    if (mainAxisAlignment == AxisOrientation.horizontal) {
-      mainAxis = allAxes.values.first.axes.values.first;
-      crossAxis = allAxes.values.first.axes.values.last;
-    } else {
-      mainAxis = allAxes.values.first.axes.values.last;
-      crossAxis = allAxes.values.first.axes.values.first;
-    }
-
-    // Convert local position to global
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
-
-    // Build tooltip widget
-    Widget tooltip = IgnorePointer(
-      // Tooltip won't block interactions with the chart
-      ignoring: true,
-      child: Material(
-        color: Colors.transparent,
-        child: getTooltip(
-          event: event,
-          bin: bin,
-          mainAxis: mainAxis,
-          crossAxis: crossAxis,
-        ),
-      ),
-    );
-    // );
-
-    // Create the OverlayEntry
-    hoverOverlay = OverlayEntry(
-      builder: (context) {
-        return Positioned(
-          left: globalPosition.dx,
-          top: globalPosition.dy,
-          child: tooltip,
-        );
-      },
-    );
-
-    // Insert the tooltip overlay
-    Overlay.of(context).insert(hoverOverlay!);
-  }
-
-  void _clearHover() {
-    hoverOverlay?.remove();
-    hoverOverlay = null;
-    // Ensure UI updates only if the widget is still mounted
-    if (mounted) {
-      setState(() {});
-    }
+  /// Called to clear any visible tooltip. Subclasses implement this using their tooltip manager.
+  void clearTooltip() {
+    tooltipManager.clearTooltip();
   }
 
   @override
@@ -607,31 +541,22 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
             }
           },
           child: MouseRegion(
+              onExit: (PointerExitEvent event) {
+                // Clear hover and tooltip when cursor leaves the chart entirely
+                clearTooltip();
+              },
               onHover: (PointerHoverEvent event) {
-                // In Flutter web this is triggered when the mouse is moved,
-                // so we need to keep track of the hover timer manually.
+                // Check if we're over a bin
+                SelectedBin? hoverBin = _getBinOnTap(event.localPosition, axisPainter);
 
-                // Restart the hover timer
-                _hoverTimer?.cancel();
-                _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
-                  SelectedBin? hoverBin = _getBinOnTap(event.localPosition, axisPainter);
-                  if (hoverBin == null) {
-                    _clearHover();
-                    return;
-                  }
+                if (hoverBin != null) {
+                  // Show tooltip for this bin
                   BinnedData bin = binContainers[hoverBin.seriesIndex]!.bins[hoverBin.binIndex];
-                  onHoverStart(event: event, bin: bin);
-                  _hoverTimer?.cancel();
-                  _hoverTimer = null;
-                  _isHovering = true;
-                  setState(() {});
-                });
-
-                if (_isHovering) {
-                  _clearHover();
-                  // onHoverEnd(event);
+                  showTooltip(event: event, bin: bin);
+                } else {
+                  // Not over a bin, clear tooltip
+                  clearTooltip();
                 }
-                _isHovering = false;
               },
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -645,17 +570,10 @@ abstract class BinnedChartState<T extends BinnedChart> extends State<T>
         ));
   }
 
-  /// Handles the tap up event on the histogram chart.
-  ///
-  /// This method is called when the user taps on the histogram chart.
-  /// It updates the selected bin based on the tap location,
-  /// retrieves the data points associated with the selected bin,
-  /// and updates the selection controller if available.
+  /// Handles the tap up event on the binned chart.
   void _onTapUp(TapUpDetails details, AxisPainter axisPainter) {
     focusNode.requestFocus();
-    // Always remove the tooltip first
-    _clearHover();
-    // Get the selected bin based on the tap location
+    clearTooltip();
     SelectedBin? selectedBin = _getBinOnTap(details.localPosition, axisPainter);
     _updatedBinSelection(selectedBin);
   }

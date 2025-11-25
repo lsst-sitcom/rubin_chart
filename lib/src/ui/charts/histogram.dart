@@ -19,7 +19,6 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:developer' as developer;
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -34,6 +33,7 @@ import 'package:rubin_chart/src/ui/chart.dart';
 import 'package:rubin_chart/src/ui/charts/cartesian.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
 import 'package:rubin_chart/src/ui/selection_controller.dart';
+import 'package:rubin_chart/src/ui/chart_tooltip.dart';
 
 /// A single bin in a histogram.
 class HistogramBin extends BinnedData {
@@ -436,6 +436,43 @@ class HistogramState extends BinnedChartState<Histogram> {
   }
 
   @override
+  SeriesList get seriesList => SeriesList(
+        widget.info.allSeries,
+        widget.info.colorCycle ?? widget.info.theme.colorCycle,
+      );
+
+  @override
+  void showTooltip({
+    required PointerHoverEvent event,
+    required BinnedData bin,
+  }) {
+    ChartAxis mainAxis;
+    ChartAxis crossAxis;
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      mainAxis = allAxes.values.first.axes.values.first;
+      crossAxis = allAxes.values.first.axes.values.last;
+    } else {
+      mainAxis = allAxes.values.first.axes.values.last;
+      crossAxis = allAxes.values.first.axes.values.first;
+    }
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
+
+    Widget tooltip = getTooltip(
+      event: event,
+      mainAxis: mainAxis,
+      crossAxis: crossAxis,
+      bin: bin,
+    );
+
+    tooltipManager.showTooltip(
+      position: globalPosition,
+      content: tooltip,
+    );
+  }
+
+  @override
   Widget getTooltip({
     required PointerHoverEvent event,
     required ChartAxis mainAxis,
@@ -444,25 +481,15 @@ class HistogramState extends BinnedChartState<Histogram> {
   }) {
     HistogramBin histogramBin = bin as HistogramBin;
 
-    return AbsorbPointer(
-      absorbing: false, // Allows pointer events to pass through
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withAlpha(250),
-          border: Border.all(color: Colors.grey[200]!),
-          borderRadius: BorderRadius.circular(5),
+    return ChartTooltip(
+      title: mainAxis.info.label,
+      entries: [
+        TooltipEntry(
+          label: "Range",
+          value: "${histogramBin.mainStart.toStringAsFixed(3)} - ${histogramBin.mainEnd.toStringAsFixed(3)}",
         ),
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("${mainAxis.info.label}: ", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(
-                "Range: ${histogramBin.mainStart.toStringAsFixed(3)} - ${histogramBin.mainEnd.toStringAsFixed(3)}"),
-            Text("Count: ${histogramBin.count}"),
-          ],
-        ),
-      ),
+        TooltipEntry(label: "Count", value: "${histogramBin.count}"),
+      ],
     );
   }
 }

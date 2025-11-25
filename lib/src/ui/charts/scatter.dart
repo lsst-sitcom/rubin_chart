@@ -36,6 +36,7 @@ import 'package:rubin_chart/src/models/series.dart';
 import 'package:rubin_chart/src/theme/theme.dart';
 import 'package:rubin_chart/src/ui/axis_painter.dart';
 import 'package:rubin_chart/src/ui/chart.dart';
+import 'package:rubin_chart/src/ui/chart_tooltip.dart';
 import 'package:rubin_chart/src/ui/series_painter.dart';
 import 'package:rubin_chart/src/utils/quadtree.dart';
 import 'package:rubin_chart/src/utils/utils.dart';
@@ -167,14 +168,8 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// Quadtree for the bottom left axes.
   final Map<Object, QuadTree<Object>> _quadTrees = {};
 
-  /// The tooltip overlay.
-  OverlayEntry? hoverOverlay;
-
-  /// Timer to keep track of whether or not the cursor is hovering over a point.
-  Timer? _hoverTimer;
-
-  /// Whether or not the cursor is hovering over a point.
-  bool _isHovering = false;
+  /// Manager for chart tooltips
+  late ChartTooltipManager _tooltipManager;
 
   final Map<Object, GlobalKey> _seriesKeys = {};
   final Map<Object, SeriesPainter> _seriesPainters = {};
@@ -202,69 +197,111 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// during drag operations without sending updates to the selection controller.
   Set<Object> _dragSelectedPoints = {};
 
-  /// Clear the timer and all other hover data.
-  void _clearHover() {
-    _hoverTimer?.cancel();
-    _hoverTimer = null;
-    _isHovering = false;
-    hoverOverlay?.remove();
-    hoverOverlay = null;
-    setState(() {});
+  @override
+  void initState() {
+    super.initState();
+    _tooltipManager = ChartTooltipManager(
+      getOverlay: () => Overlay.of(context),
+      hoverDelay: const Duration(milliseconds: 1000),
+    );
+
+    // Add key detector
+    focusNode.addListener(focusNodeListener);
+
+    // Add the axis controllers to the list of controllers
+    axisControllers.addAll(widget.axisControllers.values);
+
+    // Initialize selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.subscribe(widget.info.id, _onSelectionUpdate);
+
+      // Check for existing selection
+      final existingSelection = widget.selectionController!.selectedDataPoints;
+
+      if (existingSelection.isNotEmpty) {
+        selectedDataPoints = Set<Object>.from(existingSelection);
+      }
+    }
+
+    //Initialize drill down controller
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.subscribe(widget.info.id, _onDrillDownUpdate);
+    }
+
+    // Initialize the reset controller
+    if (widget.resetController != null) {
+      widget.resetController!.stream.listen((event) {
+        if (event.type == ChartResetTypes.full) {
+          _axes.clear();
+          _initializeAxes();
+          _initializeQuadTree();
+          onAxesUpdate();
+        } else if (event.type == ChartResetTypes.repaint) {
+          onAxesUpdate();
+        }
+        setState(() {});
+      });
+    }
+
+    // Initialize the axes
+    _initializeAxes();
+
+    // Initialize the quadtrees
+    _initializeQuadTree();
   }
 
-  /// Notify the user that the cursor is no longer over the chart.
-  void onHoverEnd(PointerExitEvent event) {
-    if (widget.onCoordinateUpdate != null) {
-      widget.onCoordinateUpdate!({});
+  @override
+  void dispose() {
+    _tooltipManager.dispose();
+
+    final chartId = widget.info.id;
+    // Remove the key detector
+    focusNode.removeListener(focusNodeListener);
+
+    // Remove the selection controller
+    if (widget.selectionController != null) {
+      widget.selectionController!.unsubscribe(chartId);
     }
+
+    // Remove the drill down controller
+    if (widget.drillDownController != null) {
+      widget.drillDownController!.unsubscribe(chartId);
+    }
+
+    // Remove the reset controller
+    if (widget.resetController != null) {
+      widget.resetController!.close();
+    }
+
+    super.dispose();
   }
 
   /// Create a tooltip when the cursor is hovering over a point.
   void onHoverStart({required PointerHoverEvent event, required Map<Object, dynamic> data}) {
-    Widget tooltip = getTooltip(
-      data: data,
-    );
+    Widget tooltip = getTooltip(data: data);
 
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
 
-    hoverOverlay = OverlayEntry(
-      builder: (context) {
-        return Positioned(
-          left: globalPosition.dx + 15,
-          top: globalPosition.dy + 15,
-          child: Material(
-            color: Colors.transparent,
-            child: MouseRegion(
-              onHover: (PointerHoverEvent event) {
-                _clearHover();
-              },
-              child: tooltip,
-            ),
-          ),
-        );
-      },
+    _tooltipManager.showTooltip(
+      position: globalPosition,
+      content: tooltip,
     );
-
-    Overlay.of(context).insert(hoverOverlay!);
   }
 
   /// Build the tooltip.
   Widget getTooltip({required Map<Object, dynamic> data}) {
-    List<Widget> tooltipData = [];
+    List<TooltipEntry> entries = [];
     for (MapEntry<Object, dynamic> entry in data.entries) {
-      tooltipData.add(Text("${entry.key}: ${entry.value.toStringAsFixed(3)}"));
+      entries.add(TooltipEntry(
+        label: entry.key.toString(),
+        value: entry.value.toStringAsFixed(3),
+      ));
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey[200]!),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Column(
-        children: tooltipData,
-      ),
+    return ChartTooltip(
+      title: "Data Point",
+      entries: entries,
     );
   }
 
@@ -445,78 +482,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   }
 
   @override
-  void dispose() {
-    final chartId = widget.info.id;
-    // Remove the key detector
-    focusNode.removeListener(focusNodeListener);
-
-    // Remove the selection controller
-    if (widget.selectionController != null) {
-      widget.selectionController!.unsubscribe(chartId);
-    }
-
-    // Remove the drill down controller
-    if (widget.drillDownController != null) {
-      widget.drillDownController!.unsubscribe(chartId);
-    }
-
-    // Remove the reset controller
-    if (widget.resetController != null) {
-      widget.resetController!.close();
-    }
-
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Add key detector
-    focusNode.addListener(focusNodeListener);
-
-    // Add the axis controllers to the list of controllers
-    axisControllers.addAll(widget.axisControllers.values);
-
-    // Initialize selection controller
-    if (widget.selectionController != null) {
-      widget.selectionController!.subscribe(widget.info.id, _onSelectionUpdate);
-
-      // Check for existing selection
-      final existingSelection = widget.selectionController!.selectedDataPoints;
-
-      if (existingSelection.isNotEmpty) {
-        selectedDataPoints = Set<Object>.from(existingSelection);
-      }
-    }
-
-    //Initialize drill down controller
-    if (widget.drillDownController != null) {
-      widget.drillDownController!.subscribe(widget.info.id, _onDrillDownUpdate);
-    }
-
-    // Initialize the reset controller
-    if (widget.resetController != null) {
-      widget.resetController!.stream.listen((event) {
-        if (event.type == ChartResetTypes.full) {
-          _axes.clear();
-          _initializeAxes();
-          _initializeQuadTree();
-          onAxesUpdate();
-        } else if (event.type == ChartResetTypes.repaint) {
-          onAxesUpdate();
-        }
-        setState(() {});
-      });
-    }
-
-    // Initialize the axes
-    _initializeAxes();
-
-    // Initialize the quadtrees
-    _initializeQuadTree();
-  }
-
-  @override
   void didUpdateWidget(ScatterPlot oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Initialize the axes
@@ -675,9 +640,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
             },
             child: MouseRegion(
               onExit: (PointerExitEvent event) {
-                if (!_isHovering) {
-                  _clearHover();
-                  onHoverEnd(event);
+                _tooltipManager.onHoverExit();
+                if (widget.onCoordinateUpdate != null) {
+                  widget.onCoordinateUpdate!({});
                 }
               },
               onHover: (PointerHoverEvent event) {
@@ -685,46 +650,40 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
                 // so we need to keep track of the hover timer manually.
 
                 // Restart the hover timer
-                _hoverTimer?.cancel();
-                _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
-                  // See if the cursor is hovering over a point
-                  HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
-                  if (hoverDataPoint == null) {
-                    _clearHover();
-                    return;
-                  }
-
-                  // Find the full series data for the point that was hovered over
-                  Series? hoverSeries;
-                  for (Series series in widget.info.allSeries) {
-                    if (series.axesId == hoverDataPoint.chartAxesId) {
-                      hoverSeries = series;
-                      break;
-                    }
-                  }
-                  if (hoverSeries == null) {
-                    // This should never happen
-                    throw Exception("No series found for axes ${hoverDataPoint.chartAxesId}");
-                  }
-                  // Extract the series data for the hovered point
-                  SeriesData seriesData = hoverSeries.data;
-                  Map<Object, dynamic> tooltipData = {};
-                  for (Object column in seriesData.plotColumns.values) {
-                    tooltipData[column] = seriesData.data[column]![hoverDataPoint.dataId];
-                  }
-
-                  // Call the hover start function.
-                  onHoverStart(event: event, data: tooltipData);
-                  _hoverTimer?.cancel();
-                  _hoverTimer = null;
-                  _isHovering = true;
-                  setState(() {});
-                });
-
-                if (_isHovering) {
-                  _clearHover();
+                _tooltipManager.restartHoverTimer();
+                if (_tooltipManager.isHovering) {
+                  _tooltipManager.clearTooltip();
                 }
-                _isHovering = false;
+                _tooltipManager.onHoverExit(); // Reset hovering state on move
+
+                // See if the cursor is hovering over a point
+                HoverDataPoint? hoverDataPoint = _onTapUp(event.localPosition, axisPainter, true);
+                if (hoverDataPoint == null) {
+                  return;
+                }
+
+                // Find the full series data for the point that was hovered over
+                Series? hoverSeries;
+                for (Series series in widget.info.allSeries) {
+                  if (series.axesId == hoverDataPoint.chartAxesId) {
+                    hoverSeries = series;
+                    break;
+                  }
+                }
+                if (hoverSeries == null) {
+                  throw Exception("No series found for axes ${hoverDataPoint.chartAxesId}");
+                }
+
+                // Extract the series data for the hovered point
+                SeriesData seriesData = hoverSeries.data;
+                Map<Object, dynamic> tooltipData = {};
+                for (Object column in seriesData.plotColumns.values) {
+                  tooltipData[column] = seriesData.data[column]![hoverDataPoint.dataId];
+                }
+
+                // Call the hover start function with the tooltip manager
+                onHoverStart(event: event, data: tooltipData);
+                _tooltipManager.onHoverEnter();
 
                 if (widget.onCoordinateUpdate != null) {
                   Map<Object, dynamic> coordinates = {};

@@ -102,8 +102,10 @@ class SeriesPainter extends CustomPainter {
     Color? edgeColor = marker.edgeColor;
     Paint? paintFill;
     Paint? paintEdge;
+    Paint? paintFiltered;
     if (fillColor != null) {
       paintFill = Paint()..color = fillColor;
+      paintFiltered = Paint()..color = const ui.Color.fromARGB(100, 181, 181, 181);
     }
     if (edgeColor != null) {
       paintEdge = Paint()
@@ -115,55 +117,31 @@ class SeriesPainter extends CustomPainter {
     if (cachedPicture == null || data.data.values.length < kMaxScatterPoints) {
       _plotWindow = plotWindow;
       _size = size;
-      _dataLength = data.data.values.length;
       // If the plot window has changed, we need to redraw the series
       // Here we initialize the recorder to cache the data points as an image.
       final ui.PictureRecorder recorder = ui.PictureRecorder();
-      final Canvas cachedCanvas = _dataLength < kMaxScatterPoints ? canvas : Canvas(recorder);
+      final Canvas cachedCanvas = data.length < kMaxScatterPoints ? canvas : Canvas(recorder);
 
       List<Object> dataIds = data.data.values.first.keys.toList();
-
-      // Count how many points will be drawn vs filtered
-      int filteredPoints = 0;
-      int renderedPoints = 0;
 
       for (int i = 0; i < data.length; i++) {
         Object dataId = dataIds[i];
 
-        // Skip points not in the drill down selection
-        if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
-          filteredPoints++;
-          continue;
-        }
-
         Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
         if (plotWindow.contains(point)) {
-          marker.paint(cachedCanvas, paintFill, paintEdge, point);
-          renderedPoints++;
+          if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
+            marker.paint(cachedCanvas, paintFiltered, null, point);
+          } else {
+            marker.paint(cachedCanvas, paintFill, paintEdge, point);
+          }
           // TODO: draw error bars
         }
       }
 
-      // Log if drill down has filtered most/all points
-      if (drillDownDataPoints.isNotEmpty) {
-        developer.log(
-            "SeriesPainter: Drill down filter - Rendered $renderedPoints points, filtered out $filteredPoints points",
-            name: "rubin_chart.chart.series_painter");
-
-        // If all or most points were filtered out, log a warning
-        if (renderedPoints == 0) {
-          developer.log(
-              "⚠️ WARNING: All points were filtered out by drill down. The selected drill down points don't exist in this scatter chart.",
-              name: "rubin_chart.chart.series_painter");
-        } else if (renderedPoints < 5 && filteredPoints > 20) {
-          developer.log(
-              "⚠️ WARNING: Most points were filtered out by drill down. Only $renderedPoints points remain visible.",
-              name: "rubin_chart.chart.series_painter");
-        }
-      }
-
       // Finish the recording and save the image
-      if (_dataLength > kMaxScatterPoints) {
+      if (data.length > kMaxScatterPoints) {
+        developer.log("Caching series picture with ${data.length} points",
+            name: "rubin_chart.ui.series_painter");
         cachedPicture = recorder.endRecording();
         canvas.drawPicture(cachedPicture!);
       }
@@ -194,7 +172,6 @@ class SeriesPainter extends CustomPainter {
     /// TODO: add checks for marker, errorbar, axes changes
     return oldDelegate.data != data ||
         oldDelegate.tickLabelMargin != tickLabelMargin ||
-        oldDelegate.selectedDataPoints != selectedDataPoints ||
-        oldDelegate.translationOffset != translationOffset;
+        oldDelegate.selectedDataPoints != selectedDataPoints;
   }
 }

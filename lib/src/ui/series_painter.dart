@@ -53,8 +53,11 @@ class SeriesPainter extends CustomPainter {
 
   ui.Picture? cachedPicture;
 
+  /// Cache for selection picture
+  ui.Picture? cachedSelectionPicture;
+  Set<Object> _lastSelectedDataPoints = {};
+
   Offset translationOffset;
-  int _dataLength = 0;
 
   SeriesPainter({
     required this.axes,
@@ -69,9 +72,14 @@ class SeriesPainter extends CustomPainter {
     //print("Creating SeriesPainter");
   }
 
+  int _paintCallCount = 0;
+  final List<Duration> _paintDurations = [];
+
   /// Paint the series on the [Canvas].
   @override
   void paint(Canvas canvas, Size size) {
+    final Stopwatch stopwatch = Stopwatch()..start();
+
     // Calculate the projection used for all points in the series
     Size plotSize = Size(size.width - tickLabelMargin.left - tickLabelMargin.right,
         size.height - tickLabelMargin.top - tickLabelMargin.bottom);
@@ -85,15 +93,16 @@ class SeriesPainter extends CustomPainter {
     canvas.translate(translationOffset.dx + offset.dx, translationOffset.dy + offset.dy);
 
     // Scale the canvas if the plot window has changed
-    if (_plotWindow != plotWindow && _size != Size.zero && _dataLength >= kMaxScatterPoints) {
+    if (_plotWindow != plotWindow && _size != Size.zero && data.length >= kMaxScatterPoints) {
+      final scaleStopwatch = Stopwatch()..start();
       double sx = plotWindow.width / _plotWindow.width;
       double sy = plotWindow.height / _plotWindow.height;
-      //double sx = size.width / _size.width;
-      //double sy = size.height / _size.height;
       canvas.scale(sx, sy);
       double tx = (sx - 1) * tickLabelMargin.left;
       double ty = (sy - 1) * tickLabelMargin.top;
       canvas.translate(tx, ty);
+      scaleStopwatch.stop();
+      developer.log("Scale operation: ${scaleStopwatch.elapsedMilliseconds}ms", name: "rubin_chart.perf");
     }
 
     // Since all of the objects in the series use the same marker style,
@@ -114,64 +123,124 @@ class SeriesPainter extends CustomPainter {
         ..style = PaintingStyle.stroke;
     }
 
-    if (cachedPicture == null || data.data.values.length < kMaxScatterPoints) {
+    // Series rendering
+    if (cachedPicture == null || data.length < kMaxScatterPoints) {
+      final seriesStopwatch = Stopwatch()..start();
       _plotWindow = plotWindow;
       _size = size;
-      // If the plot window has changed, we need to redraw the series
-      // Here we initialize the recorder to cache the data points as an image.
+
+      // For large datasets, always use picture recording for caching
       final ui.PictureRecorder recorder = ui.PictureRecorder();
-      final Canvas cachedCanvas = data.length < kMaxScatterPoints ? canvas : Canvas(recorder);
+      final Canvas paintCanvas = data.length < kMaxScatterPoints ? canvas : Canvas(recorder);
 
       List<Object> dataIds = data.data.values.first.keys.toList();
 
       for (int i = 0; i < data.length; i++) {
         Object dataId = dataIds[i];
-
         Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
         if (plotWindow.contains(point)) {
           if (drillDownDataPoints.isNotEmpty && !drillDownDataPoints.contains(dataId)) {
-            marker.paint(cachedCanvas, paintFiltered, null, point);
+            marker.paint(paintCanvas, paintFiltered, null, point);
           } else {
-            marker.paint(cachedCanvas, paintFill, paintEdge, point);
+            marker.paint(paintCanvas, paintFill, paintEdge, point);
           }
-          // TODO: draw error bars
         }
       }
 
-      // Finish the recording and save the image
-      if (data.length > kMaxScatterPoints) {
+      // Record and cache for large datasets
+      if (data.length >= kMaxScatterPoints) {
         developer.log("Caching series picture with ${data.length} points",
             name: "rubin_chart.ui.series_painter");
         cachedPicture = recorder.endRecording();
         canvas.drawPicture(cachedPicture!);
       }
+
+      seriesStopwatch.stop();
+      developer.log("Series rendering: ${seriesStopwatch.elapsedMilliseconds}ms for ${data.length} points",
+          name: "rubin_chart.perf");
     } else if (cachedPicture != null) {
       canvas.drawPicture(cachedPicture!);
     }
 
-    Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
-    paintEdge = Paint()
-      ..color = Colors.black
-      ..strokeWidth = selectionMarker.size / 3
-      ..style = PaintingStyle.stroke;
+    // Paint selections - use cached picture if available and selections haven't changed
+    if (selectedDataPoints != _lastSelectedDataPoints || cachedSelectionPicture == null) {
+      final selectionStopwatch = Stopwatch()..start();
+      _lastSelectedDataPoints = Set<Object>.from(selectedDataPoints);
 
-    for (dynamic dataId in selectedDataPoints) {
-      if (data.data.values.first.containsKey(dataId)) {
-        Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
+      Marker selectionMarker = marker.copyWith(size: marker.size * 1.2, edgeColor: Colors.black);
+      paintEdge = Paint()
+        ..color = Colors.black
+        ..strokeWidth = selectionMarker.size / 3
+        ..style = PaintingStyle.stroke;
 
-        if (plotWindow.contains(point)) {
-          selectionMarker.paint(canvas, paintFill, paintEdge, point);
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final Canvas selectionCanvas = Canvas(recorder);
+
+      if (selectedDataPoints.isNotEmpty) {
+        final firstDataMap = data.data.values.first;
+        for (Object dataId in selectedDataPoints) {
+          if (firstDataMap.containsKey(dataId)) {
+            Offset point = axes.project(data: data.getRow(dataId, axes.axes.keys), chartSize: plotSize);
+            if (plotWindow.contains(point)) {
+              selectionMarker.paint(selectionCanvas, paintFill, paintEdge, point);
+            }
+          }
         }
       }
+
+      cachedSelectionPicture = recorder.endRecording();
+      selectionStopwatch.stop();
+      developer.log(
+          "Selection rendering: ${selectionStopwatch.elapsedMilliseconds}ms for ${selectedDataPoints.length} points",
+          name: "rubin_chart.perf");
     }
+
+    if (cachedSelectionPicture != null) {
+      canvas.drawPicture(cachedSelectionPicture!);
+    }
+
     canvas.restore();
+
+    // Log paint call timing
+    stopwatch.stop();
+    _paintDurations.add(stopwatch.elapsed);
+    if (_paintCallCount % 60 == 0) {
+      final avgDuration =
+          _paintDurations.fold<int>(0, (a, b) => a + b.inMilliseconds) ~/ _paintDurations.length;
+      developer.log("Paint call #$_paintCallCount avg: ${avgDuration}ms over 60 calls",
+          name: "rubin_chart.perf");
+      _paintDurations.clear();
+    }
+    _paintCallCount++;
   }
 
   @override
   bool shouldRepaint(SeriesPainter oldDelegate) {
-    /// TODO: add checks for marker, errorbar, axes changes
-    return oldDelegate.data != data ||
-        oldDelegate.tickLabelMargin != tickLabelMargin ||
-        oldDelegate.selectedDataPoints != selectedDataPoints;
+    // Check data and layout
+    if (oldDelegate.data != data || oldDelegate.tickLabelMargin != tickLabelMargin) {
+      return true;
+    }
+
+    // Deep equality check for selections to avoid repaints when contents are identical
+    if (!_setsEqual(oldDelegate.selectedDataPoints, selectedDataPoints)) {
+      return true;
+    }
+
+    if (!_setsEqual(oldDelegate.drillDownDataPoints, drillDownDataPoints)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Helper to compare sets by content, not reference
+  bool _setsEqual(Set<Object> a, Set<Object> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
+  @override
+  bool shouldRebuildSemantics(SeriesPainter oldDelegate) {
+    return !_setsEqual(oldDelegate.selectedDataPoints, selectedDataPoints);
   }
 }

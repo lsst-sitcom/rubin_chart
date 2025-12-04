@@ -43,7 +43,7 @@ import 'package:rubin_chart/src/utils/utils.dart';
 import 'package:rubin_chart/src/ui/selection_controller.dart';
 
 /// Maximum number of scatter points before switching to image caching mode in [SeriesPainter].
-const int kMaxScatterPoints = 100000;
+const int kMaxScatterPoints = 40000;
 
 /// The action to take when the cursor is moved with the pointer button engaged.
 enum CursorAction {
@@ -196,6 +196,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// This is separate from the main selection to allow for immediate visual feedback
   /// during drag operations without sending updates to the selection controller.
   Set<Object> _dragSelectedPoints = {};
+
+  /// Cache of last series data to detect actual data changes
+  List<SeriesData>? _lastSeriesData;
 
   @override
   void initState() {
@@ -484,16 +487,23 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   @override
   void didUpdateWidget(ScatterPlot oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Initialize the axes
-    if (widget.info.allSeries.length == oldWidget.info.allSeries.length) {
+
+    // Check if actual chart data changed (not just window position)
+    bool dataChanged = false;
+
+    if (widget.info.allSeries.length != oldWidget.info.allSeries.length) {
+      dataChanged = true;
+    } else {
       for (int i = 0; i < widget.info.allSeries.length; i++) {
         if (widget.info.allSeries[i].data != oldWidget.info.allSeries[i].data) {
-          _initializeAxes();
-          _initializeQuadTree();
+          dataChanged = true;
           break;
         }
       }
-    } else {
+    }
+
+    if (dataChanged) {
+      _lastSeriesData = widget.info.allSeries.map((s) => s.data).toList();
       _initializeAxes();
       _initializeQuadTree();
     }
@@ -527,21 +537,13 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
       GlobalKey? seriesKey = _seriesKeys[series.id];
 
       if (seriesKey == null) {
+        // Only create new SeriesPainter if it doesn't exist
         seriesKey = GlobalKey();
         _seriesKeys[series.id] = seriesKey;
         Marker marker = series.marker ?? Marker(color: widget.info.theme.colorCycle[colorIndex++]);
 
-        // Determine which selection to display
-        Set<Object> displayedSelection;
-
-        // If we have active drag selections (either from this chart or from another chart),
-        // use those for the display
-        if (_dragSelectedPoints.isNotEmpty) {
-          displayedSelection = Set<Object>.from(_dragSelectedPoints);
-        } else {
-          // Otherwise use the permanent selection
-          displayedSelection = Set<Object>.from(selectedDataPoints);
-        }
+        Set<Object> displayedSelection =
+            _dragSelectedPoints.isNotEmpty ? _dragSelectedPoints : selectedDataPoints;
 
         SeriesPainter seriesPainter = SeriesPainter(
           axes: _axes[series.axesId]!,
@@ -559,14 +561,22 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         );
         _seriesPainters[seriesKey] = seriesPainter;
       } else {
-        // Combine selected points with drag-selected points for updates too
-        Set<Object> displayedSelection = Set<Object>.from(selectedDataPoints);
-        if (_isDragging && _dragSelectedPoints.isNotEmpty) {
-          displayedSelection = Set<Object>.from(_dragSelectedPoints);
+        // Only update selection/drilldown if they actually changed
+        SeriesPainter painter = _seriesPainters[seriesKey]!;
+
+        Set<Object> displayedSelection =
+            _dragSelectedPoints.isNotEmpty ? _dragSelectedPoints : selectedDataPoints;
+
+        // Use the helper method for deep equality
+        if (!_setsEqual(painter.selectedDataPoints, displayedSelection)) {
+          painter.selectedDataPoints = displayedSelection;
         }
-        _seriesPainters[seriesKey]!.selectedDataPoints = displayedSelection;
-        _seriesPainters[seriesKey]!.drillDownDataPoints = drillDownDataPoints;
+
+        if (!_setsEqual(painter.drillDownDataPoints, drillDownDataPoints)) {
+          painter.drillDownDataPoints = drillDownDataPoints;
+        }
       }
+
       children.add(Positioned.fill(
         child: RepaintBoundary(
           key: seriesKey,
@@ -741,73 +751,71 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Update the drag region size and select data points within the drag region.
   void _onDragUpdate(DragUpdateDetails details, AxisPainter axisPainter) {
+    final dragUpdateStopwatch = Stopwatch()..start();
     focusNode.requestFocus();
 
-    // First update the drag end position - this ensures the selection box is drawn immediately
     dragEnd = details.localPosition;
 
-    // For drill down or date-time select, we just update the UI
     if (cursorAction == CursorAction.drillDown || cursorAction == CursorAction.dateTimeSelect) {
       setState(() {});
       return;
     }
 
-    // Immediately trigger a rebuild to show the updated selection box
     setState(() {});
 
-    // Schedule the actual point selection calculations for after the frame is drawn
-    // This ensures the selection box updates immediately and feels responsive
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isDragging) return; // Don't continue if drag has ended
+      if (!_isDragging) return;
 
+      final selectionStopwatch = Stopwatch()..start();
       Size chartSize = axisPainter.chartSize;
 
-      // Calculate the new selection
       Set<Object> newSelectedDataPoints = {};
       for (MapEntry<Object, QuadTree<Object>> entry in _quadTrees.entries) {
         Object axesId = entry.key;
         ChartAxes axes = _axes[axesId]!;
         QuadTree<Object> quadTree = entry.value;
-        // Convert the selection area to cartesian coordinates
         double xStart = dragStart!.dx - axisPainter.margin.left - axisPainter.tickPadding;
         double yStart = dragStart!.dy - axisPainter.margin.top - axisPainter.tickPadding;
         double xEnd = dragEnd!.dx - axisPainter.margin.left - axisPainter.tickPadding;
         double yEnd = dragEnd!.dy - axisPainter.margin.top - axisPainter.tickPadding;
         Offset projectedStart = axes.linearFromPixel(pixel: Offset(xStart, yStart), chartSize: chartSize);
         Offset projectedEnd = axes.linearFromPixel(pixel: Offset(xEnd, yEnd), chartSize: chartSize);
-        // Select all points in the quadtree that are within the selection area
         newSelectedDataPoints.addAll(quadTree.queryRect(
           Rect.fromPoints(projectedStart, projectedEnd),
         ));
       }
+      selectionStopwatch.stop();
 
-      // Update the temporary drag selection for immediate visual feedback
       _dragSelectedPoints = newSelectedDataPoints;
-
-      // Update the selection in all series painters to ensure they show the drag selection
       _markSeriesForDragSelection();
 
-      // Propagate the temporary selection to other charts via the selection controller
       if (widget.selectionController != null) {
         widget.selectionController!.updateTemporarySelection(widget.info.id, _dragSelectedPoints);
       }
+
+      developer.log(
+          "Selection calculation: ${selectionStopwatch.elapsedMilliseconds}ms, found ${newSelectedDataPoints.length} points",
+          name: "rubin_chart.perf.scatter");
     });
+
+    dragUpdateStopwatch.stop();
+    if (dragUpdateStopwatch.elapsedMilliseconds > 16) {
+      developer.log(
+          "WARNING: _onDragUpdate took ${dragUpdateStopwatch.elapsedMilliseconds}ms (exceeds 16ms frame budget)",
+          name: "rubin_chart.perf.scatter");
+    }
   }
 
-  /// Update all series painters with the current drag selection
   void _markSeriesForDragSelection() {
-    // Update all series painters with the current drag selection
+    final markStopwatch = Stopwatch()..start();
     bool selectionChanged = false;
     for (SeriesPainter painter in _seriesPainters.values) {
-      // Check if we need to update the selection
       if (!areSelectionsEqual(painter.selectedDataPoints, _dragSelectedPoints)) {
-        // Update the selection
         painter.selectedDataPoints = Set<Object>.from(_dragSelectedPoints);
         selectionChanged = true;
       }
     }
 
-    // If the selection changed, find and update the render objects
     if (selectionChanged) {
       for (GlobalKey key in _seriesKeys.values) {
         if (key.currentContext != null) {
@@ -818,6 +826,9 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
         }
       }
     }
+    markStopwatch.stop();
+    developer.log("Mark series for repaint: ${markStopwatch.elapsedMilliseconds}ms",
+        name: "rubin_chart.perf.scatter");
   }
 
   /// Clear the drag parameters when the user stops dragging.
@@ -1040,6 +1051,12 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
 
   /// Utility function to check if two selections contain the same elements
   bool areSelectionsEqual(Set<Object> a, Set<Object> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
+  /// Helper to compare sets by content, not reference
+  bool _setsEqual(Set<Object> a, Set<Object> b) {
     if (a.length != b.length) return false;
     return a.containsAll(b);
   }

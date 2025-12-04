@@ -197,9 +197,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
   /// during drag operations without sending updates to the selection controller.
   Set<Object> _dragSelectedPoints = {};
 
-  /// Cache of last series data to detect actual data changes
-  List<SeriesData>? _lastSeriesData;
-
   @override
   void initState() {
     super.initState();
@@ -503,7 +500,6 @@ class ScatterPlotState extends State<ScatterPlot> with ChartMixin, Scrollable2DC
     }
 
     if (dataChanged) {
-      _lastSeriesData = widget.info.allSeries.map((s) => s.data).toList();
       _initializeAxes();
       _initializeQuadTree();
     }

@@ -423,5 +423,39 @@ class BoxChartState extends BinnedChartState<BoxChart> {
   }
 
   @override
-  void onHoverEnd(PointerHoverEvent event) {}
+  SeriesList get seriesList => SeriesList(
+        widget.info.allSeries,
+        widget.info.colorCycle ?? widget.info.theme.colorCycle,
+      );
+
+  @override
+  void showTooltip({
+    required PointerHoverEvent event,
+    required BinnedData bin,
+  }) {
+    ChartAxis mainAxis;
+    ChartAxis crossAxis;
+    if (mainAxisAlignment == AxisOrientation.horizontal) {
+      mainAxis = allAxes.values.first.axes.values.first;
+      crossAxis = allAxes.values.first.axes.values.last;
+    } else {
+      mainAxis = allAxes.values.first.axes.values.last;
+      crossAxis = allAxes.values.first.axes.values.first;
+    }
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset globalPosition = renderBox.localToGlobal(event.localPosition);
+
+    Widget tooltip = getTooltip(
+      event: event,
+      mainAxis: mainAxis,
+      crossAxis: crossAxis,
+      bin: bin,
+    );
+
+    tooltipManager.showTooltip(
+      position: globalPosition,
+      content: tooltip,
+    );
+  }
 }

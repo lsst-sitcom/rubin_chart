@@ -45,6 +45,7 @@ export 'src/ui/chart.dart';
 export 'src/ui/legend.dart';
 export 'src/ui/selection_controller.dart';
 export 'src/ui/series_painter.dart';
+export 'src/ui/chart_tooltip.dart';
 
 export 'src/utils/quadtree.dart';
 export 'src/utils/utils.dart';
